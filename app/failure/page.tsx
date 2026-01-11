@@ -1,16 +1,24 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-
 export default function FailurePage() {
-  const router = useRouter();
-
   return (
-    <div style={{ padding: 40 }}>
-      <h1>❌ Pago fallido</h1>
-      <button onClick={() => router.push("/products/test")}>
-        Volver al producto
-      </button>
-    </div>
+    <main className="max-w-xl mx-auto p-6 text-center">
+      <h1 className="text-2xl font-bold mb-4">
+        ❌ El pago no se pudo completar
+      </h1>
+
+      <p className="mb-4">
+        Hubo un problema al procesar el pago.
+      </p>
+
+      <p className="text-sm text-gray-600 mb-6">
+        No se realizó ningún cargo. Podés intentarlo nuevamente.
+      </p>
+
+      <a
+        href="/products"
+        className="inline-block bg-black text-white px-4 py-2 rounded"
+      >
+        Volver al catálogo
+      </a>
+    </main>
   );
 }

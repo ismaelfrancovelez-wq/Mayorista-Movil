@@ -1,18 +1,20 @@
-// lib/orders.ts
-import { db } from "@/lib/firebase-admin";
+import { db } from "../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { FraccionatedLot } from "@/lib/lots";
+import { FraccionatedLot } from "../lib/lots";
 
-/**
- * Crea una order FINAL cuando un lote fraccionado se cierra
- * ⚠️ Se ejecuta UNA sola vez por lote
- */
-export async function createOrderFromClosedLot(lot: FraccionatedLot) {
+/* =====================================================
+   1️⃣ ORDEN LOGÍSTICA FINAL (NO TOCAR)
+   Se crea UNA sola vez cuando un lote fraccionado se cierra
+===================================================== */
+
+export async function createOrderFromClosedLot(
+  lot: FraccionatedLot & { id: string }
+) {
   // 🛑 Seguridad absoluta
   if (lot.status !== "closed") return;
   if (lot.orderCreated === true) return;
 
-  // 🔒 Evitar duplicados por seguridad extra
+  // 🔒 Evitar duplicados (misma fábrica + producto)
   const existing = await db
     .collection("orders")
     .where("origin", "==", "fraccionado")
@@ -45,8 +47,8 @@ export async function createOrderFromClosedLot(lot: FraccionatedLot) {
       const retailer = retailerSnap.data();
       if (!retailer || !retailer.address) {
         throw new Error(
-  "El revendedor " + o.retailerId + " no tiene direccion cargada"
-);
+          `El revendedor ${o.retailerId} no tiene dirección cargada`
+        );
       }
 
       return {
@@ -61,7 +63,7 @@ export async function createOrderFromClosedLot(lot: FraccionatedLot) {
     })
   );
 
-  // 📦 Crear order FINAL (lo que ve la fábrica)
+  // 📦 Crear ORDEN FINAL (logística)
   await db.collection("orders").add({
     origin: "fraccionado",
     productId: lot.productId,
@@ -73,12 +75,75 @@ export async function createOrderFromClosedLot(lot: FraccionatedLot) {
     createdAt: FieldValue.serverTimestamp(),
   });
 
-  // 🔒 Marcar lote como procesado
+  // 🔒 Marcar lote como procesado (USAR ID REAL)
   await db
     .collection("lots")
-    .doc(lot.productId)
+    .doc(lot.id)
     .update({
       orderCreated: true,
       updatedAt: FieldValue.serverTimestamp(),
     });
+
+  /* =====================================================
+     🔓 LIBERAR PAGOS AL CERRAR LOTE (FIX FINAL)
+     - Libera dinero a fábrica
+     - Bloquea reembolsos
+     - Pagos fraccionados retenidos hasta cierre
+  ===================================================== */
+
+  await db.runTransaction(async (tx) => {
+    const paymentsSnap = await tx.get(
+      db
+        .collection("payments")
+        .where("productId", "==", lot.productId)
+        .where("factoryId", "==", lot.factoryId)
+        .where("lotType", "==", lot.type)
+        .where("settled", "==", false)
+        .where("refunded", "!=", true)
+    );
+
+    paymentsSnap.docs.forEach((doc) => {
+      tx.update(doc.ref, {
+        settled: true,                 // 💰 dinero liberado
+        refundable: false,             // 🚫 no más reembolsos
+        settledAt: FieldValue.serverTimestamp(),
+      });
+    });
+  });
+}
+
+/* =====================================================
+   2️⃣ ORDEN DE COMPRA DEL USUARIO
+   (flujo futuro / dashboard)
+===================================================== */
+
+type CreatePurchaseOrderInput = {
+  productId: string;
+  qty: number;
+  tipo: "directa" | "fraccionada";
+  withShipping: boolean;
+  preferenceId: string;
+};
+
+export async function createPurchaseOrder({
+  productId,
+  qty,
+  tipo,
+  withShipping,
+  preferenceId,
+}: CreatePurchaseOrderInput) {
+  const orderRef = await db.collection("purchase_orders").add({
+    productId,
+    qty,
+    tipo,
+    withShipping,
+    status: "created",
+    payment: {
+      provider: "mercadopago",
+      preferenceId,
+    },
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  return orderRef.id;
 }

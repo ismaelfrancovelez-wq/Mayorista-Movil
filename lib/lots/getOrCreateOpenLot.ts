@@ -1,40 +1,50 @@
-import { db } from "@/lib/firebase-admin";
+import { db } from "../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function getOrCreateOpenLot({
   productId,
   factoryId,
   MF,
+  lotType,
 }: {
   productId: string;
   factoryId: string;
   MF: number;
+  lotType: "fraccionado_envio" | "fraccionado_retiro";
 }) {
-  // 🔍 Buscar lote abierto
+  /**
+   * 🔍 BUSCAR LOTE ABIERTO EXISTENTE
+   */
   const snap = await db
     .collection("lots")
     .where("productId", "==", productId)
-    .where("status", "==", "open")
+    .where("type", "==", lotType)
+    .where("status", "==", "accumulating")
     .limit(1)
     .get();
 
   if (!snap.empty) {
+    const doc = snap.docs[0];
     return {
-      id: snap.docs[0].id,
-      ...snap.docs[0].data(),
+      id: doc.id,
+      ...doc.data(),
     };
   }
 
-  // 🆕 Crear nuevo lote
+  /**
+   * 🆕 CREAR NUEVO LOTE
+   */
   const newLotRef = db.collection("lots").doc();
 
   const newLot = {
     productId,
     factoryId,
+    type: lotType,
     MF,
     accumulatedQty: 0,
-    status: "open",
+    status: "accumulating",
     orders: [],
+    orderCreated: false,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
     closedAt: null,

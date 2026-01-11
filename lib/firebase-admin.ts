@@ -20,6 +20,7 @@ if (!admin.apps.length) {
 
 // 👇 EXPORTS ESTÁNDAR PARA TODO EL PROYECTO
 export const db = admin.firestore();
+export const auth = admin.auth(); // ✅ CLAVE
 
 export async function getAdminServices() {
   return {

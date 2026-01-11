@@ -5,87 +5,90 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    /**
-     * 🔒 VALIDACIONES CLAVE
-     */
-    if (
-      typeof body.unitPrice !== "number" ||
-      typeof body.qty !== "number" ||
-      body.qty <= 0 ||
-      !body.productId
-    ) {
+    /* ===============================
+       1️⃣ DESESTRUCTURAR BODY
+       🔑 originalQty ES CLAVE
+    =============================== */
+    const {
+      title,
+      unitPrice,    // 🔥 TOTAL FINAL YA CALCULADO (producto + comisión + envío)
+      qty,          // ⚠️ SIEMPRE 1 (regla MP)
+      originalQty,  // 🔑 CANTIDAD REAL (25, 30, etc)
+      orderType,
+      lotType,
+      productId,
+      retailerId,
+      shippingMode,
+      shippingCost,
+      MF,
+    } = body;
+
+    /* ===============================
+       2️⃣ VALIDACIONES BÁSICAS
+    =============================== */
+    if (!originalQty || !Number.isFinite(Number(originalQty))) {
+      console.error("❌ originalQty inválido:", originalQty);
       return NextResponse.json(
-        { error: "Datos de pago inválidos" },
+        { error: "originalQty inválido" },
         { status: 400 }
       );
     }
 
-    /**
-     * 🔑 CONFIGURACIÓN MP
-     */
+    /* ===============================
+       3️⃣ CLIENTE MP
+    =============================== */
     const client = new MercadoPagoConfig({
       accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
     });
 
     const preference = new Preference(client);
 
-    /**
-     * 🧾 CREAR PREFERENCIA
-     */
+    /* ===============================
+       4️⃣ CREAR PREFERENCIA
+    =============================== */
     const result = await preference.create({
       body: {
         items: [
           {
-            id: body.productId,          // ID del producto
-            title: body.title ?? "Producto",
-            quantity: body.qty,          // Cantidad total
-            unit_price: body.unitPrice,  // Precio unitario
-            currency_id: "ARS",
+            id: productId,
+            title,
+            quantity: 1,           // ⚠️ SIEMPRE 1
+            unit_price: unitPrice, // 🔥 TOTAL REAL A COBRAR
           },
         ],
 
-        /**
-         * 📦 METADATA → SE USA EN WEBHOOK
-         */
+        /* ===============================
+           🔑 METADATA (FUENTE DE VERDAD)
+        =============================== */
         metadata: {
-          orderType: body.orderType,     // "directa" | "fraccionada"
-          productId: body.productId,
-          qty: body.qty,
-          MF: body.MF ?? null,
-          shippingCost: body.shippingCost ?? 0,
-        },
+  orderType,
+  lotType,
+  productId,
+  retailerId,
 
-        /**
-         * 🔁 REDIRECCIONES
-         */
-        back_urls: {
-          success: "http://localhost:3000/success",
-          failure: "http://localhost:3000/failure",
-          pending: "http://localhost:3000/pending",
-        },
+  // 🔑 IMPORTANTE: snake_case
+  original_qty: originalQty,
 
-        auto_return: "approved",
+  MF,
+  shippingCost,
+  shippingMode,
+},
 
-        /**
-         * 🔔 WEBHOOK
-         */
-        notification_url:
-          "http://localhost:3000/api/webhooks/MercadoPago",
+        notification_url: process.env.MERCADOPAGO_WEBHOOK_URL!,
       },
     });
 
-    /**
-     * ✅ RESPUESTA AL FRONT
-     */
+    /* ===============================
+       5️⃣ RESPUESTA
+    =============================== */
     return NextResponse.json({
       init_point: result.init_point,
-      preferenceId: result.id,
     });
-  } catch (error) {
-    console.error("ERROR MERCADOPAGO:", error);
 
+  } catch (error) {
+    console.error("❌ ERROR MP:", error);
     return NextResponse.json(
-      { error: "Error creando preferencia de pago" },
+      { error: "Error iniciando pago" },
       { status: 500 }
     );
   }

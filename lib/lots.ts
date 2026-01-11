@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase-admin";
+import { db } from "../lib/firebase-admin";
 import { FieldValue, Transaction } from "firebase-admin/firestore";
 
 /**
@@ -11,77 +11,121 @@ export type FraccionatedOrder = {
 };
 
 /**
- * Lote fraccionado por producto
+ * Lote fraccionado (retiro o envío)
  */
 export type FraccionatedLot = {
   productId: string;
   factoryId: string;
+  type: "fraccionado_retiro" | "fraccionado_envio";
   MF: number;
   accumulatedQty: number;
   status: "accumulating" | "closed";
   orders: FraccionatedOrder[];
 
-  orderCreated?: boolean; // 🔒 NUEVO (CLAVE)
+  orderCreated?: boolean;
 
   createdAt: any;
   updatedAt: any;
   closedAt?: any;
 };
 
-
-/**
- * Agrega pedido fraccionado y CIERRA LOTE automáticamente si corresponde
- */
-export async function addFraccionadoToLot(params: {
+type AddFraccionadoParams = {
   productId: string;
   factoryId: string;
   MF: number;
+  lotType: "fraccionado_retiro" | "fraccionado_envio";
   retailerOrder: FraccionatedOrder;
-}) {
-  const { productId, factoryId, MF, retailerOrder } = params;
+};
 
-  const lotRef = db.collection("lots").doc(productId);
+/**
+ * Agrega pedido fraccionado al lote ACTIVO
+ * - Si no hay lote activo → crea uno nuevo
+ * - Si el lote alcanza MF → se cierra
+ * - Los lotes cerrados NO se reutilizan
+ */
+export async function addFraccionadoToLot(
+  params: AddFraccionadoParams
+) {
+  const {
+    productId,
+    factoryId,
+    MF,
+    lotType,
+    retailerOrder,
+  } = params;
+
+  // 🔒 FIX CRÍTICO — factoryId SIEMPRE obligatorio
+  if (!factoryId) {
+    throw new Error(
+      "factoryId es obligatorio para pedidos fraccionados"
+    );
+  }
+
+  const lotsRef = db.collection("lots");
 
   await db.runTransaction(async (tx: Transaction) => {
-    const snap = await tx.get(lotRef);
+    /**
+     * 🔍 Buscar lote ACTIVO (MISMO producto + fábrica + tipo)
+     */
+    const activeLotQuery = await tx.get(
+      lotsRef
+        .where("productId", "==", productId)
+        .where("factoryId", "==", factoryId)
+        .where("type", "==", lotType)
+        .where("status", "==", "accumulating")
+        .limit(1)
+    );
 
-    // 🆕 Crear lote
-    if (!snap.exists) {
+    /**
+     * 🆕 NO existe lote activo → crear uno nuevo
+     */
+    if (activeLotQuery.empty) {
+      const newLotRef = lotsRef.doc();
+
       const accumulatedQty = retailerOrder.qty;
-      const status = accumulatedQty >= MF ? "closed" : "accumulating";
+      const status =
+        accumulatedQty >= MF ? "closed" : "accumulating";
 
-      tx.set(lotRef, {
+      tx.set(newLotRef, {
         productId,
         factoryId,
+        type: lotType,
         MF,
         accumulatedQty,
         status,
         orders: [retailerOrder],
+        orderCreated: false,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-        closedAt: status === "closed"
-          ? FieldValue.serverTimestamp()
-          : null,
+        closedAt:
+          status === "closed"
+            ? FieldValue.serverTimestamp()
+            : null,
       });
 
       return;
     }
 
-    const lot = snap.data() as FraccionatedLot;
-
-    if (lot.status === "closed") return;
+    /**
+     * ➕ Usar lote activo existente
+     */
+    const lotSnap = activeLotQuery.docs[0];
+    const lotRef = lotSnap.ref;
+    const lot = lotSnap.data() as FraccionatedLot;
 
     const newQty = lot.accumulatedQty + retailerOrder.qty;
-    const newStatus = newQty >= MF ? "closed" : "accumulating";
+    const newStatus =
+      newQty >= MF ? "closed" : "accumulating";
 
     tx.update(lotRef, {
       accumulatedQty: newQty,
       orders: FieldValue.arrayUnion(retailerOrder),
       status: newStatus,
       updatedAt: FieldValue.serverTimestamp(),
-      closedAt: newStatus === "closed"
-        ? FieldValue.serverTimestamp()
-        : null,
+      closedAt:
+        newStatus === "closed"
+          ? FieldValue.serverTimestamp()
+          : null,
     });
   });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { calculateFraccionadoShipping } from "@/lib/shipping";
+import { calculateFraccionadoShipping } from "../../../../lib/shipping";
 
 export async function POST(req: Request) {
   try {
