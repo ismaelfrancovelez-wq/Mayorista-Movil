@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function VinculacionMPPage() {
+// 🔧 Componente interno que usa useSearchParams
+function VinculacionContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -124,7 +125,6 @@ export default function VinculacionMPPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      {/* Botón Volver agregado */}
       <button 
         onClick={() => router.back()} 
         className="mb-4 text-blue-600 hover:text-blue-700 flex items-center gap-2 font-medium"
@@ -212,5 +212,18 @@ export default function VinculacionMPPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// 🔧 Componente principal con Suspense
+export default function VinculacionMPPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-3xl mx-auto p-6">
+        <div className="text-center text-gray-500">Cargando...</div>
+      </div>
+    }>
+      <VinculacionContent />
+    </Suspense>
   );
 }
