@@ -2,9 +2,6 @@ import { NextResponse } from "next/server";
 import { db } from "../../../../lib/firebase-admin";
 import { FeaturedType } from "../../../../lib/types/featured";
 
-
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
