@@ -1,3 +1,6 @@
+// app/api/shipping/fraccionado/route.ts
+// 🔧 VERSIÓN CORREGIDA - Busca en users Y retailers
+
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
@@ -57,10 +60,8 @@ function logFraccionadoError(error: unknown, context: Record<string, any>) {
     },
   };
 
-  // ✅ Log detallado a consola
   console.error("❌ SHIPPING FRACCIONADO ERROR:", JSON.stringify(errorDetails, null, 2));
 
-  // ✅ TODO: Integrar con Sentry cuando esté disponible
   if (process.env.SENTRY_DSN) {
     try {
       // Sentry.captureException(error, {
@@ -213,50 +214,80 @@ export async function POST(req: Request) {
     }
 
     /* ===============================
-       🛒 RETAILER
+       🛒 RETAILER - BÚSQUEDA MEJORADA
+       Busca primero en retailers, luego en users
     =============================== */
+    let retailerData: any = null;
+    let retailerAddress: AddressFrac | null = null;
+
+    // 1️⃣ Intentar en retailers
     const retailerSnap = await db
       .collection("retailers")
       .doc(retailerId)
       .get();
 
-    if (!retailerSnap.exists) {
-      logFraccionadoError(
-        new Error("Revendedor no encontrado"),
-        { ...requestContext, retailerId, step: "retailer_fetch" }
-      );
+    if (retailerSnap.exists) {
+      console.log("✅ Retailer encontrado en colección 'retailers'");
+      retailerData = retailerSnap.data();
+      retailerAddress = retailerData?.address;
+    } else {
+      console.log("⚠️  Retailer NO encontrado en 'retailers', buscando en 'users'...");
+      
+      // 2️⃣ Si no existe en retailers, buscar en users
+      const userSnap = await db
+        .collection("users")
+        .doc(retailerId)
+        .get();
 
-      return NextResponse.json(
-        {
-          shippingCost: FIXED_COST,
-          error: "Revendedor no encontrado. Se asignó costo fijo por defecto.",
-        },
-        { status: 200 }
-      );
+      if (userSnap.exists) {
+        console.log("✅ Usuario encontrado en colección 'users'");
+        const userData = userSnap.data();
+        retailerData = userData;
+        retailerAddress = userData?.address || null;
+        
+        // Si el usuario no tiene dirección, asignar costo fijo
+        if (!retailerAddress) {
+          console.warn("⚠️  Usuario sin dirección configurada");
+        }
+      } else {
+        // No existe ni en retailers ni en users
+        logFraccionadoError(
+          new Error("Usuario no encontrado en ninguna colección"),
+          { ...requestContext, retailerId, step: "user_not_found_anywhere" }
+        );
+
+        return NextResponse.json(
+          {
+            shippingCost: FIXED_COST,
+            error: "Usuario no encontrado. Se asignó costo fijo por defecto.",
+          },
+          { status: 200 }
+        );
+      }
     }
 
-    const retailerData = retailerSnap.data();
-    const retailerAddress = retailerData?.address as AddressFrac;
-
+    // 3️⃣ Validar que tenga dirección válida
     if (
       !retailerAddress ||
       typeof retailerAddress.lat !== "number" ||
       typeof retailerAddress.lng !== "number"
     ) {
+      console.warn("⚠️  Dirección inválida o faltante:", retailerAddress);
+      
       logFraccionadoError(
-        new Error("Dirección de revendedor inválida"),
+        new Error("Dirección de usuario inválida o faltante"),
         {
           ...requestContext,
           retailerId,
           retailerAddress,
-          step: "retailer_address",
+          step: "retailer_address_invalid",
         }
       );
 
       return NextResponse.json(
         {
           shippingCost: FIXED_COST,
-          error: "Revendedor sin dirección válida. Se asignó costo fijo.",
+          error: "Dirección inválida. Se asignó costo fijo. Por favor, configura tu dirección en el perfil.",
         },
         { status: 200 }
       );
@@ -287,6 +318,13 @@ export async function POST(req: Request) {
     =============================== */
     const shippingCost =
       Math.round(totalKm * PRICE_PER_KM) + FIXED_COST;
+
+    console.log("✅ Costo de envío calculado:", {
+      baseToFactory: Math.round(baseToFactory * 10) / 10,
+      factoryToRetailer: Math.round(factoryToRetailer * 10) / 10,
+      totalKm: Math.round(totalKm * 10) / 10,
+      shippingCost,
+    });
 
     return NextResponse.json({
       shippingMode: "platform",
