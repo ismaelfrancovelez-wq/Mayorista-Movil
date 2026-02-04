@@ -79,7 +79,7 @@ export async function createSplitPreference(params: SplitPaymentParams) {
         back_urls,
         auto_return: "approved",
         metadata: metadata as any,
-        marketplace_fee: commission,
+        // marketplace_fee: commission,  // ⚠️ Desactivado hasta configurar OAuth
       },
     });
 
