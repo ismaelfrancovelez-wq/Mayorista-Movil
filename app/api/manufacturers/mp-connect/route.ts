@@ -22,24 +22,37 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log("🔄 Intercambiando código por access token...");
+
+    // 🔧 FIX: redirect_uri debe coincidir con el usado en mp-auth-url
+    const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/api/manufacturers/mp-callback`;
+
     // Intercambiar código por access_token
     const tokenResponse = await fetch("https://api.mercadopago.com/oauth/token", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
       body: JSON.stringify({
         client_id: process.env.MERCADOPAGO_APP_ID,
         client_secret: process.env.MERCADOPAGO_CLIENT_SECRET,
         code,
         grant_type: "authorization_code",
-        redirect_uri: process.env.NEXT_PUBLIC_APP_URL + "/dashboard/fabricante/vinculacion-mp",
+        redirect_uri: REDIRECT_URI, // 🔧 Ahora usa la URL correcta
       }),
     });
 
+    console.log("📡 Respuesta de Mercado Pago:", tokenResponse.status);
+
     if (!tokenResponse.ok) {
-      throw new Error("Error al obtener access token");
+      const errorData = await tokenResponse.json().catch(() => ({}));
+      console.error("❌ Error de Mercado Pago:", errorData);
+      throw new Error(`Error al obtener access token: ${JSON.stringify(errorData)}`);
     }
 
     const tokenData = await tokenResponse.json();
+    console.log("✅ Token obtenido exitosamente");
 
     // Guardar en Firestore
     await db.collection("manufacturers").doc(userId).set({
@@ -53,14 +66,16 @@ export async function POST(req: Request) {
       updatedAt: new Date(),
     }, { merge: true });
 
+    console.log("✅ Datos guardados en Firestore");
+
     return NextResponse.json({
       success: true,
       email: tokenData.email || null,
     });
-  } catch (error) {
-    console.error("Error conectando MP:", error);
+  } catch (error: any) {
+    console.error("❌ Error conectando MP:", error);
     return NextResponse.json(
-      { error: "Error al conectar cuenta" },
+      { error: error.message || "Error al conectar cuenta" },
       { status: 500 }
     );
   }
