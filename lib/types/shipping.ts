@@ -1,31 +1,38 @@
 export type ShippingConfig = {
-  // 1️⃣ Retiro en fábrica (independiente)
+  // ✅ Retiro en fábrica (opcional y combinable)
   allowPickup: boolean;
 
-  // 2️⃣ Tipo de envío cuando NO es retiro
+  // 🚚 Tipo principal de envío
   shippingType: "own" | "third_party";
 
-  // 🔵 Logística propia
+  // ============================
+  // 🏭 LOGÍSTICA PROPIA
+  // ============================
   ownShipping?: {
-    pricingModel: "km" | "zones_km" | "zones_geo";
+    pricingModel: "km" | "zones" | "region";
 
+    // 🔹 Precio por KM
     perKmRate?: number;
 
+    // 🔹 Zonas por distancia
     kmZones?: {
-      z1: number;
-      z2: number;
-      z3: number;
+      z1: number; // ej: hasta 10km
+      z2: number; // ej: hasta 30km
+      z3: number; // ej: +30km
     };
 
-    geoZones?: {
+    // 🔹 Regiones geográficas
+    regionPrices?: {
       caba: number;
-      gba: number;
+      amba: number;
       interior: number;
     };
   };
 
-  // 🟠 Envío por terceros
+  // ============================
+  // 🚚 ENVÍO POR TERCEROS
+  // ============================
   thirdPartyShipping?: {
-    fixedPrice: number;
+    fixedPrice: number; // precio único fijo
   };
 };

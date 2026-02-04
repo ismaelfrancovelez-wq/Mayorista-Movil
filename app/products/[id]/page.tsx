@@ -115,11 +115,10 @@ export default async function ProductPage({ params }: Props) {
 
       {/* 👇 SOLO PASA LO NECESARIO */}
       <ProductPurchaseClient
-        price={product.price}
-        MF={product.MF}
-        productId={product.id}
-        retailerId={"3DnD0aWJTudjti33lwYLViJwyfL2"}
-      />
+  price={product.price}
+  MF={product.MF}
+  productId={product.id}
+/>
     </main>
   );
 }

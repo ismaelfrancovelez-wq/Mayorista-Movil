@@ -11,36 +11,47 @@ export type FraccionatedOrder = {
 };
 
 /**
+ * Tipos de lote (estandarizados)
+ */
+export type LotType =
+  | "fractional_pickup"
+  | "fractional_shipping"
+  | "direct_pickup"
+  | "direct_shipping";
+
+/**
  * Lote fraccionado (retiro o envío)
  */
 export type FraccionatedLot = {
+  id?: string;
   productId: string;
   factoryId: string;
-  type: "fraccionado_retiro" | "fraccionado_envio";
-  MF: number;
+  type: LotType;
+  minimumOrder: number; // ✅ Estandarizado (antes era MF)
   accumulatedQty: number;
   status: "accumulating" | "closed";
   orders: FraccionatedOrder[];
-
   orderCreated?: boolean;
-
   createdAt: any;
   updatedAt: any;
   closedAt?: any;
 };
 
-type AddFraccionadoParams = {
+/**
+ * Parámetros para agregar pedido fraccionado
+ */
+export type AddFraccionadoParams = {
   productId: string;
   factoryId: string;
-  MF: number;
-  lotType: "fraccionado_retiro" | "fraccionado_envio";
+  minimumOrder: number; // ✅ Agregado aquí
+  lotType: "fractional_pickup" | "fractional_shipping"; // ✅ Solo fraccionados
   retailerOrder: FraccionatedOrder;
 };
 
 /**
  * Agrega pedido fraccionado al lote ACTIVO
  * - Si no hay lote activo → crea uno nuevo
- * - Si el lote alcanza MF → se cierra
+ * - Si el lote alcanza minimumOrder → se cierra
  * - Los lotes cerrados NO se reutilizan
  */
 export async function addFraccionadoToLot(
@@ -49,12 +60,12 @@ export async function addFraccionadoToLot(
   const {
     productId,
     factoryId,
-    MF,
+    minimumOrder,
     lotType,
     retailerOrder,
   } = params;
 
-  // 🔒 FIX CRÍTICO — factoryId SIEMPRE obligatorio
+  // 🔒 FIX CRÍTICO – factoryId SIEMPRE obligatorio
   if (!factoryId) {
     throw new Error(
       "factoryId es obligatorio para pedidos fraccionados"
@@ -84,13 +95,13 @@ export async function addFraccionadoToLot(
 
       const accumulatedQty = retailerOrder.qty;
       const status =
-        accumulatedQty >= MF ? "closed" : "accumulating";
+        accumulatedQty >= minimumOrder ? "closed" : "accumulating";
 
       tx.set(newLotRef, {
         productId,
         factoryId,
         type: lotType,
-        MF,
+        minimumOrder, // ✅ Usar nombre estandarizado
         accumulatedQty,
         status,
         orders: [retailerOrder],
@@ -115,7 +126,7 @@ export async function addFraccionadoToLot(
 
     const newQty = lot.accumulatedQty + retailerOrder.qty;
     const newStatus =
-      newQty >= MF ? "closed" : "accumulating";
+      newQty >= minimumOrder ? "closed" : "accumulating";
 
     tx.update(lotRef, {
       accumulatedQty: newQty,

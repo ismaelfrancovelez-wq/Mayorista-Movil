@@ -6,9 +6,23 @@ import { FieldValue } from "firebase-admin/firestore";
 ===================================================== */
 function parseQty(qty: any): number {
   const n = Number(qty);
-  if (!Number.isFinite(n) || n <= 0) {
-    throw new Error("❌ Cantidad inválida en retailerOrder.qty");
+  
+  if (!Number.isFinite(n)) {
+    throw new Error(`❌ Cantidad inválida: ${qty} no es un número`);
   }
+  
+  if (n <= 0) {
+    throw new Error(`❌ Cantidad inválida: ${qty} debe ser mayor a 0`);
+  }
+  
+  if (!Number.isInteger(n)) {
+    throw new Error(`❌ Cantidad inválida: ${qty} debe ser un número entero`);
+  }
+  
+  if (n > 1000000) {
+    throw new Error(`❌ Cantidad inválida: ${qty} es demasiado grande`);
+  }
+  
   return n;
 }
 
@@ -18,14 +32,14 @@ function parseQty(qty: any): number {
 export async function addFraccionadoToLot({
   productId,
   factoryId,
-  MF,
+  minimumOrder, // ✅ Nombre estandarizado
   lotType,
   retailerOrder,
 }: {
   productId: string;
   factoryId: string;
-  MF: number;
-  lotType: "fraccionado_envio" | "fraccionado_retiro";
+  minimumOrder: number; // ✅ En vez de MF
+  lotType: "fractional_pickup" | "fractional_shipping"; // ✅ Solo fraccionados
   retailerOrder: {
     retailerId: string;
     qty: number;
@@ -38,7 +52,7 @@ export async function addFraccionadoToLot({
   const lockId = `${productId}_${factoryId}_${lotType}`;
   const lockRef = db.collection("lotLocks").doc(lockId);
 
-  // 🔑 REFERENCIA AL PAGO (CLAVE DEL FIX)
+  // 🔒 REFERENCIA AL PAGO (CLAVE DEL FIX)
   const paymentRef = db
     .collection("payments")
     .doc(retailerOrder.paymentId);
@@ -53,6 +67,7 @@ export async function addFraccionadoToLot({
       paymentSnap.exists &&
       paymentSnap.data()?.appliedToLot === true
     ) {
+      console.log("✋ Pago ya aplicado al lote");
       return;
     }
 
@@ -78,21 +93,21 @@ export async function addFraccionadoToLot({
         .limit(1)
     );
 
-    // 🔑 CANTIDAD REAL Y SEGURA
+    // 🔒 CANTIDAD REAL Y SEGURA
     const orderQty = parseQty(retailerOrder.qty);
 
     /* ===============================
        3️⃣ NO HAY LOTE → CREAR NUEVO
     =============================== */
     if (activeLotQuery.empty) {
-      const willClose = orderQty >= MF;
+      const willClose = orderQty >= minimumOrder;
       const newLotRef = lotsRef.doc();
 
       tx.set(newLotRef, {
         productId,
         factoryId,
         type: lotType,
-        MF,
+        minimumOrder, // ✅ Nombre estandarizado
         accumulatedQty: orderQty,
         status: willClose ? "closed" : "accumulating",
         orders: [
@@ -107,6 +122,10 @@ export async function addFraccionadoToLot({
         updatedAt: FieldValue.serverTimestamp(),
         closedAt: willClose ? FieldValue.serverTimestamp() : null,
       });
+
+      console.log(`📦 Nuevo lote creado: ${newLotRef.id}`);
+      console.log(`   Status: ${willClose ? "closed" : "accumulating"}`);
+      console.log(`   Qty: ${orderQty}/${minimumOrder}`);
 
       // 🔒 MARCAR PAGO COMO APLICADO
       tx.set(
@@ -130,6 +149,7 @@ export async function addFraccionadoToLot({
       (o: any) => o.paymentId === retailerOrder.paymentId
     );
     if (alreadyExists) {
+      console.log("✋ Pedido ya existe en el lote");
       tx.set(
         paymentRef,
         { appliedToLot: true },
@@ -140,7 +160,7 @@ export async function addFraccionadoToLot({
 
     const currentQty = Number(lot.accumulatedQty || 0);
     const newQty = currentQty + orderQty;
-    const willClose = newQty >= MF;
+    const willClose = newQty >= minimumOrder;
 
     tx.update(lotRef, {
       accumulatedQty: newQty,
@@ -153,6 +173,10 @@ export async function addFraccionadoToLot({
       updatedAt: FieldValue.serverTimestamp(),
       closedAt: willClose ? FieldValue.serverTimestamp() : null,
     });
+
+    console.log(`📦 Lote actualizado: ${lotSnap.id}`);
+    console.log(`   Status: ${willClose ? "closed" : "accumulating"}`);
+    console.log(`   Qty: ${newQty}/${minimumOrder}`);
 
     // 🔒 MARCAR PAGO COMO APLICADO (CLAVE ABSOLUTA)
     tx.set(

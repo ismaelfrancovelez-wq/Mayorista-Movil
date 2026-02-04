@@ -40,7 +40,7 @@ export async function createOrderFromClosedLot(
   const items = await Promise.all(
     lot.orders.map(async (o) => {
       const retailerSnap = await db
-        .collection("resellers")
+        .collection("retailers")
         .doc(o.retailerId)
         .get();
 

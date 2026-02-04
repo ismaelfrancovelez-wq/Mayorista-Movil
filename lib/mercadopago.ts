@@ -1,11 +1,12 @@
 import MercadoPagoConfig, { Preference } from "mercadopago";
+import { env } from "./env";
 
 /**
  * Configuración del cliente de Mercado Pago
  * Usa el SDK nuevo oficial
  */
 const client = new MercadoPagoConfig({
-  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN as string,
+  accessToken: env.mercadopago.accessToken(),
 });
 
 /**
@@ -26,8 +27,12 @@ export async function createPreference({
   metadata: {
     productId: string;
     qty: number;
-    tipo: "directa" | "fraccionada";
+    tipo: "directa" | "fraccionada" | "destacado"; // ✅ AGREGADO "destacado"
     withShipping: boolean;
+    // ✅ NUEVO: Campos opcionales para destacados
+    featuredType?: "product" | "factory";
+    featuredItemId?: string;
+    featuredDuration?: number;
   };
   back_urls: {
     success: string;
@@ -38,20 +43,20 @@ export async function createPreference({
   const preference = new Preference(client);
 
   const response = await preference.create({
-  body: {
-    items: [
-      {
-        id: metadata.productId,
-        title,
-        unit_price,
-        quantity,
-      },
-    ],
-    metadata,
-    back_urls,
-    auto_return: "approved",
-  },
-});
+    body: {
+      items: [
+        {
+          id: metadata.productId,
+          title,
+          unit_price,
+          quantity,
+        },
+      ],
+      metadata,
+      back_urls,
+      auto_return: "approved",
+    },
+  });
 
   return response;
 }

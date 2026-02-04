@@ -4,13 +4,13 @@ import { FieldValue } from "firebase-admin/firestore";
 export async function getOrCreateOpenLot({
   productId,
   factoryId,
-  MF,
+  minimumOrder,
   lotType,
 }: {
   productId: string;
   factoryId: string;
-  MF: number;
-  lotType: "fraccionado_envio" | "fraccionado_retiro";
+  minimumOrder: number;
+  lotType: "fractional_shipping" | "fractional_pickup";
 }) {
   /**
    * 🔍 BUSCAR LOTE ABIERTO EXISTENTE
@@ -35,12 +35,11 @@ export async function getOrCreateOpenLot({
    * 🆕 CREAR NUEVO LOTE
    */
   const newLotRef = db.collection("lots").doc();
-
   const newLot = {
     productId,
     factoryId,
     type: lotType,
-    MF,
+    minimumOrder,
     accumulatedQty: 0,
     status: "accumulating",
     orders: [],

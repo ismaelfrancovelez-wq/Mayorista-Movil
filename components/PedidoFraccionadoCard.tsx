@@ -49,8 +49,9 @@ export default function PedidoFraccionadoCard({
 
       setRefunded(true);
     } catch (err) {
-      alert("Error inesperado");
-    } finally {
+  console.error("Error reembolso:", err);
+  alert("Error inesperado");
+} finally {
       setLoading(false);
     }
   }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 export default function PendingPage() {
   return (
     <main className="max-w-xl mx-auto p-6 text-center">
@@ -14,12 +15,12 @@ export default function PendingPage() {
         tu pedido se procesará automáticamente.
       </p>
 
-      <a
-        href="/products"
-        className="inline-block bg-black text-white px-4 py-2 rounded"
-      >
-        Volver al catálogo
-      </a>
+      <Link
+  href="/products"
+  className="inline-block bg-black text-white px-4 py-2 rounded"
+>
+  Volver al catálogo
+</Link>
     </main>
   );
 }

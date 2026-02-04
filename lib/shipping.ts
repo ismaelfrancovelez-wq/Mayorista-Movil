@@ -1,3 +1,5 @@
+import { env } from "./env";
+
 /**
  * Dirección base fija (centro logístico)
  */
@@ -25,7 +27,9 @@ export async function calculateFraccionadoShipping(params: {
 }): Promise<ShippingResult> {
   const { factoryAddress, retailerAddress } = params;
 
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  // ✅ Usa el validador seguro
+  const apiKey = env.googleMaps.apiKey();
+  
   if (!apiKey) {
     throw new Error("GOOGLE_MAPS_API_KEY no configurada");
   }

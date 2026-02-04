@@ -2,14 +2,32 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
-  const retailerId = req.cookies.get("retailerId")?.value;
+  const userId = req.cookies.get("userId")?.value;
+  const role = req.cookies.get("activeRole")?.value;
+  const path = req.nextUrl.pathname;
 
-  const isDashboard =
-    req.nextUrl.pathname.startsWith("/dashboard");
+  // ✅ FIX ERROR 18: Redirigir a login si no está autenticado
+  if (!userId && !path.startsWith("/login")) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
 
-  if (isDashboard && !retailerId) {
+  // 🏭 Fabricante queriendo entrar a revendedor
+  if (
+    path.startsWith("/dashboard/pedidos-fraccionados") &&
+    role !== "retailer"
+  ) {
     return NextResponse.redirect(
-      new URL("/login", req.url)
+      new URL("/dashboard/fabricante", req.url)
+    );
+  }
+
+  // 🛒 Revendedor queriendo entrar a fabricante
+  if (
+    path.startsWith("/dashboard/fabricante") &&
+    role !== "manufacturer"
+  ) {
+    return NextResponse.redirect(
+      new URL("/dashboard/pedidos-fraccionados", req.url)
     );
   }
 
@@ -18,7 +36,11 @@ export function middleware(req: NextRequest) {
 
 /* ===============================
    RUTAS PROTEGIDAS
+   ✅ FIX ERROR 18: Agregado /explorar
 =============================== */
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: [
+    "/dashboard/:path*",
+    "/explorar/:path*", // ✅ Ahora explorar requiere autenticación
+  ],
 };

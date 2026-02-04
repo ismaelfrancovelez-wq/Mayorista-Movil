@@ -41,3 +41,13 @@ yarn-error.log*
 next-env.d.ts
 # firebase admin credentials
 credentials/
+
+# Credenciales sensibles
+credentials/
+.env
+.env.local
+.env.production
+.env.development
+
+# Mantener solo el ejemplo
+.env.example

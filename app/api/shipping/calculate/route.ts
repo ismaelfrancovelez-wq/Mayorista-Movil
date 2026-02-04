@@ -1,169 +1,356 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
-import { ShippingConfig } from "../../../../lib/types/shipping";
 
 /* ===============================
-   📍 BASE LOGÍSTICA (FIJA)
-================================ */
-const BASE_ADDRESS = {
-  lat: -34.591058, // Poeta Romildo Risso 3244
-  lng: -58.632046,
-};
-
-/* ===============================
-   📐 DISTANCIA (Haversine)
-================================ */
+   🔍 DISTANCIA (HAVERSINE)
+=============================== */
 function distanceKm(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
-): number {
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+) {
   const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
 
-  const lat1 = (a.lat * Math.PI) / 180;
-  const lat2 = (b.lat * Math.PI) / 180;
-
-  const h =
+  const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) *
-      Math.cos(lat2) *
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLng / 2) ** 2;
 
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
 /* ===============================
-   🚚 CALCULAR ENVÍO
-================================ */
+   🧾 TIPOS
+=============================== */
+type Address = {
+  lat: number;
+  lng: number;
+  area?: "caba" | "amba" | "interior";
+};
+
+/* ===============================
+   📊 FUNCIÓN DE LOGGING MEJORADA
+=============================== */
+function logShippingError(error: unknown, context: Record<string, any>) {
+  const errorDetails = {
+    timestamp: new Date().toISOString(),
+    context,
+    error: {
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+      type: error?.constructor?.name || typeof error,
+    },
+  };
+
+  // ✅ Log detallado a consola
+  console.error("❌ SHIPPING CALCULATE ERROR:", JSON.stringify(errorDetails, null, 2));
+
+  // ✅ TODO: Integrar con Sentry cuando esté disponible
+  if (process.env.SENTRY_DSN) {
+    try {
+      // Sentry.captureException(error, {
+      //   extra: context,
+      //   tags: { service: 'shipping-calculate' }
+      // });
+    } catch (sentryError) {
+      console.error("❌ Error al enviar a Sentry:", sentryError);
+    }
+  }
+
+  return errorDetails;
+}
+
 export async function POST(req: Request) {
+  const requestContext = {
+    url: req.url,
+    method: req.method,
+  };
+
   try {
+    /* ===============================
+       🔐 RETAILER DESDE COOKIE
+    =============================== */
+    const retailerId = cookies().get("userId")?.value;
+
+    if (!retailerId) {
+      logShippingError(
+        new Error("No hay retailerId en cookie"),
+        { ...requestContext, step: "auth" }
+      );
+      
+      return NextResponse.json(
+        {
+          shippingMode: "pickup",
+          shippingCost: 0,
+          error: "Usuario no autenticado. Se asignó retiro en fábrica por defecto.",
+        },
+        { status: 200 }
+      );
+    }
+
+    /* ===============================
+       📦 BODY
+    =============================== */
     const body = await req.json();
+    const { productId, qty } = body;
 
-    const productId = String(body.productId || "").trim();
-    const retailerId = String(body.retailerId || "").trim();
-    const qty = Number(body.qty);
+    if (!productId || typeof qty !== "number" || qty <= 0) {
+      logShippingError(
+        new Error("Datos de entrada inválidos"),
+        { ...requestContext, body, step: "validation" }
+      );
 
-    if (!productId || !retailerId || qty <= 0) {
-      return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+      return NextResponse.json(
+        {
+          shippingMode: "pickup",
+          shippingCost: 0,
+          error: "Datos inválidos. Se asignó retiro en fábrica por defecto.",
+        },
+        { status: 200 }
+      );
     }
 
     /* ===============================
        📦 PRODUCTO
     =============================== */
-    const productSnap = await db.collection("products").doc(productId).get();
+    const productSnap = await db
+      .collection("products")
+      .doc(productId)
+      .get();
+
     if (!productSnap.exists) {
-      return NextResponse.json({ error: "Producto no existe" }, { status: 404 });
-    }
+      logShippingError(
+        new Error("Producto no encontrado"),
+        { ...requestContext, productId, step: "product_fetch" }
+      );
 
-    const product = productSnap.data()!;
-    const minimumQuantity = Number(product.minimumQuantity);
-
-    if (!minimumQuantity || isNaN(minimumQuantity)) {
       return NextResponse.json(
-        { error: "minimumQuantity inválido" },
-        { status: 500 }
+        {
+          shippingMode: "pickup",
+          shippingCost: 0,
+          error: "Producto no encontrado. Se asignó retiro en fábrica por defecto.",
+        },
+        { status: 200 }
       );
     }
 
-    if (!product.factoryId) {
+    const product = productSnap.data();
+    if (!product || !product.factoryId) {
+      logShippingError(
+        new Error("Producto sin factoryId"),
+        { ...requestContext, productId, productData: product, step: "product_validation" }
+      );
+
       return NextResponse.json(
-        { error: "Producto sin factoryId" },
-        { status: 500 }
+        {
+          shippingMode: "pickup",
+          shippingCost: 0,
+          error: "Producto sin fabricante asociado. Se asignó retiro en fábrica.",
+        },
+        { status: 200 }
       );
     }
 
-    const shippingConfig = product.shippingConfig as ShippingConfig;
+    const shippingConfig = product.shipping;
 
     /* ===============================
-       👥 USUARIOS
+       🏭 FÁBRICA
     =============================== */
-    const factorySnap = await db.collection("users").doc(product.factoryId).get();
-    const retailerSnap = await db.collection("users").doc(retailerId).get();
+    const factorySnap = await db
+      .collection("manufacturers")
+      .doc(product.factoryId)
+      .get();
 
-    if (!factorySnap.exists || !retailerSnap.exists) {
+    if (!factorySnap.exists) {
+      logShippingError(
+        new Error("Fábrica no encontrada"),
+        { ...requestContext, factoryId: product.factoryId, step: "factory_fetch" }
+      );
+
       return NextResponse.json(
-        { error: "Usuario no encontrado" },
-        { status: 404 }
+        {
+          shippingMode: "pickup",
+          shippingCost: 0,
+          error: "Fábrica no encontrada. Se asignó retiro en fábrica por defecto.",
+        },
+        { status: 200 }
       );
     }
 
-    const factory = factorySnap.data()!;
-    const retailer = retailerSnap.data()!;
+    const factoryData = factorySnap.data();
+    if (!factoryData || !factoryData.address) {
+      logShippingError(
+        new Error("Fábrica sin dirección"),
+        { ...requestContext, factoryId: product.factoryId, step: "factory_address" }
+      );
+
+      return NextResponse.json(
+        {
+          shippingMode: "pickup",
+          shippingCost: 0,
+          error: "Fábrica sin dirección configurada. Se asignó retiro en fábrica.",
+        },
+        { status: 200 }
+      );
+    }
+
+    const fAddr = factoryData.address as Address;
+
+    /* ===============================
+       🛒 RETAILER
+    =============================== */
+    const retailerSnap = await db
+      .collection("retailers")
+      .doc(retailerId)
+      .get();
+
+    if (!retailerSnap.exists) {
+      logShippingError(
+        new Error("Revendedor no encontrado"),
+        { ...requestContext, retailerId, step: "retailer_fetch" }
+      );
+
+      return NextResponse.json(
+        {
+          shippingMode: "pickup",
+          shippingCost: 0,
+          error: "Revendedor no encontrado. Se asignó retiro en fábrica por defecto.",
+        },
+        { status: 200 }
+      );
+    }
+
+    const retailerData = retailerSnap.data();
+    if (!retailerData || !retailerData.address) {
+      logShippingError(
+        new Error("Revendedor sin dirección"),
+        { ...requestContext, retailerId, step: "retailer_address" }
+      );
+
+      return NextResponse.json(
+        {
+          shippingMode: "pickup",
+          shippingCost: 0,
+          error: "Revendedor sin dirección configurada. Se asignó retiro en fábrica.",
+        },
+        { status: 200 }
+      );
+    }
+
+    const rAddr = retailerData.address as Address;
 
     if (
-      !factory.address?.lat ||
-      !factory.address?.lng ||
-      !retailer.address?.lat ||
-      !retailer.address?.lng
+      typeof fAddr.lat !== "number" ||
+      typeof fAddr.lng !== "number" ||
+      typeof rAddr.lat !== "number" ||
+      typeof rAddr.lng !== "number"
     ) {
+      logShippingError(
+        new Error("Direcciones incompletas o inválidas"),
+        {
+          ...requestContext,
+          factoryAddress: fAddr,
+          retailerAddress: rAddr,
+          step: "address_validation",
+        }
+      );
+
       return NextResponse.json(
-        { error: "Direcciones incompletas" },
-        { status: 400 }
+        {
+          shippingMode: "pickup",
+          shippingCost: 0,
+          error: "Direcciones incompletas. Se asignó retiro en fábrica por defecto.",
+        },
+        { status: 200 }
       );
     }
 
     /* ===============================
-       🟣 FRACCIONADO → BASE → FÁBRICA → REVENDEDOR → x2
+       🔍 DISTANCIA
     =============================== */
-    if (qty < minimumQuantity) {
-      const kmBaseFactory = distanceKm(BASE_ADDRESS, factory.address);
-      const kmFactoryRetailer = distanceKm(factory.address, retailer.address);
-
-      const totalKm = (kmBaseFactory + kmFactoryRetailer) * 2;
-      const cost = totalKm * 85 + 3500;
-
-      console.log("🟣 FRACCIONADO BASE", {
-        kmBaseFactory,
-        kmFactoryRetailer,
-        totalKm,
-        cost,
-      });
-
-      return NextResponse.json({
-        shippingMode: "platform",
-        shippingCost: Math.round(cost),
-      });
-    }
+    const km = distanceKm(
+      fAddr.lat,
+      fAddr.lng,
+      rAddr.lat,
+      rAddr.lng
+    );
 
     /* ===============================
-       🔵 COMPRA DIRECTA → FÁBRICA
+       🚚 APLICAR REGLAS DEL PRODUCTO
     =============================== */
-    if (shippingConfig?.shippingType === "own") {
-      const own = shippingConfig.ownShipping;
-      const km = distanceKm(factory.address, retailer.address);
 
-      // 🟩 ZONAS POR KM
-      if (own?.pricingModel === "zones_km" && own.kmZones) {
-        const zone = km <= 10 ? "z1" : km <= 30 ? "z2" : "z3";
+    // ENVÍO PROPIO
+    if (
+      shippingConfig?.methods?.includes("own_logistics") &&
+      shippingConfig.ownLogistics
+    ) {
+      const own = shippingConfig.ownLogistics;
 
+      if (own.type === "per_km") {
         return NextResponse.json({
           shippingMode: "factory",
-          shippingCost: own.kmZones[zone],
+          shippingCost: Math.round(km * own.pricePerKm),
         });
       }
 
-      // 🟦 PRECIO POR KM
-      if (
-        own?.pricingModel === "km" &&
-        typeof own.perKmRate === "number"
-      ) {
+      if (own.type === "zones") {
+        let zone: "z1" | "z2" | "z3" = "z3";
+        if (km <= 10) zone = "z1";
+        else if (km <= 30) zone = "z2";
+
         return NextResponse.json({
           shippingMode: "factory",
-          shippingCost: Math.round(km * own.perKmRate),
+          shippingCost: own.zones[zone],
+        });
+      }
+
+      if (own.type === "geographic") {
+        const area = rAddr.area ?? "interior";
+
+        return NextResponse.json({
+          shippingMode: "factory",
+          shippingCost: own.areas[area],
         });
       }
     }
 
+    // ENVÍO POR TERCEROS
+    if (
+      shippingConfig?.methods?.includes("third_party") &&
+      shippingConfig.thirdParty
+    ) {
+      return NextResponse.json({
+        shippingMode: "third_party",
+        shippingCost: shippingConfig.thirdParty.fixedPrice,
+      });
+    }
+
+    // RETIRO (DEFAULT)
+    return NextResponse.json({
+      shippingMode: "pickup",
+      shippingCost: 0,
+    });
+    
+  } catch (error) {
+    // ✅ LOGGING COMPLETO DEL ERROR
+    logShippingError(error, {
+      ...requestContext,
+      step: "unexpected_error",
+    });
+
+    // ✅ RESPUESTA SEGURA PARA EL CLIENTE
     return NextResponse.json(
-      { error: "No se pudo calcular envío" },
-      { status: 500 }
-    );
-  } catch (err) {
-    console.error("SHIPPING ERROR:", err);
-    return NextResponse.json(
-      { error: "Error interno" },
-      { status: 500 }
+      {
+        shippingMode: "pickup",
+        shippingCost: 0,
+        error: "Ocurrió un error al calcular el envío. Se asignó retiro en fábrica por defecto.",
+      },
+      { status: 200 }
     );
   }
 }

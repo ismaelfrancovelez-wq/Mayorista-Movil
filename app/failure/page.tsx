@@ -1,3 +1,4 @@
+import Link from "next/link";
 export default function FailurePage() {
   return (
     <main className="max-w-xl mx-auto p-6 text-center">
@@ -13,12 +14,12 @@ export default function FailurePage() {
         No se realizó ningún cargo. Podés intentarlo nuevamente.
       </p>
 
-      <a
-        href="/products"
-        className="inline-block bg-black text-white px-4 py-2 rounded"
-      >
-        Volver al catálogo
-      </a>
+      <Link
+  href="/products"
+  className="inline-block bg-black text-white px-4 py-2 rounded"
+>
+  Volver al catálogo
+</Link>
     </main>
   );
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 export default function SuccessPage() {
   return (
     <main className="max-w-xl mx-auto p-6 text-center">
@@ -14,12 +15,12 @@ export default function SuccessPage() {
         Te avisaremos cuando el lote se complete.
       </p>
 
-      <a
-        href="/products"
-        className="inline-block bg-black text-white px-4 py-2 rounded"
-      >
-        Volver al catálogo
-      </a>
+      <Link
+  href="/products"
+  className="inline-block bg-black text-white px-4 py-2 rounded"
+>
+  Volver al catálogo
+</Link>
     </main>
   );
 }

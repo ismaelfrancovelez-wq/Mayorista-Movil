@@ -1,95 +1,127 @@
 import { NextResponse } from "next/server";
-import { MercadoPagoConfig, Preference } from "mercadopago";
+import { createSplitPreference } from "../../../../lib/mercadopago-split";
+import { cookies } from "next/headers";
+import { db } from "../../../../lib/firebase-admin";
+import rateLimit from "../../../../lib/rate-limit";
+
+const limiter = rateLimit({
+  interval: 60 * 1000,
+  uniqueTokenPerInterval: 500,
+});
 
 export async function POST(req: Request) {
+  const ip = req.headers.get('x-forwarded-for') || 
+             req.headers.get('x-real-ip') || 
+             'unknown';
+  
   try {
-    const body = await req.json();
+    await limiter.check(10, ip);
+  } catch {
+    return NextResponse.json(
+      { error: "Demasiados intentos. Por favor, espera un minuto." },
+      { status: 429 }
+    );
+  }
 
-    /* ===============================
-       1️⃣ DESESTRUCTURAR BODY
-       🔑 originalQty ES CLAVE
-    =============================== */
-    const {
-      title,
-      unitPrice,    // 🔥 TOTAL FINAL YA CALCULADO (producto + comisión + envío)
-      qty,          // ⚠️ SIEMPRE 1 (regla MP)
-      originalQty,  // 🔑 CANTIDAD REAL (25, 30, etc)
-      orderType,
-      lotType,
-      productId,
-      retailerId,
-      shippingMode,
-      shippingCost,
-      MF,
-    } = body;
-
-    /* ===============================
-       2️⃣ VALIDACIONES BÁSICAS
-    =============================== */
-    if (!originalQty || !Number.isFinite(Number(originalQty))) {
-      console.error("❌ originalQty inválido:", originalQty);
+  try {
+    // ✅ OBTENER USER ID DESDE COOKIE
+    const userId = cookies().get("userId")?.value;
+    
+    if (!userId) {
       return NextResponse.json(
-        { error: "originalQty inválido" },
-        { status: 400 }
+        { error: "No autorizado" },
+        { status: 401 }
       );
     }
 
-    /* ===============================
-       3️⃣ CLIENTE MP
-    =============================== */
-    const client = new MercadoPagoConfig({
-      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
-    });
+    const body = await req.json();
+    const { 
+      title, 
+      unitPrice, 
+      originalQty, 
+      orderType, 
+      lotType, 
+      productId, 
+      shippingMode, 
+      shippingCost = 0, 
+      MF,
+      commission = 0,
+    } = body;
 
-    const preference = new Preference(client);
+    if (!originalQty || !Number.isFinite(Number(originalQty)) || !unitPrice || unitPrice <= 0) {
+      return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+    }
 
-    /* ===============================
-       4️⃣ CREAR PREFERENCIA
-    =============================== */
-    const result = await preference.create({
-      body: {
-        items: [
-          {
-            id: productId,
-            title,
-            quantity: 1,           // ⚠️ SIEMPRE 1
-            unit_price: unitPrice, // 🔥 TOTAL REAL A COBRAR
-          },
-        ],
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!baseUrl) {
+      return NextResponse.json({ error: "Configuración faltante" }, { status: 500 });
+    }
 
-        /* ===============================
-           🔑 METADATA (FUENTE DE VERDAD)
-        =============================== */
-        metadata: {
-  orderType,
-  lotType,
-  productId,
-  retailerId,
+    // ═══════════════════════════════════════════════════════════
+    // OBTENER DATOS DEL PRODUCTO Y FABRICANTE
+    // ═══════════════════════════════════════════════════════════
+    const productSnap = await db.collection("products").doc(productId).get();
+    if (!productSnap.exists) {
+      return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
+    }
 
-  // 🔑 IMPORTANTE: snake_case
-  original_qty: originalQty,
+    const productData = productSnap.data()!;
+    const factoryId = productData.factoryId;
 
-  MF,
-  shippingCost,
-  shippingMode,
-},
+    const factorySnap = await db.collection("manufacturers").doc(factoryId).get();
+    const factoryData = factorySnap.data();
+    const factoryMPUserId = factoryData?.mercadopago?.user_id || null;
 
-        notification_url: process.env.MERCADOPAGO_WEBHOOK_URL!,
+    // ═══════════════════════════════════════════════════════════
+    // DETERMINAR TIPO DE PEDIDO
+    // ═══════════════════════════════════════════════════════════
+    const tipo = orderType === "fraccionada" ? "fraccionada" : "directa";
+    const withShipping = shippingMode !== "pickup";
+
+    // ═══════════════════════════════════════════════════════════
+    // CALCULAR MONTOS
+    // ═══════════════════════════════════════════════════════════
+    const productTotal = unitPrice - (commission + shippingCost);
+
+    // ═══════════════════════════════════════════════════════════
+    // CREAR PREFERENCIA CON SPLIT
+    // ═══════════════════════════════════════════════════════════
+    const preference = await createSplitPreference({
+      title,
+      unit_price: Math.round(unitPrice),
+      quantity: 1,
+      
+      metadata: {
+        productId,
+        qty: originalQty,
+        tipo,
+        withShipping,
+        orderType,
+        lotType,
+        retailerId: userId, // ✅ USANDO userId de cookie
+        original_qty: originalQty,
+        MF,
+        shippingCost,
+        shippingMode,
+        commission,
       },
+      
+      back_urls: {
+        success: `${baseUrl}/success`,
+        failure: `${baseUrl}/failure`,
+        pending: `${baseUrl}/pending`,
+      },
+      
+      // ✅ SPLIT DE PAGOS
+      factoryMPUserId,
+      shippingCost,
+      productTotal,
+      commission,
     });
 
-    /* ===============================
-       5️⃣ RESPUESTA
-    =============================== */
-    return NextResponse.json({
-      init_point: result.init_point,
-    });
-
-  } catch (error) {
-    console.error("❌ ERROR MP:", error);
-    return NextResponse.json(
-      { error: "Error iniciando pago" },
-      { status: 500 }
-    );
+    return NextResponse.json({ init_point: preference.init_point });
+  } catch (error: any) {
+    console.error("Error MP:", error);
+    return NextResponse.json({ error: "Error iniciando pago" }, { status: 500 });
   }
 }
