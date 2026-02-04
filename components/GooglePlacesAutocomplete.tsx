@@ -3,7 +3,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-type PlaceResult = {
+// 🔧 EXPORTAR el tipo para que pueda ser usado en otros archivos
+export type PlaceResult = {
   formattedAddress: string;
   lat: number;
   lng: number;

@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-// 1️⃣ Importación agregada
 import { useRouter } from "next/navigation";
+import GooglePlacesAutocomplete, { PlaceResult } from "../../../../components/GooglePlacesAutocomplete";
 
 export default function PerfilRevendedorPage() {
-  // 2️⃣ Router inicializado
   const router = useRouter();
 
   const [formattedAddress, setFormattedAddress] = useState("");
@@ -84,7 +83,6 @@ export default function PerfilRevendedorPage() {
 
   return (
     <div className="max-w-xl">
-      {/* 3️⃣ Botón "Volver" agregado */}
       <button
         onClick={() => router.back()}
         className="mb-4 text-blue-600 hover:text-blue-700 flex items-center gap-2 font-medium"
@@ -101,7 +99,7 @@ export default function PerfilRevendedorPage() {
         Esta información se usa para calcular envíos.
       </p>
 
-       {/* DIRECCIÓN - 🆕 CON AUTOCOMPLETADO */}
+       {/* DIRECCIÓN - CON AUTOCOMPLETADO */}
       <div className="mb-4">
         <label className="block text-sm mb-1 font-medium">
           Dirección *
@@ -109,7 +107,9 @@ export default function PerfilRevendedorPage() {
         <GooglePlacesAutocomplete
           value={formattedAddress}
           onChange={setFormattedAddress}
-          onPlaceSelected={(place) => {
+          onPlaceSelected={(place: PlaceResult) => {
+            // ✅ El componente GooglePlacesAutocomplete devuelve PlaceResult
+            // con formattedAddress, lat, lng directamente
             setFormattedAddress(place.formattedAddress);
             setLat(String(place.lat));
             setLng(String(place.lng));
@@ -122,7 +122,7 @@ export default function PerfilRevendedorPage() {
         </p>
       </div>
 
-      {/* LAT / LNG - AHORA SOLO LECTURA */}
+      {/* LAT / LNG - SOLO LECTURA */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div>
           <label className="block text-sm mb-1">
