@@ -9,6 +9,8 @@ const limiter = rateLimit({
   uniqueTokenPerInterval: 500,
 });
 
+export const dynamic = 'force-dynamic'; // 🆕 AGREGADO
+
 export async function POST(req: Request) {
   const ip = req.headers.get('x-forwarded-for') || 
              req.headers.get('x-real-ip') || 
@@ -52,7 +54,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL;
     if (!baseUrl) {
       return NextResponse.json({ error: "Configuración faltante" }, { status: 500 });
     }
@@ -71,6 +73,12 @@ export async function POST(req: Request) {
     const factorySnap = await db.collection("manufacturers").doc(factoryId).get();
     const factoryData = factorySnap.data();
     const factoryMPUserId = factoryData?.mercadopago?.user_id || null;
+
+    // 🆕 OBTENER EMAIL DEL USUARIO (RETAILER)
+    const retailerSnap = await db.collection("retailers").doc(userId).get();
+    const retailerData = retailerSnap.data();
+    const payerEmail = retailerData?.email || "comprador@example.com";
+    const payerName = retailerData?.businessName || retailerData?.contactFullName || "Comprador";
 
     // ═══════════════════════════════════════════════════════════
     // DETERMINAR TIPO DE PEDIDO
@@ -117,6 +125,12 @@ export async function POST(req: Request) {
       shippingCost,
       productTotal,
       commission,
+      
+      // 🆕 AGREGAR PAYER
+      payer: {
+        email: payerEmail,
+        name: payerName,
+      },
     });
 
     return NextResponse.json({ init_point: preference.init_point });
