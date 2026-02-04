@@ -45,27 +45,59 @@ const ENV_VARS: EnvVar[] = [
   // Firebase Admin (solo en producción)
   {
     key: "FIREBASE_SERVICE_ACCOUNT",
-    required: false, // ✅ CAMBIO AQUÍ - ahora es false
+    required: false,
     description: "Firebase Service Account JSON (solo producción)",
   },
 
-  // Mercado Pago
+  // Mercado Pago - Server Side (SIN NEXT_PUBLIC_)
   {
     key: "MERCADOPAGO_ACCESS_TOKEN",
     required: true,
     description: "Mercado Pago Access Token",
   },
   {
+    key: "MERCADOPAGO_APP_ID",
+    required: true,
+    description: "Mercado Pago App ID (OAuth)",
+  },
+  {
+    key: "MERCADOPAGO_CLIENT_SECRET",
+    required: true,
+    description: "Mercado Pago Client Secret (OAuth)",
+  },
+  {
+    key: "MERCADOPAGO_PUBLIC_KEY",
+    required: false,
+    description: "Mercado Pago Public Key",
+  },
+  {
+    key: "MERCADOPAGO_COLLECTOR_ID",
+    required: false,
+    description: "Mercado Pago Collector ID",
+  },
+  {
     key: "MERCADOPAGO_WEBHOOK_URL",
-    required: false, // ✅ CAMBIO AQUÍ - ahora es false
+    required: false,
     description: "URL del webhook de Mercado Pago",
   },
 
   // Google Maps
   {
-    key: "GOOGLE_MAPS_API_KEY",
+    key: "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
     required: false,
     description: "Google Maps API Key",
+  },
+
+  // Email
+  {
+    key: "RESEND_API_KEY",
+    required: false,
+    description: "Resend API Key para envío de emails",
+  },
+  {
+    key: "EMAIL_FROM",
+    required: false,
+    description: "Email desde el cual se envían notificaciones",
   },
 
   // App
@@ -106,7 +138,7 @@ export function validateEnv() {
   if (missing.length > 0) {
     console.error("\n❌ ERROR: Variables de entorno requeridas faltantes:\n");
     missing.forEach((m) => console.error(`   ${m}`));
-    console.error("\n💡 Copia .env.example a .env y completa los valores\n");
+    console.error("\n💡 Verifica las variables en Vercel Settings → Environment Variables\n");
     
     throw new Error("Faltan variables de entorno críticas");
   }
@@ -148,12 +180,22 @@ export const env = {
   // Mercado Pago
   mercadopago: {
     accessToken: () => getEnv("MERCADOPAGO_ACCESS_TOKEN"),
+    appId: () => getEnv("MERCADOPAGO_APP_ID"),
+    clientSecret: () => getEnv("MERCADOPAGO_CLIENT_SECRET"),
+    publicKey: () => getEnvOptional("MERCADOPAGO_PUBLIC_KEY"),
+    collectorId: () => getEnvOptional("MERCADOPAGO_COLLECTOR_ID"),
     webhookUrl: () => getEnvOptional("MERCADOPAGO_WEBHOOK_URL"),
   },
 
   // Google Maps
   googleMaps: {
-    apiKey: () => getEnvOptional("GOOGLE_MAPS_API_KEY"),
+    apiKey: () => getEnvOptional("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"),
+  },
+
+  // Email
+  email: {
+    apiKey: () => getEnvOptional("RESEND_API_KEY"),
+    from: () => getEnvOptional("EMAIL_FROM"),
   },
 
   // App
