@@ -40,7 +40,7 @@ export async function GET(req: Request) {
         continue;
       }
 
-      let itemData = null;
+      let itemData: any = null; // 🔧 CORRECCIÓN: tipo explícito
 
       if (type === "product") {
         const productSnap = await db.collection("products").doc(data.itemId).get();
@@ -81,14 +81,12 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       type,
-      count: items.length,
       items,
     });
-
   } catch (error) {
-    console.error("❌ GET FEATURED ERROR:", error);
+    console.error("Error obteniendo destacados activos:", error);
     return NextResponse.json(
-      { error: "Error al obtener destacados" },
+      { error: "Error al obtener destacados activos" },
       { status: 500 }
     );
   }
