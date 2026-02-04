@@ -25,7 +25,7 @@ export async function GET(req: Request) {
       .limit(10)
       .get();
 
-    const items = [];
+    const items: any[] = []; // 🔧 CORRECCIÓN: tipo explícito del array
 
     for (const doc of snap.docs) {
       const data = doc.data();
