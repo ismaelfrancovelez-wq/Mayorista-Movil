@@ -29,7 +29,7 @@ export async function createPreference({
     qty: number;
     tipo: "directa" | "fraccionada" | "destacado"; // ✅ AGREGADO "destacado"
     withShipping: boolean;
-    // ✅ NUEVO: Campos opcionales para destacados
+    // ✅ NUEVO: Campos opcionales para destacadoss
     featuredType?: "product" | "factory";
     featuredItemId?: string;
     featuredDuration?: number;
