@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Validar usertype
+    // Validar usertyper
     if (!usertype || !["manufacturer", "retailer"].includes(usertype)) {
       return NextResponse.json(
         { error: "Tipo de usuario inválido" },
