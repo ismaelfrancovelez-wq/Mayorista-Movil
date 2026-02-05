@@ -54,16 +54,20 @@ export async function POST(req: Request) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    // Crear documento de fabricante si corresponde
+    // 🆕 FIX: Crear documento de fabricante con email y userId
     if (usertype === "manufacturer") {
       await db.collection("manufacturers").doc(userId).set({
+        userId,  // 🆕 AGREGAR
+        email,   // 🆕 AGREGAR
         createdAt: FieldValue.serverTimestamp(),
       });
     }
 
-    // Crear documento de revendedor si corresponde
+    // 🆕 FIX: Crear documento de revendedor con email y userId
     if (usertype === "retailer") {
       await db.collection("retailers").doc(userId).set({
+        userId,  // 🆕 AGREGAR
+        email,   // 🆕 AGREGAR
         createdAt: FieldValue.serverTimestamp(),
       });
     }
