@@ -1,4 +1,6 @@
 // app/api/webhooks/mercadopago/route.ts
+// VERSIÓN CORREGIDA - Obtiene emails reales de Firebase Auth
+
 import { NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { db } from "../../../../lib/firebase-admin";
@@ -13,6 +15,7 @@ import {
   notifyManufacturerFractionalProgress,
   notifyRetailerPickup,
 } from "../../../../lib/notifications/send";
+import admin from "firebase-admin";
 
 const limiter = rateLimit({
   interval: 60 * 1000,
@@ -50,6 +53,18 @@ type MPMetadata = {
   featuredItemId?: string;
   featuredDuration?: number;
 };
+
+// 🔧 FUNCIÓN NUEVA: Obtener email real de Firebase Auth
+async function getUserEmail(userId: string): Promise<string | null> {
+  try {
+    const userRecord = await admin.auth().getUser(userId);
+    console.log(`✅ Email obtenido para ${userId}:`, userRecord.email);
+    return userRecord.email || null;
+  } catch (error) {
+    console.error(`⚠️ No se pudo obtener email para userId ${userId}:`, error);
+    return null;
+  }
+}
 
 export async function GET() {
   return NextResponse.json({ 
@@ -170,19 +185,17 @@ export async function POST(req: Request) {
     const shippingCost = m.shippingCost || 0;
     const commission = m.commission || 0;
     
-    // Para fraccionados: total = producto + comisión + envío
-    // Para directos: total = producto + envío
     const productTotal = orderType === "fractional"
       ? totalAmount - commission - shippingCost
       : totalAmount - shippingCost;
 
     const factoryReceives = orderType === "direct"
-      ? totalAmount  // Fabricante recibe TODO en directos
-      : productTotal; // Fabricante recibe solo producto en fraccionados
+      ? totalAmount
+      : productTotal;
 
     const platformReceives = orderType === "fractional"
-      ? commission + shippingCost  // Plataforma recibe comisión + envío
-      : 0; // Plataforma no recibe nada en directos
+      ? commission + shippingCost
+      : 0;
 
     // ✅✅✅ GUARDAR PAGO CON SPLIT INFO ✅✅✅
     await paymentRef.set({
@@ -200,7 +213,6 @@ export async function POST(req: Request) {
       settled: orderType !== "fractional",
       refundable: orderType === "fractional",
       
-      // ✅ SPLIT PAYMENT INFO (NUEVO)
       splitPayment: {
         total: totalAmount,
         productTotal: Math.round(productTotal),
@@ -222,6 +234,12 @@ export async function POST(req: Request) {
     const factoryData = factorySnap.exists ? factorySnap.data() : null;
     const retailerData = retailerSnap.exists ? retailerSnap.data() : null;
 
+    // 🔧 OBTENER EMAILS REALES DE AUTH
+    const factoryEmail = await getUserEmail(factoryId) || factoryData?.email || null;
+    const retailerEmail = await getUserEmail(retailerId) || retailerData?.email || null;
+
+    console.log(`📧 Emails obtenidos - Fabricante: ${factoryEmail}, Revendedor: ${retailerEmail}`);
+
     // ══════════════════════════════════════════════════════════
     // 1️⃣ PEDIDO DIRECTO
     // ══════════════════════════════════════════════════════════
@@ -229,10 +247,11 @@ export async function POST(req: Request) {
       const shippingMode = m.shippingMode || "pickup";
       
       // 📧 Notificar fabricante
-      if (factoryData) {
+      if (factoryData && factoryEmail) {
+        console.log(`📧 Notificando fabricante (pedido directo): ${factoryEmail}`);
         await notifyManufacturerDirectOrder({
           factoryId,
-          factoryEmail: factoryData.email || `factory-${factoryId}@placeholder.com`,
+          factoryEmail,
           productName: productData.name,
           qty,
           retailerName: retailerData?.businessName || retailerData?.name || "Revendedor",
@@ -241,10 +260,12 @@ export async function POST(req: Request) {
           shippingMode,
           orderId: paymentId.toString(),
         });
+      } else {
+        console.warn(`⚠️ No se pudo notificar fabricante ${factoryId} - email: ${factoryEmail}`);
       }
 
       // 📧 Si es RETIRO → Notificar revendedor
-      if (shippingMode === "pickup" && retailerData && factoryData) {
+      if (shippingMode === "pickup" && retailerData && factoryData && retailerEmail) {
         const pickupDeadline = calculatePickupDeadline(
           new Date(),
           factoryData.schedule
@@ -255,9 +276,10 @@ export async function POST(req: Request) {
           pickupDeadlineWarning: new Date(pickupDeadline.getTime() - 24 * 60 * 60 * 1000),
         });
 
+        console.log(`📧 Notificando revendedor (retiro directo): ${retailerEmail}`);
         await notifyRetailerPickup({
           retailerId,
-          retailerEmail: retailerData.email || `retailer-${retailerId}@placeholder.com`,
+          retailerEmail,
           productName: productData.name,
           qty,
           subtotal: productTotal,
@@ -271,6 +293,8 @@ export async function POST(req: Request) {
           orderId: paymentId.toString(),
           isDirect: true,
         });
+      } else if (shippingMode === "pickup" && !retailerEmail) {
+        console.warn(`⚠️ No se pudo notificar revendedor ${retailerId} - email: ${retailerEmail}`);
       }
     }
 
@@ -283,7 +307,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true });
       }
 
-      // Agregar al lote
       await addFraccionadoToLot({
         productId,
         factoryId,
@@ -292,7 +315,6 @@ export async function POST(req: Request) {
         retailerOrder: { retailerId, qty, paymentId: paymentId.toString() },
       });
 
-      // ✅ Obtener estado del lote DESPUÉS de agregar
       const lotSnap = await db.collection("lots")
         .where("productId", "==", productId)
         .where("factoryId", "==", factoryId)
@@ -306,22 +328,25 @@ export async function POST(req: Request) {
         const accumulatedQty = lot.accumulatedQty || 0;
 
         // 📧 Notificar fabricante del progreso
-        if (factoryData) {
+        if (factoryData && factoryEmail) {
+          console.log(`📧 Notificando fabricante (progreso fraccionado): ${factoryEmail}`);
           await notifyManufacturerFractionalProgress({
             factoryId,
-            factoryEmail: factoryData.email || `factory-${factoryId}@placeholder.com`,
+            factoryEmail,
             productName: productData.name,
             retailerName: retailerData?.businessName || "Revendedor",
             qty,
             accumulatedQty,
             minimumOrder,
           });
+        } else {
+          console.warn(`⚠️ No se pudo notificar progreso a fabricante ${factoryId} - email: ${factoryEmail}`);
         }
 
         // 📧 Si es RETIRO → Notificar revendedor con plazo
         const isPickup = lotType.includes("pickup");
         
-        if (isPickup && retailerData && factoryData) {
+        if (isPickup && retailerData && factoryData && retailerEmail) {
           const pickupDeadline = calculatePickupDeadline(
             new Date(),
             factoryData.schedule
@@ -334,9 +359,10 @@ export async function POST(req: Request) {
 
           // Solo notificar si el lote YA está cerrado
           if (lot.status === "closed") {
+            console.log(`📧 Notificando revendedor (lote cerrado): ${retailerEmail}`);
             await notifyRetailerPickup({
               retailerId,
-              retailerEmail: retailerData.email || `retailer-${retailerId}@placeholder.com`,
+              retailerEmail,
               productName: productData.name,
               qty,
               subtotal: productTotal,
@@ -369,14 +395,13 @@ export async function POST(req: Request) {
       if (!closedLotSnap.empty) {
         const closedLot = closedLotSnap.docs[0].data();
         
-        // Crear orden logística
         await createOrderFromClosedLot({
           ...(closedLot as FraccionatedLot),
           id: closedLotSnap.docs[0].id,
         });
 
         // 📧 Notificar fabricante que el lote se completó
-        if (factoryData) {
+        if (factoryData && factoryEmail) {
           const retailerPromises = closedLot.orders.map(async (order: any) => {
             const rSnap = await db.collection("retailers").doc(order.retailerId).get();
             const rData = rSnap.data();
@@ -391,9 +416,10 @@ export async function POST(req: Request) {
 
           const retailers = await Promise.all(retailerPromises);
 
+          console.log(`📧 Notificando fabricante (lote cerrado): ${factoryEmail}`);
           await notifyManufacturerLotClosed({
             factoryId,
-            factoryEmail: factoryData.email || `factory-${factoryId}@placeholder.com`,
+            factoryEmail,
             productName: productData.name,
             totalQty: closedLot.accumulatedQty,
             retailers,
@@ -401,6 +427,8 @@ export async function POST(req: Request) {
             factoryAddress: factoryData.address?.formattedAddress || "No especificada",
             orderId: closedLotSnap.docs[0].id,
           });
+        } else {
+          console.warn(`⚠️ No se pudo notificar lote cerrado a fabricante ${factoryId} - email: ${factoryEmail}`);
         }
 
         // 📧 Notificar a TODOS los revendedores del lote cerrado (si es retiro)
@@ -412,34 +440,41 @@ export async function POST(req: Request) {
             const rData = rSnap.data();
 
             if (rData) {
-              const pSnap = await db.collection("payments").doc(order.paymentId).get();
-              const pData = pSnap.data();
-              
-              const pickupDeadline = pData?.pickupDeadline?.toDate() || calculatePickupDeadline(
-                new Date(),
-                factoryData.schedule
-              );
+              // 🔧 Obtener email real del revendedor
+              const rEmail = await getUserEmail(order.retailerId) || rData.email;
 
-              // ✅ Usar splitPayment para subtotal y total
-              const subtotal = pData?.splitPayment?.productTotal || 0;
-              const total = pData?.splitPayment?.total || 0;
+              if (rEmail) {
+                const pSnap = await db.collection("payments").doc(order.paymentId).get();
+                const pData = pSnap.data();
+                
+                const pickupDeadline = pData?.pickupDeadline?.toDate() || calculatePickupDeadline(
+                  new Date(),
+                  factoryData.schedule
+                );
 
-              await notifyRetailerPickup({
-                retailerId: order.retailerId,
-                retailerEmail: rData.email || `retailer-${order.retailerId}@placeholder.com`,
-                productName: productData.name,
-                qty: order.qty,
-                subtotal,
-                total,
-                factoryBusinessName: factoryData.businessName || "Fábrica",
-                factoryAddress: factoryData.address?.formattedAddress || "No especificada",
-                factorySchedule: factoryData.schedule || DEFAULT_SCHEDULE,
-                factoryPhone: factoryData.phone,
-                factoryEmail: factoryData.email,
-                pickupDeadline,
-                orderId: order.paymentId,
-                isDirect: false,
-              });
+                const subtotal = pData?.splitPayment?.productTotal || 0;
+                const total = pData?.splitPayment?.total || 0;
+
+                console.log(`📧 Notificando revendedor del lote cerrado: ${rEmail}`);
+                await notifyRetailerPickup({
+                  retailerId: order.retailerId,
+                  retailerEmail: rEmail,
+                  productName: productData.name,
+                  qty: order.qty,
+                  subtotal,
+                  total,
+                  factoryBusinessName: factoryData.businessName || "Fábrica",
+                  factoryAddress: factoryData.address?.formattedAddress || "No especificada",
+                  factorySchedule: factoryData.schedule || DEFAULT_SCHEDULE,
+                  factoryPhone: factoryData.phone,
+                  factoryEmail: factoryData.email,
+                  pickupDeadline,
+                  orderId: order.paymentId,
+                  isDirect: false,
+                });
+              } else {
+                console.warn(`⚠️ No se pudo notificar revendedor ${order.retailerId} - sin email`);
+              }
             }
           }
         }
