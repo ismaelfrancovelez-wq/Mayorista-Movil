@@ -31,15 +31,6 @@ type SplitPaymentParams = {
   shippingCost: number;
   productTotal: number;
   commission: number;
-  // 🆕 AGREGAR PAYER
-  payer?: {
-    email: string;
-    name?: string;
-    phone?: {
-      area_code?: string;
-      number?: string;
-    };
-  };
 };
 
 export async function createSplitPreference(params: SplitPaymentParams) {
@@ -50,15 +41,9 @@ export async function createSplitPreference(params: SplitPaymentParams) {
     metadata,
     back_urls,
     commission,
-    payer, // 🆕 DESTRUCTURE PAYER
   } = params;
 
   const preference = new Preference(client);
-
-  // 🆕 PAYER DEFAULT SI NO SE PROVEE
-  const defaultPayer = payer || {
-    email: "comprador@example.com", // Email genérico
-  };
 
   if (metadata.tipo === "directa") {
     const response = await preference.create({
@@ -74,7 +59,6 @@ export async function createSplitPreference(params: SplitPaymentParams) {
         back_urls,
         auto_return: "approved",
         metadata: metadata as any,
-        payer: defaultPayer, // 🆕 AGREGAR PAYER
       },
     });
 
@@ -96,7 +80,6 @@ export async function createSplitPreference(params: SplitPaymentParams) {
         auto_return: "approved",
         metadata: metadata as any,
         marketplace_fee: commission,
-        payer: defaultPayer, // 🆕 AGREGAR PAYER
       },
     });
 
@@ -116,7 +99,6 @@ export async function createSplitPreference(params: SplitPaymentParams) {
       back_urls,
       auto_return: "approved",
       metadata: metadata as any,
-      payer: defaultPayer, // 🆕 AGREGAR PAYER
     },
   });
 

@@ -9,7 +9,7 @@ const limiter = rateLimit({
   uniqueTokenPerInterval: 500,
 });
 
-export const dynamic = 'force-dynamic'; // 🆕 AGREGADO
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   const ip = req.headers.get('x-forwarded-for') || 
@@ -74,12 +74,6 @@ export async function POST(req: Request) {
     const factoryData = factorySnap.data();
     const factoryMPUserId = factoryData?.mercadopago?.user_id || null;
 
-    // 🆕 OBTENER EMAIL DEL USUARIO (RETAILER)
-    const retailerSnap = await db.collection("retailers").doc(userId).get();
-    const retailerData = retailerSnap.data();
-    const payerEmail = retailerData?.email || "comprador@example.com";
-    const payerName = retailerData?.businessName || retailerData?.contactFullName || "Comprador";
-
     // ═══════════════════════════════════════════════════════════
     // DETERMINAR TIPO DE PEDIDO
     // ═══════════════════════════════════════════════════════════
@@ -106,7 +100,7 @@ export async function POST(req: Request) {
         withShipping,
         orderType,
         lotType,
-        retailerId: userId, // ✅ USANDO userId de cookie
+        retailerId: userId,
         original_qty: originalQty,
         MF,
         shippingCost,
@@ -125,12 +119,6 @@ export async function POST(req: Request) {
       shippingCost,
       productTotal,
       commission,
-      
-      // 🆕 AGREGAR PAYER
-      payer: {
-        email: payerEmail,
-        name: payerName,
-      },
     });
 
     return NextResponse.json({ init_point: preference.init_point });
