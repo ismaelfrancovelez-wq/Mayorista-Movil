@@ -1,6 +1,6 @@
+// lib/env.ts
 /**
  * Validador centralizado de variables de entorno
- * Falla rápido en build/startup si falta alguna variable crítica
  */
 
 type EnvVar = {
@@ -42,14 +42,14 @@ const ENV_VARS: EnvVar[] = [
     description: "Firebase App ID",
   },
 
-  // Firebase Admin (solo en producción)
+  // Firebase Admin
   {
     key: "FIREBASE_SERVICE_ACCOUNT",
     required: false,
     description: "Firebase Service Account JSON (solo producción)",
   },
 
-  // Mercado Pago - Server Side (SIN NEXT_PUBLIC_)
+  // Mercado Pago
   {
     key: "MERCADOPAGO_ACCESS_TOKEN",
     required: true,
@@ -81,23 +81,28 @@ const ENV_VARS: EnvVar[] = [
     description: "URL del webhook de Mercado Pago",
   },
 
-  // Google Maps
+  // Email - Gmail SMTP
   {
-    key: "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
-    required: false,
-    description: "Google Maps API Key",
+    key: "GMAIL_USER",
+    required: true,
+    description: "Gmail email address",
   },
-
-  // Email
   {
-    key: "RESEND_API_KEY",
-    required: false,
-    description: "Resend API Key para envío de emails",
+    key: "GMAIL_APP_PASSWORD",
+    required: true,
+    description: "Gmail App Password (16 characters)",
   },
   {
     key: "EMAIL_FROM",
     required: false,
     description: "Email desde el cual se envían notificaciones",
+  },
+
+  // Google Maps
+  {
+    key: "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
+    required: false,
+    description: "Google Maps API Key",
   },
 
   // App
@@ -127,18 +132,16 @@ export function validateEnv() {
     }
   });
 
-  // Mostrar warnings
   if (warnings.length > 0) {
     console.warn("\n⚠️  Variables de entorno opcionales faltantes:");
     warnings.forEach((w) => console.warn(`   ${w}`));
     console.warn("");
   }
 
-  // Si hay variables faltantes, lanzar error
   if (missing.length > 0) {
     console.error("\n❌ ERROR: Variables de entorno requeridas faltantes:\n");
     missing.forEach((m) => console.error(`   ${m}`));
-    console.error("\n💡 Verifica las variables en Vercel Settings → Environment Variables\n");
+    console.error("\n💡 Verifica las variables en Vercel\n");
     
     throw new Error("Faltan variables de entorno críticas");
   }
@@ -187,15 +190,16 @@ export const env = {
     webhookUrl: () => getEnvOptional("MERCADOPAGO_WEBHOOK_URL"),
   },
 
+  // Email - Gmail SMTP
+  email: {
+    user: () => getEnv("GMAIL_USER"),
+    password: () => getEnv("GMAIL_APP_PASSWORD"),
+    from: () => getEnvOptional("EMAIL_FROM", getEnv("GMAIL_USER")),
+  },
+
   // Google Maps
   googleMaps: {
     apiKey: () => getEnvOptional("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"),
-  },
-
-  // Email
-  email: {
-    apiKey: () => getEnvOptional("RESEND_API_KEY"),
-    from: () => getEnvOptional("EMAIL_FROM"),
   },
 
   // App
