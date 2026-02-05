@@ -1,4 +1,3 @@
-// components/products/ProductPurchaseClient.tsx
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
