@@ -1,5 +1,4 @@
 // components/products/ProductPurchaseClient.tsx
-// ⚠️ VERSIÓN TEMPORAL - Validación de MP desactivada para pago de activación
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -125,11 +124,10 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
   );
 
   async function handleCheckout() {
-    // ⚠️ VALIDACIÓN DESACTIVADA TEMPORALMENTE
-    // if (mpConnected === false) {
-    //   alert("⚠️ Este producto no está disponible para compra.\n\nEl fabricante aún no ha vinculado su cuenta de Mercado Pago.");
-    //   return;
-    // }
+    if (mpConnected === false) {
+      alert("⚠️ Este producto no está disponible para compra.\n\nEl fabricante aún no ha vinculado su cuenta de Mercado Pago.");
+      return;
+    }
 
     if (loadingMPStatus) {
       alert("⏳ Verificando disponibilidad...");
@@ -173,7 +171,6 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
   return (
     <div className="border rounded-xl p-6 mt-8 bg-white shadow">
       
-      {/* ⚠️ ADVERTENCIA TEMPORAL COMENTADA
       {!loadingMPStatus && mpConnected === false && (
         <div className="mb-6 bg-red-50 border-2 border-red-300 rounded-lg p-4">
           <div className="flex items-start gap-3">
@@ -189,22 +186,6 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
           </div>
         </div>
       )}
-      */}
-
-      {/* ⚠️ ADVERTENCIA DE MODO TEMPORAL */}
-      <div className="mb-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <div className="text-2xl">🚧</div>
-          <div>
-            <p className="font-semibold text-yellow-800 mb-1">
-              Modo de Activación Temporal
-            </p>
-            <p className="text-sm text-yellow-700">
-              La validación de Mercado Pago está desactivada temporalmente para permitir el pago de activación de producción.
-            </p>
-          </div>
-        </div>
-      </div>
 
       <div className="mb-5">
         <label className="block text-sm mb-1">Cantidad</label>
@@ -214,7 +195,7 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
           value={qty}
           onChange={(e) => setQty(Number(e.target.value))}
           className="border rounded px-3 py-2 w-32"
-          // disabled={mpConnected === false} // ⚠️ DESHABILITADO TEMPORALMENTE
+          disabled={mpConnected === false}
         />
         {isFraccionado && (
           <p className="text-xs text-gray-500 mt-1">
@@ -235,7 +216,7 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
               setSelectedShipping("pickup");
               setShippingCost(0);
             }}
-            // disabled={mpConnected === false} // ⚠️ DESHABILITADO TEMPORALMENTE
+            disabled={mpConnected === false}
           />
           <span className="ml-2">Retiro en fábrica (Gratis)</span>
         </label>
@@ -247,7 +228,7 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
               name="shipping"
               checked={selectedShipping === "platform"}
               onChange={calculatePlatformShipping}
-              // disabled={mpConnected === false} // ⚠️ DESHABILITADO TEMPORALMENTE
+              disabled={mpConnected === false}
             />
             <span className="ml-2">
               {loadingShipping
@@ -264,7 +245,7 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
               name="shipping"
               checked={selectedShipping === "factory"}
               onChange={() => setSelectedShipping("factory")}
-              // disabled={mpConnected === false} // ⚠️ DESHABILITADO TEMPORALMENTE
+              disabled={mpConnected === false}
             />
             <span className="ml-2">
               {loadingShipping
@@ -286,13 +267,14 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
 
       <button
         onClick={handleCheckout}
-        disabled={loadingMPStatus}
-        // disabled={loadingMPStatus || mpConnected === false} // ⚠️ VALIDACIÓN DESHABILITADA
+        disabled={loadingMPStatus || mpConnected === false}
         className="w-full bg-black text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loadingMPStatus 
           ? "Verificando disponibilidad..." 
-          : "Continuar al pago (Modo Activación)"}
+          : mpConnected === false
+          ? "Producto no disponible"
+          : "Continuar al pago"}
       </button>
     </div>
   );
