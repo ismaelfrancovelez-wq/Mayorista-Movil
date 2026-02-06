@@ -81,21 +81,16 @@ const ENV_VARS: EnvVar[] = [
     description: "URL del webhook de Mercado Pago",
   },
 
-  // Email - Gmail SMTP
+  // Email - RESEND (reemplaza Gmail SMTP)
   {
-    key: "GMAIL_USER",
+    key: "RESEND_API_KEY",
     required: true,
-    description: "Gmail email address",
-  },
-  {
-    key: "GMAIL_APP_PASSWORD",
-    required: true,
-    description: "Gmail App Password (16 characters)",
+    description: "Resend API Key",
   },
   {
     key: "EMAIL_FROM",
-    required: false,
-    description: "Email desde el cual se envían notificaciones",
+    required: true,
+    description: "Email desde el cual se envían notificaciones (debe estar verificado en Resend)",
   },
 
   // Google Maps
@@ -190,11 +185,10 @@ export const env = {
     webhookUrl: () => getEnvOptional("MERCADOPAGO_WEBHOOK_URL"),
   },
 
-  // Email - Gmail SMTP
+  // Email - RESEND (reemplaza Gmail SMTP)
   email: {
-    user: () => getEnv("GMAIL_USER"),
-    password: () => getEnv("GMAIL_APP_PASSWORD"),
-    from: () => getEnvOptional("EMAIL_FROM", getEnv("GMAIL_USER")),
+    apiKey: () => getEnv("RESEND_API_KEY"),
+    from: () => getEnv("EMAIL_FROM"),
   },
 
   // Google Maps

@@ -1,33 +1,27 @@
-// lib/email/client.ts - VERSIÓN GMAIL SMTP COMPLETA
+// lib/email/client.ts - VERSIÓN RESEND COMPLETA (mantiene todas las funciones originales)
 
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 /**
- * Cliente de Email usando Gmail SMTP
+ * Cliente de Email usando Resend
  * 
  * Configuración requerida en .env:
- * - GMAIL_USER: tu-email@gmail.com
- * - GMAIL_APP_PASSWORD: contraseña de app de 16 caracteres
+ * - RESEND_API_KEY: tu API key de Resend
+ * - EMAIL_FROM: email desde el que se envían los correos (debe estar verificado en Resend)
  */
 
-// Configurar transporter de Gmail
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+// Inicializar cliente de Resend
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Verificar configuración al iniciar (solo en desarrollo)
 if (process.env.NODE_ENV === 'development') {
-  transporter.verify((error, success) => {
-    if (error) {
-      console.error('❌ Error en configuración de Gmail SMTP:', error);
-    } else {
-      console.log('✅ Gmail SMTP configurado correctamente');
-    }
-  });
+  if (!process.env.RESEND_API_KEY) {
+    console.error('❌ RESEND_API_KEY no está configurada');
+  } else if (!process.env.EMAIL_FROM) {
+    console.error('⚠️ EMAIL_FROM no está configurada, se usará el default de Resend');
+  } else {
+    console.log('✅ Resend configurado correctamente');
+  }
 }
 
 type SendEmailParams = {
@@ -43,12 +37,12 @@ type SendEmailParams = {
 };
 
 /**
- * Envía un email usando Gmail SMTP
+ * Envía un email usando Resend
  * 
  * @param to - Email(s) destinatario(s)
  * @param subject - Asunto del email
  * @param html - Contenido HTML del email
- * @param from - Email remitente (opcional, usa GMAIL_USER por defecto)
+ * @param from - Email remitente (opcional, usa EMAIL_FROM por defecto)
  * @param attachments - Archivos adjuntos (opcional)
  * @returns Resultado del envío
  */
@@ -61,47 +55,59 @@ export async function sendEmail({
 }: SendEmailParams) {
   try {
     // Validar que tenemos las credenciales
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-      console.error('❌ Faltan credenciales de Gmail SMTP');
-      console.error('Variables requeridas: GMAIL_USER, GMAIL_APP_PASSWORD');
-      throw new Error('Gmail SMTP no configurado');
+    if (!process.env.RESEND_API_KEY) {
+      console.error('❌ Falta RESEND_API_KEY');
+      console.error('Variables requeridas: RESEND_API_KEY, EMAIL_FROM');
+      throw new Error('Resend no configurado');
     }
 
     // Email desde el que se envía
-    const fromEmail = from || process.env.GMAIL_USER;
+    const fromEmail = from || process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
     // Normalizar destinatarios
-    const recipients = Array.isArray(to) ? to.join(', ') : to;
-
-    // Configurar el email
-    const mailOptions = {
-      from: fromEmail,
-      to: recipients,
-      subject: subject,
-      html: html,
-      attachments: attachments || [],
-    };
+    const recipients = Array.isArray(to) ? to : [to];
 
     console.log('📧 Enviando email...', {
-      to: Array.isArray(to) ? to : [to],
+      to: recipients,
       subject: subject,
       hasAttachments: !!attachments && attachments.length > 0,
     });
 
-    // Enviar email
-    const info = await transporter.sendMail(mailOptions);
+    // Preparar attachments para Resend (si existen)
+    const resendAttachments = attachments?.map(att => ({
+      filename: att.filename,
+      content: att.content,
+      path: att.path,
+    }));
+
+    // Enviar email con Resend
+    const { data, error } = await resend.emails.send({
+      from: fromEmail,
+      to: recipients,
+      subject: subject,
+      html: html,
+      attachments: resendAttachments,
+    });
+
+    if (error) {
+      console.error('❌ Error de Resend:', error);
+      return {
+        success: false,
+        error: error.message || 'Error desconocido',
+      };
+    }
 
     console.log('✅ Email enviado exitosamente:', {
-      messageId: info.messageId,
-      to: Array.isArray(to) ? to : [to],
+      messageId: data?.id,
+      to: recipients,
       subject: subject,
     });
 
     return {
       success: true,
-      messageId: info.messageId,
-      accepted: info.accepted,
-      rejected: info.rejected,
+      messageId: data?.id,
+      accepted: recipients,
+      rejected: [],
     };
   } catch (error) {
     console.error('❌ Error enviando email:', error);
@@ -151,17 +157,28 @@ export async function sendBatchEmails(emails: SendEmailParams[]) {
 }
 
 /**
- * Verifica que la configuración de Gmail SMTP sea válida
+ * Verifica que la configuración de Resend sea válida
  * 
  * @returns true si la configuración es válida
  */
 export async function verifyEmailConfiguration(): Promise<boolean> {
   try {
-    await transporter.verify();
-    console.log('✅ Configuración de Gmail SMTP verificada');
+    if (!process.env.RESEND_API_KEY) {
+      console.error('❌ RESEND_API_KEY no configurada');
+      return false;
+    }
+    
+    // Resend no tiene método verify() como nodemailer
+    // pero podemos verificar que la API key tenga el formato correcto
+    if (!process.env.RESEND_API_KEY.startsWith('re_')) {
+      console.error('❌ RESEND_API_KEY tiene formato inválido (debe empezar con "re_")');
+      return false;
+    }
+    
+    console.log('✅ Configuración de Resend verificada');
     return true;
   } catch (error) {
-    console.error('❌ Configuración de Gmail SMTP inválida:', error);
+    console.error('❌ Configuración de Resend inválida:', error);
     return false;
   }
 }
