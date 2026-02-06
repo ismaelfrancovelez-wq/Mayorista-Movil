@@ -30,27 +30,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { type, data } = body;
+    const { type, data, live_mode } = body;
+    
+    // ========================================
+    // MANEJAR NOTIFICACIONES DE PRUEBA
+    // ========================================
+    if (!live_mode || data?.id === "123456" || data?.id === 123456) {
+      console.log("🧪 Notificación de prueba detectada - Respondiendo OK");
+      return NextResponse.json({ 
+        ok: true, 
+        message: "Test notification received successfully",
+        note: "This is a test notification. No action taken."
+      });
+    }
+
     if (type !== "payment" || !data?.id) {
+      console.log("⚠️ Tipo de notificación no soportado o sin ID");
       return NextResponse.json({ ok: true });
     }
 
-    const paymentId = data.id;
+    const paymentId = String(data.id);
     console.log("💳 Procesando payment:", paymentId);
 
+    // ========================================
+    // VERIFICAR SI YA FUE PROCESADO
+    // ========================================
     const paymentDocRef = db.collection("payments").doc(paymentId);
     const paymentDoc = await paymentDocRef.get();
 
     if (paymentDoc.exists) {
       console.log("✅ Payment ya procesado previamente");
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, message: "Already processed" });
     }
 
+    // ========================================
+    // OBTENER DATOS DEL PAGO DE MERCADOPAGO
+    // ========================================
     const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
     if (!MP_ACCESS_TOKEN) {
       throw new Error("MP_ACCESS_TOKEN no configurado");
     }
 
+    console.log("🔍 Consultando MercadoPago API...");
     const paymentRes = await fetch(
       `https://api.mercadopago.com/v1/payments/${paymentId}`,
       {
@@ -61,18 +82,37 @@ export async function POST(req: NextRequest) {
     );
 
     if (!paymentRes.ok) {
-      throw new Error("Error obteniendo pago de MP");
+      const errorText = await paymentRes.text();
+      console.error("❌ Error obteniendo pago de MP:", paymentRes.status, errorText);
+      
+      // Si es 404, el pago no existe (probablemente una notificación de prueba)
+      if (paymentRes.status === 404) {
+        console.log("⚠️ Pago no encontrado en MP - Probablemente notificación de prueba");
+        return NextResponse.json({ 
+          ok: true, 
+          message: "Payment not found - test notification" 
+        });
+      }
+      
+      throw new Error(`Error obteniendo pago de MP: ${paymentRes.status}`);
     }
 
     const payment = await paymentRes.json();
     console.log("💰 Payment status:", payment.status);
+    console.log("💰 Payment amount:", payment.transaction_amount);
     console.log("📦 Payment metadata:", JSON.stringify(payment.metadata, null, 2));
 
+    // ========================================
+    // SOLO PROCESAR PAGOS APROBADOS
+    // ========================================
     if (payment.status !== "approved") {
-      console.log("⏳ Pago no aprobado aún");
-      return NextResponse.json({ ok: true });
+      console.log(`⏳ Pago no aprobado aún (status: ${payment.status})`);
+      return NextResponse.json({ ok: true, status: payment.status });
     }
 
+    // ========================================
+    // VALIDAR METADATA
+    // ========================================
     const metadata = payment.metadata as OrderMetadata;
     const {
       orderType,
@@ -89,16 +129,23 @@ export async function POST(req: NextRequest) {
     } = metadata;
 
     if (!productId || !buyerId || !factoryId) {
+      console.error("❌ Metadata incompleta:", metadata);
       throw new Error("Metadata incompleta en payment");
     }
+
+    console.log("✅ Metadata válida:", { productId, buyerId, factoryId, orderType });
 
     // ========================================
     // 1) OBTENER DATOS NECESARIOS
     // ========================================
     
+    console.log("📚 Obteniendo datos de Firestore...");
+    
     // Producto
     const productDoc = await db.collection("products").doc(productId).get();
-    if (!productDoc.exists) throw new Error("Producto no encontrado");
+    if (!productDoc.exists) {
+      throw new Error(`Producto ${productId} no encontrado`);
+    }
     const productData = productDoc.data()!;
     const productName = productData.name || "Producto sin nombre";
     const productPrice = productData.price || 0;
@@ -148,8 +195,8 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("📧 Emails encontrados:");
-    console.log("  - Revendedor:", buyerEmail);
-    console.log("  - Fabricante:", factoryEmail);
+    console.log("  - Revendedor:", buyerEmail || "NO ENCONTRADO");
+    console.log("  - Fabricante:", factoryEmail || "NO ENCONTRADO");
 
     // ========================================
     // 2) GUARDAR PAGO
@@ -159,7 +206,9 @@ export async function POST(req: NextRequest) {
       status: payment.status,
       createdAt: new Date(),
       metadata,
+      processed: true,
     });
+    console.log("✅ Pago guardado en Firestore");
 
     // ========================================
     // 3) CREAR ORDEN
@@ -193,14 +242,14 @@ export async function POST(req: NextRequest) {
     // ========================================
     if (buyerEmail) {
       try {
+        console.log("📧 Enviando email al revendedor...");
+        
         const isDirect = orderType === "directa";
         const isPickup = shippingMode === "pickup";
         
-        // Calcular deadline (48hs hábiles para retiro)
         const now = new Date();
         const pickupDeadline = new Date(now.getTime() + (48 * 60 * 60 * 1000));
 
-        // Plantilla simplificada para el revendedor
         const retailerHtml = `
 <!DOCTYPE html>
 <html lang="es">
@@ -216,7 +265,6 @@ export async function POST(req: NextRequest) {
     .label { font-weight: 600; color: #6b7280; }
     .value { font-weight: 600; color: #111827; }
     .warning { background: #fef3c7; border: 2px solid #f59e0b; border-radius: 6px; padding: 15px; margin: 20px 0; }
-    .button { display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 600; }
     .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }
   </style>
 </head>
@@ -269,16 +317,22 @@ export async function POST(req: NextRequest) {
 </html>
         `;
 
-        await sendEmail({
+        const emailResult = await sendEmail({
           to: buyerEmail,
           subject: `✅ Compra Confirmada - ${productName}`,
           html: retailerHtml,
         });
 
-        console.log("✅ Email enviado al revendedor:", buyerEmail);
+        if (emailResult.success) {
+          console.log("✅ Email enviado al revendedor:", buyerEmail);
+        } else {
+          console.error("❌ Error enviando email al revendedor:", emailResult.error);
+        }
       } catch (emailError) {
         console.error("❌ Error enviando email al revendedor:", emailError);
       }
+    } else {
+      console.warn("⚠️ No se encontró email del revendedor");
     }
 
     // ========================================
@@ -300,7 +354,6 @@ export async function POST(req: NextRequest) {
       const targetQty = lotData.targetQty || 0;
       const newCurrentQty = currentQty + originalQty;
 
-      // Actualizar lote
       await lotRef.update({
         currentQty: newCurrentQty,
         lastOrderAt: new Date(),
@@ -314,13 +367,11 @@ export async function POST(req: NextRequest) {
       if (newCurrentQty >= targetQty) {
         console.log("🎉 ¡LOTE COMPLETADO!");
 
-        // Cerrar lote
         await lotRef.update({
           status: "closed",
           closedAt: new Date(),
         });
 
-        // Obtener todos los pedidos del lote
         const ordersSnap = await db
           .collection("orders")
           .where("lotId", "==", lotId)
@@ -337,7 +388,6 @@ export async function POST(req: NextRequest) {
           const orderData = orderDoc.data();
           const retailerId = orderData.buyerId;
           
-          // Buscar info del revendedor
           const retailerDoc = await db.collection("retailers").doc(retailerId).get();
           const userDoc = await db.collection("users").doc(retailerId).get();
           
@@ -366,6 +416,8 @@ export async function POST(req: NextRequest) {
         // ENVIAR EMAIL AL FABRICANTE (LOTE CERRADO)
         if (factoryEmail) {
           try {
+            console.log("📧 Enviando email al fabricante (lote cerrado)...");
+            
             const isPickup = lotType?.includes("retiro");
             
             const lotClosedHtml = `
@@ -455,13 +507,17 @@ export async function POST(req: NextRequest) {
 </html>
             `;
 
-            await sendEmail({
+            const emailResult = await sendEmail({
               to: factoryEmail,
               subject: `✅ Lote Completado - ${productName} (${newCurrentQty} unidades)`,
               html: lotClosedHtml,
             });
 
-            console.log("✅ Email de lote cerrado enviado al fabricante:", factoryEmail);
+            if (emailResult.success) {
+              console.log("✅ Email de lote cerrado enviado al fabricante:", factoryEmail);
+            } else {
+              console.error("❌ Error enviando email de lote cerrado:", emailResult.error);
+            }
           } catch (emailError) {
             console.error("❌ Error enviando email de lote cerrado:", emailError);
           }
@@ -474,6 +530,8 @@ export async function POST(req: NextRequest) {
       // ENVIAR EMAIL AL FABRICANTE (PEDIDO DIRECTO)
       if (factoryEmail) {
         try {
+          console.log("📧 Enviando email al fabricante (pedido directo)...");
+          
           const isPickup = shippingMode === "pickup";
           
           const directOrderHtml = `
@@ -553,13 +611,17 @@ export async function POST(req: NextRequest) {
 </html>
           `;
 
-          await sendEmail({
+          const emailResult = await sendEmail({
             to: factoryEmail,
             subject: `🎉 Nuevo Pedido - ${productName} (${originalQty} unidades)`,
             html: directOrderHtml,
           });
 
-          console.log("✅ Email enviado al fabricante:", factoryEmail);
+          if (emailResult.success) {
+            console.log("✅ Email enviado al fabricante:", factoryEmail);
+          } else {
+            console.error("❌ Error enviando email al fabricante:", emailResult.error);
+          }
         } catch (emailError) {
           console.error("❌ Error enviando email al fabricante:", emailError);
         }
@@ -567,12 +629,17 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("✅ Webhook procesado exitosamente");
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, orderId: orderRef.id });
 
   } catch (error: any) {
     console.error("❌ Error en webhook:", error);
+    console.error("Stack trace:", error.stack);
+    
     return NextResponse.json(
-      { error: error?.message || "Error procesando webhook" },
+      { 
+        error: error?.message || "Error procesando webhook",
+        details: error?.stack 
+      },
       { status: 500 }
     );
   }
