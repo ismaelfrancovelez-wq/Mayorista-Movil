@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
     const payment = await paymentRes.json();
     console.log("💰 Payment status:", payment.status);
     console.log("💰 Payment amount:", payment.transaction_amount);
-    console.log("📦 Payment metadata:", JSON.stringify(payment.metadata, null, 2));
+    console.log("📦 Payment metadata (RAW):", JSON.stringify(payment.metadata, null, 2));
 
     // ========================================
     // SOLO PROCESAR PAGOS APROBADOS
@@ -111,9 +111,85 @@ export async function POST(req: NextRequest) {
     }
 
     // ========================================
+    // PARSEAR Y NORMALIZAR METADATA
+    // ========================================
+    let metadata = payment.metadata;
+    
+    // 1. Si la metadata viene como string, parsearla
+    if (typeof metadata === 'string') {
+      console.log("⚠️ Metadata llegó como string, parseando...");
+      try {
+        metadata = JSON.parse(metadata);
+      } catch (e) {
+        console.error("❌ Error parseando metadata:", e);
+        throw new Error("Metadata inválida (no es JSON válido)");
+      }
+    }
+
+    // 2. Log de tipos antes de normalizar
+    console.log("📊 Tipos de datos en metadata (antes de normalizar):", {
+      productId: typeof metadata?.productId,
+      buyerId: typeof metadata?.buyerId,
+      factoryId: typeof metadata?.factoryId,
+      originalQty: typeof metadata?.originalQty,
+      MF: typeof metadata?.MF,
+      commission: typeof metadata?.commission,
+      shippingCost: typeof metadata?.shippingCost,
+      shippingMode: typeof metadata?.shippingMode,
+      orderType: typeof metadata?.orderType,
+      lotType: typeof metadata?.lotType
+    });
+
+    // 3. Normalizar valores numéricos si vienen como strings
+    // IMPORTANTE: MercadoPago puede transformar camelCase a snake_case
+    // Aceptamos AMBOS formatos para máxima compatibilidad
+    const normalizedMetadata: OrderMetadata = {
+      // Mapear product_id → productId
+      productId: metadata?.productId || metadata?.product_id,
+      
+      // Mapear retailer_id → buyerId (buyerId es el nombre que usamos internamente)
+      buyerId: metadata?.buyerId || metadata?.retailerId || metadata?.retailer_id,
+      
+      // Mapear factory_id → factoryId (puede no venir, lo obtenemos del producto)
+      factoryId: metadata?.factoryId || metadata?.factory_id,
+      
+      // Mapear original_qty → originalQty, y también aceptar qty como fallback
+      originalQty: typeof metadata?.originalQty === 'string' ? parseFloat(metadata.originalQty) : 
+                   typeof metadata?.original_qty === 'string' ? parseFloat(metadata.original_qty) :
+                   metadata?.originalQty || metadata?.original_qty || 
+                   (typeof metadata?.qty === 'string' ? parseFloat(metadata.qty) : metadata?.qty),
+      
+      // Mapear mf → MF (MercadoPago lo transforma a minúsculas)
+      MF: typeof metadata?.MF === 'string' ? parseFloat(metadata.MF) : 
+          typeof metadata?.mf === 'string' ? parseFloat(metadata.mf) :
+          metadata?.MF || metadata?.mf,
+      
+      // Commission acepta ambos formatos
+      commission: typeof metadata?.commission === 'string' ? parseFloat(metadata.commission) : metadata?.commission,
+      
+      // Mapear shipping_cost → shippingCost
+      shippingCost: typeof metadata?.shippingCost === 'string' ? parseFloat(metadata.shippingCost) : 
+                    typeof metadata?.shipping_cost === 'string' ? parseFloat(metadata.shipping_cost) :
+                    metadata?.shippingCost || metadata?.shipping_cost,
+      
+      // Mapear shipping_mode → shippingMode
+      shippingMode: metadata?.shippingMode || metadata?.shipping_mode,
+      
+      // Mapear order_type → orderType, y también aceptar "tipo" como fallback
+      orderType: metadata?.orderType || metadata?.order_type || metadata?.tipo,
+      
+      // Mapear lot_type → lotType
+      lotType: metadata?.lotType || metadata?.lot_type,
+      
+      // Mapear lot_id → lotId
+      lotId: metadata?.lotId || metadata?.lot_id
+    };
+
+    console.log("✅ Metadata normalizada:", JSON.stringify(normalizedMetadata, null, 2));
+
+    // ========================================
     // VALIDAR METADATA
     // ========================================
-    const metadata = payment.metadata as OrderMetadata;
     const {
       orderType,
       lotType,
@@ -126,11 +202,24 @@ export async function POST(req: NextRequest) {
       commission = 0,
       lotId,
       MF = 0,
-    } = metadata;
+    } = normalizedMetadata;
 
+    // Validación robusta
+    const missingFields: string[] = [];
+    if (!productId) missingFields.push('productId');
+    if (!buyerId) missingFields.push('buyerId');
+    if (!factoryId) missingFields.push('factoryId');
+
+    if (missingFields.length > 0) {
+      console.error("❌ Campos faltantes:", missingFields);
+      console.error("❌ Metadata original:", JSON.stringify(payment.metadata, null, 2));
+      console.error("❌ Metadata normalizada:", JSON.stringify(normalizedMetadata, null, 2));
+      throw new Error(`Metadata incompleta. Campos faltantes: ${missingFields.join(', ')}`);
+    }
+
+    // Asegurar que TypeScript sepa que estos valores existen después de la validación
     if (!productId || !buyerId || !factoryId) {
-      console.error("❌ Metadata incompleta:", metadata);
-      throw new Error("Metadata incompleta en payment");
+      throw new Error("Error de validación interno");
     }
 
     console.log("✅ Metadata válida:", { productId, buyerId, factoryId, orderType });
@@ -142,7 +231,7 @@ export async function POST(req: NextRequest) {
     console.log("📚 Obteniendo datos de Firestore...");
     
     // Producto
-    const productDoc = await db.collection("products").doc(productId).get();
+    const productDoc = await db.collection("products").doc(productId!).get();
     if (!productDoc.exists) {
       throw new Error(`Producto ${productId} no encontrado`);
     }
@@ -151,7 +240,7 @@ export async function POST(req: NextRequest) {
     const productPrice = productData.price || 0;
 
     // Comprador (Revendedor)
-    const buyerDoc = await db.collection("users").doc(buyerId).get();
+    const buyerDoc = await db.collection("users").doc(buyerId!).get();
     let buyerEmail = "";
     let buyerName = "Usuario";
     if (buyerDoc.exists) {
@@ -161,7 +250,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Dirección del revendedor
-    const retailerDoc = await db.collection("retailers").doc(buyerId).get();
+    const retailerDoc = await db.collection("retailers").doc(buyerId!).get();
     let buyerAddress = "Dirección no disponible";
     let buyerPhone = "";
     if (retailerDoc.exists) {
@@ -171,7 +260,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fabricante
-    const factoryDoc = await db.collection("manufacturers").doc(factoryId).get();
+    const factoryDoc = await db.collection("manufacturers").doc(factoryId!).get();
     let factoryEmail = "";
     let factoryName = "Fabricante";
     let factoryAddress = "Dirección no disponible";
@@ -205,7 +294,7 @@ export async function POST(req: NextRequest) {
       paymentId,
       status: payment.status,
       createdAt: new Date(),
-      metadata,
+      metadata: normalizedMetadata,
       processed: true,
     });
     console.log("✅ Pago guardado en Firestore");
@@ -229,28 +318,74 @@ export async function POST(req: NextRequest) {
       shippingCost,
       orderType,
       lotType,
-      lotId: lotId || null,
-      status: "pending",
+      status: "pendiente",
       createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     await orderRef.set(orderData);
     console.log("✅ Orden creada:", orderRef.id);
 
     // ========================================
-    // 4) ENVIAR EMAIL AL REVENDEDOR
+    // 4) PROCESAMIENTO SEGÚN TIPO
     // ========================================
-    if (buyerEmail) {
-      try {
-        console.log("📧 Enviando email al revendedor...");
-        
-        const isDirect = orderType === "directa";
-        const isPickup = shippingMode === "pickup";
-        
-        const now = new Date();
-        const pickupDeadline = new Date(now.getTime() + (48 * 60 * 60 * 1000));
+    if (orderType === "fraccionado") {
+      console.log("🧩 Procesando pedido FRACCIONADO...");
 
-        const retailerHtml = `
+      if (!lotId) {
+        console.error("❌ lotId no encontrado en metadata");
+        throw new Error("lotId requerido para pedidos fraccionados");
+      }
+
+      const lotRef = db.collection("lots").doc(lotId);
+      const lotDoc = await lotRef.get();
+
+      if (!lotDoc.exists) {
+        console.error("❌ Lote no encontrado:", lotId);
+        throw new Error(`Lote ${lotId} no encontrado`);
+      }
+
+      const lotData = lotDoc.data()!;
+      const currentQty = lotData.currentQty || 0;
+      const minimumQty = lotData.minimumQty || MF;
+      const newCurrentQty = currentQty + originalQty;
+
+      console.log(`📊 Lote ${lotId}:`, {
+        before: currentQty,
+        adding: originalQty,
+        after: newCurrentQty,
+        minimum: minimumQty
+      });
+
+      // Actualizar lote
+      await lotRef.update({
+        currentQty: newCurrentQty,
+        updatedAt: new Date(),
+      });
+
+      // Agregar participante al lote
+      await lotRef.collection("participants").doc(buyerId!).set({
+        buyerId,
+        buyerName,
+        buyerAddress,
+        buyerPhone,
+        qty: originalQty,
+        joinedAt: new Date(),
+        orderId: orderRef.id,
+      });
+
+      console.log(`✅ Lote actualizado: ${currentQty} → ${newCurrentQty}`);
+
+      // ENVIAR EMAIL AL REVENDEDOR (COMPRA FRACCIONADA)
+      if (buyerEmail) {
+        try {
+          console.log("📧 Enviando email al revendedor (fraccionado)...");
+          
+          const progress = Math.round((newCurrentQty / minimumQty) * 100);
+          const remaining = Math.max(0, minimumQty - newCurrentQty);
+          const isPickup = shippingMode === "pickup";
+          
+          const fractionalOrderHtml = `
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -258,51 +393,61 @@ export async function POST(req: NextRequest) {
   <style>
     body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
     .container { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .header { text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
-    .header h1 { color: #2563eb; margin: 0; font-size: 24px; }
-    .section { margin: 25px 0; padding: 20px; background: #f9fafb; border-radius: 6px; border-left: 4px solid #2563eb; }
+    .header { text-align: center; border-bottom: 3px solid #10b981; padding-bottom: 20px; margin-bottom: 30px; }
+    .header h1 { color: #10b981; margin: 0; font-size: 24px; }
+    .section { margin: 25px 0; padding: 20px; background: #f9fafb; border-radius: 6px; border-left: 4px solid #10b981; }
     .info-row { margin: 10px 0; }
     .label { font-weight: 600; color: #6b7280; }
     .value { font-weight: 600; color: #111827; }
-    .warning { background: #fef3c7; border: 2px solid #f59e0b; border-radius: 6px; padding: 15px; margin: 20px 0; }
+    .progress-bar { background: #e5e7eb; border-radius: 10px; height: 30px; margin: 15px 0; overflow: hidden; }
+    .progress-fill { background: linear-gradient(to right, #10b981, #059669); height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; transition: width 0.3s ease; }
     .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>✅ Compra Confirmada</h1>
+      <h1>✅ Pedido Confirmado</h1>
     </div>
     
     <p>¡Hola ${buyerName}!</p>
-    <p>Tu pago fue aprobado exitosamente.</p>
+    <p>Tu pedido fraccionado fue confirmado exitosamente.</p>
     
     <div class="section">
-      <h3 style="margin-top: 0;">📦 Detalles de tu Pedido</h3>
+      <h3 style="margin-top: 0;">📦 Tu Pedido</h3>
       <div class="info-row"><span class="label">Producto:</span> <span class="value">${productName}</span></div>
       <div class="info-row"><span class="label">Cantidad:</span> <span class="value">${originalQty} unidades</span></div>
-      <div class="info-row"><span class="label">Tipo:</span> <span class="value">${isDirect ? 'Compra directa' : 'Compra fraccionada'}</span></div>
-      <div class="info-row"><span class="label">Total pagado:</span> <span class="value">$ ${payment.transaction_amount}</span></div>
+      <div class="info-row"><span class="label">Monto:</span> <span class="value">$ ${payment.transaction_amount}</span></div>
+      <div class="info-row"><span class="label">Tipo:</span> <span class="value">Compra fraccionada</span></div>
     </div>
     
     <div class="section">
-      <h3 style="margin-top: 0;">🏭 Fabricante</h3>
-      <div class="info-row"><span class="label">Nombre:</span> <span class="value">${factoryName}</span></div>
-      <div class="info-row"><span class="label">Dirección:</span> <span class="value">${factoryAddress}</span></div>
+      <h3 style="margin-top: 0;">📊 Progreso del Lote</h3>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: ${progress}%">${progress}%</div>
+      </div>
+      <div class="info-row"><span class="label">Vendido:</span> <span class="value">${newCurrentQty} / ${minimumQty} unidades</span></div>
+      <div class="info-row"><span class="label">Faltan:</span> <span class="value">${remaining} unidades</span></div>
     </div>
     
     <div class="section">
       <h3 style="margin-top: 0;">🚚 Envío</h3>
-      <p><strong>Modalidad:</strong> ${isPickup ? '🏭 Retiro en fábrica' : '📦 Envío a domicilio'}</p>
+      <p><strong>Modalidad:</strong> ${isPickup ? '🏭 Retiro en fábrica' : '📦 Envío por plataforma'}</p>
       ${isPickup ? `
-        <div class="warning">
-          <strong>⏰ IMPORTANTE:</strong> Tenés 48hs hábiles para retirar tu pedido desde que realizaste la compra.
-          <br><br>
-          <strong>Fecha límite:</strong> ${pickupDeadline.toLocaleDateString('es-AR')} a las ${pickupDeadline.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-        </div>
+        <p><strong>Dirección:</strong> ${factoryAddress}</p>
+        <p><strong>⏰ Importante:</strong> Una vez que el lote se complete, tendrás 48hs hábiles para retirar tu pedido.</p>
       ` : `
-        <p>El fabricante coordinará el envío a tu dirección: <strong>${buyerAddress}</strong></p>
+        <p>Una vez que el lote se complete, coordinaremos la entrega a tu dirección: <strong>${buyerAddress}</strong></p>
       `}
+    </div>
+    
+    <div class="section">
+      <h3 style="margin-top: 0;">⏰ Próximos Pasos</h3>
+      <ol style="margin: 15px 0; padding-left: 20px;">
+        <li>Esperá a que el lote se complete (${remaining} unidades restantes)</li>
+        <li>Te notificaremos por email cuando esté listo</li>
+        <li>${isPickup ? 'Coordiná el retiro en la fábrica' : 'Recibirás tu pedido en tu dirección'}</li>
+      </ol>
     </div>
     
     <div class="footer">
@@ -315,110 +460,51 @@ export async function POST(req: NextRequest) {
   </div>
 </body>
 </html>
-        `;
+          `;
 
-        const emailResult = await sendEmail({
-          to: buyerEmail,
-          subject: `✅ Compra Confirmada - ${productName}`,
-          html: retailerHtml,
-        });
+          const emailResult = await sendEmail({
+            to: buyerEmail,
+            subject: `✅ Pedido Confirmado - ${productName} (${progress}% completado)`,
+            html: fractionalOrderHtml,
+          });
 
-        if (emailResult.success) {
-          console.log("✅ Email enviado al revendedor:", buyerEmail);
-        } else {
-          console.error("❌ Error enviando email al revendedor:", emailResult.error);
+          if (emailResult.success) {
+            console.log("✅ Email enviado al revendedor:", buyerEmail);
+          } else {
+            console.error("❌ Error enviando email al revendedor:", emailResult.error);
+          }
+        } catch (emailError) {
+          console.error("❌ Error enviando email al revendedor:", emailError);
         }
-      } catch (emailError) {
-        console.error("❌ Error enviando email al revendedor:", emailError);
-      }
-    } else {
-      console.warn("⚠️ No se encontró email del revendedor");
-    }
-
-    // ========================================
-    // 5) PROCESAR SEGÚN TIPO DE ORDEN
-    // ========================================
-    
-    if (orderType === "fraccionado" && lotId) {
-      console.log("📦 Procesando pedido FRACCIONADO...");
-
-      const lotRef = db.collection("lots").doc(lotId);
-      const lotDoc = await lotRef.get();
-
-      if (!lotDoc.exists) {
-        throw new Error(`Lote ${lotId} no encontrado`);
       }
 
-      const lotData = lotDoc.data()!;
-      const currentQty = lotData.currentQty || 0;
-      const targetQty = lotData.targetQty || 0;
-      const newCurrentQty = currentQty + originalQty;
-
-      await lotRef.update({
-        currentQty: newCurrentQty,
-        lastOrderAt: new Date(),
-      });
-
-      console.log(`📊 Lote actualizado: ${currentQty} → ${newCurrentQty} / ${targetQty}`);
-
-      // ========================================
-      // 6) SI EL LOTE SE COMPLETÓ
-      // ========================================
-      if (newCurrentQty >= targetQty) {
+      // VERIFICAR SI SE COMPLETÓ EL LOTE
+      if (newCurrentQty >= minimumQty) {
         console.log("🎉 ¡LOTE COMPLETADO!");
 
         await lotRef.update({
-          status: "closed",
-          closedAt: new Date(),
+          status: "completed",
+          completedAt: new Date(),
         });
 
-        const ordersSnap = await db
-          .collection("orders")
-          .where("lotId", "==", lotId)
-          .get();
-
-        const retailers: Array<{
-          name: string;
-          qty: number;
-          address: string;
-          phone?: string;
-        }> = [];
-
-        for (const orderDoc of ordersSnap.docs) {
-          const orderData = orderDoc.data();
-          const retailerId = orderData.buyerId;
-          
-          const retailerDoc = await db.collection("retailers").doc(retailerId).get();
-          const userDoc = await db.collection("users").doc(retailerId).get();
-          
-          let name = "Revendedor";
-          let address = "No disponible";
-          let phone = undefined;
-          
-          if (userDoc.exists) {
-            name = userDoc.data()?.name || userDoc.data()?.email || "Revendedor";
-          }
-          
-          if (retailerDoc.exists) {
-            const retailerData = retailerDoc.data();
-            address = retailerData?.address?.formatted || "No disponible";
-            phone = retailerData?.phone;
-          }
-          
-          retailers.push({
-            name,
-            qty: orderData.qty || 0,
-            address,
-            phone,
-          });
-        }
-
-        // ENVIAR EMAIL AL FABRICANTE (LOTE CERRADO)
+        // ENVIAR EMAIL AL FABRICANTE (LOTE COMPLETADO)
         if (factoryEmail) {
           try {
-            console.log("📧 Enviando email al fabricante (lote cerrado)...");
+            console.log("📧 Enviando email al fabricante (lote completado)...");
             
-            const isPickup = lotType?.includes("retiro");
+            // Obtener todos los participantes del lote
+            const participantsSnap = await lotRef.collection("participants").get();
+            const retailers = participantsSnap.docs.map(doc => {
+              const data = doc.data();
+              return {
+                name: data.buyerName || "Usuario",
+                qty: data.qty || 0,
+                address: data.buyerAddress || "Dirección no disponible",
+                phone: data.buyerPhone || ""
+              };
+            });
+
+            const isPickup = shippingMode === "pickup";
             
             const lotClosedHtml = `
 <!DOCTYPE html>

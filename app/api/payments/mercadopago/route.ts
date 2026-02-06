@@ -91,37 +91,38 @@ console.log('🔗 Base URL configurada:', baseUrl);
     // CREAR PREFERENCIA CON SPLIT
     // ═══════════════════════════════════════════════════════════
     const preference = await createSplitPreference({
-      title,
-      unit_price: Math.round(unitPrice),
-      quantity: 1,
-      
-      metadata: {
-        productId,
-        qty: originalQty,
-        tipo,
-        withShipping,
-        orderType,
-        lotType,
-        retailerId: userId,
-        original_qty: originalQty,
-        MF,
-        shippingCost,
-        shippingMode,
-        commission,
-      },
-      
-      back_urls: {
-        success: `${baseUrl}/success`,
-        failure: `${baseUrl}/failure`,
-        pending: `${baseUrl}/pending`,
-      },
-      
-      // ✅ SPLIT DE PAGOS
-      factoryMPUserId,
-      shippingCost,
-      productTotal,
-      commission,
-    });
+  title,
+  unit_price: Math.round(unitPrice),
+  quantity: 1,
+  
+  metadata: {
+    productId,
+    factoryId,  // ✅ AGREGADO: Ahora se incluye el facto
+    qty: originalQty,
+    tipo,
+    withShipping,
+    orderType,
+    lotType,
+    retailerId: userId,
+    original_qty: originalQty,
+    MF,
+    shippingCost,
+    shippingMode,
+    commission,
+  },
+  
+  back_urls: {
+    success: `${baseUrl}/success`,
+    failure: `${baseUrl}/failure`,
+    pending: `${baseUrl}/pending`,
+  },
+  
+  // ✅ SPLIT DE PAGOS
+  factoryMPUserId,
+  shippingCost,
+  productTotal,
+  commission,
+});
 
     return NextResponse.json({ init_point: preference.init_point });
   } catch (error: any) {

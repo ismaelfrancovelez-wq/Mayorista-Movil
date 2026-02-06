@@ -13,6 +13,7 @@ type SplitPaymentParams = {
   quantity: number;
   metadata: {
     productId: string;
+    factoryId?: string;  // ✅ AGREGADO: factoryId a la metadata
     qty: number;
     tipo: "directa" | "fraccionada";
     withShipping: boolean;
