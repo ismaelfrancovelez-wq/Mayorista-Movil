@@ -54,11 +54,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl) {
-      return NextResponse.json({ error: "Configuración faltante" }, { status: 500 });
-    }
+    // 🔧 FIX: Usar fallback automático para desarrollo
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+  (process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:3000' 
+    : 'https://mayoristamovil.vercel.app');
 
+console.log('🔗 Base URL configurada:', baseUrl);
     // ═══════════════════════════════════════════════════════════
     // OBTENER DATOS DEL PRODUCTO Y FABRICANTE
     // ═══════════════════════════════════════════════════════════

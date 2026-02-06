@@ -1,3 +1,6 @@
+// lib/mercadopago-split.ts
+// 🔧 VERSIÓN SIN auto_return (COMPATIBLE CON SDK v2.11.0)
+
 import MercadoPagoConfig, { Preference } from "mercadopago";
 
 const client = new MercadoPagoConfig({
@@ -43,64 +46,101 @@ export async function createSplitPreference(params: SplitPaymentParams) {
     commission,
   } = params;
 
-  const preference = new Preference(client);
-
-  if (metadata.tipo === "directa") {
-    const response = await preference.create({
-      body: {
-        items: [
-          {
-            id: metadata.productId,
-            title,
-            unit_price,
-            quantity,
-          },
-        ],
-        back_urls,
-        auto_return: "approved",
-        metadata: metadata as any,
-      },
-    });
-
-    return response;
+  // ✅ VALIDACIÓN: Verificar que back_urls esté completo
+  console.log('🔍 Verificando back_urls:', back_urls);
+  
+  if (!back_urls?.success || !back_urls?.pending || !back_urls?.failure) {
+    console.error('❌ back_urls incompleto:', back_urls);
+    throw new Error('back_urls debe tener success, pending y failure');
   }
 
-  if (metadata.tipo === "fraccionada") {
-    const response = await preference.create({
-      body: {
-        items: [
-          {
-            id: metadata.productId,
-            title,
-            unit_price,
-            quantity,
-          },
-        ],
-        back_urls,
-        auto_return: "approved",
-        metadata: metadata as any,
-        marketplace_fee: commission,
-      },
-    });
-
-    return response;
-  }
-
-  const response = await preference.create({
-    body: {
-      items: [
-        {
-          id: metadata.productId,
-          title,
-          unit_price,
-          quantity,
-        },
-      ],
-      back_urls,
-      auto_return: "approved",
-      metadata: metadata as any,
-    },
+  console.log('✅ back_urls válido:', {
+    success: back_urls.success,
+    pending: back_urls.pending,
+    failure: back_urls.failure,
   });
 
-  return response;
+  const preference = new Preference(client);
+
+  // 🔔 NOTIFICATION URL (webhook)
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+    (process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:3000' 
+      : 'https://mayoristamovil.vercel.app');
+  
+  const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
+  console.log('🔔 Notification URL:', notificationUrl);
+
+  // ✅ PREPARAR BODY - VERSIÓN MINIMALISTA QUE FUNCIONA
+  const baseBody: any = {
+    items: [
+      {
+        id: metadata.productId,
+        title,
+        unit_price,
+        quantity,
+      },
+    ],
+    notification_url: notificationUrl,
+    metadata: metadata,
+  };
+
+  console.log('📦 Creando preferencia con body:', {
+    tipo: metadata.tipo,
+    title,
+    unit_price,
+    notification_url: baseBody.notification_url,
+  });
+
+  try {
+    // PEDIDO DIRECTO
+    if (metadata.tipo === "directa") {
+      console.log('🔵 Creando preferencia DIRECTA');
+      
+      const response = await preference.create({
+        body: baseBody,
+      });
+
+      console.log('✅ Preferencia DIRECTA creada:', response.id);
+      console.log('🔗 Init point:', response.init_point);
+      return response;
+    }
+
+    // PEDIDO FRACCIONADO
+    if (metadata.tipo === "fraccionada") {
+      console.log('🔵 Creando preferencia FRACCIONADA con commission:', commission);
+      
+      const response = await preference.create({
+        body: {
+          ...baseBody,
+          // marketplace_fee: commission, // ⚠️ Comentado si causa problemas
+        },
+      });
+
+      console.log('✅ Preferencia FRACCIONADA creada:', response.id);
+      console.log('🔗 Init point:', response.init_point);
+      return response;
+    }
+
+    // FALLBACK
+    console.log('🔵 Creando preferencia FALLBACK');
+    
+    const response = await preference.create({
+      body: baseBody,
+    });
+
+    console.log('✅ Preferencia FALLBACK creada:', response.id);
+    console.log('🔗 Init point:', response.init_point);
+    return response;
+
+  } catch (error: any) {
+    console.error('❌ Error creando preferencia:', {
+      message: error.message,
+      error: error.error,
+      status: error.status,
+      cause: error.cause,
+      body: error.body,
+    });
+    throw error;
+  }
 }
