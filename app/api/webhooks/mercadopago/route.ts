@@ -290,11 +290,16 @@ export async function POST(req: NextRequest) {
     // ========================================
     // 2) GUARDAR PAGO
     // ========================================
+    // Limpiar metadata eliminando campos undefined (Firestore no los acepta)
+    const cleanMetadata = Object.fromEntries(
+      Object.entries(normalizedMetadata).filter(([_, value]) => value !== undefined)
+    );
+    
     await paymentDocRef.set({
       paymentId,
       status: payment.status,
       createdAt: new Date(),
-      metadata: normalizedMetadata,
+      metadata: cleanMetadata,
       processed: true,
     });
     console.log("✅ Pago guardado en Firestore");
