@@ -1,6 +1,9 @@
 // app/api/manufacturers/profile/route.ts
 
 import { NextResponse } from "next/server";
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
