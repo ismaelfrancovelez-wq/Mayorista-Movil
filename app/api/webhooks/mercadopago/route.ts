@@ -295,9 +295,20 @@ export async function POST(req: NextRequest) {
       Object.entries(normalizedMetadata).filter(([_, value]) => value !== undefined)
     );
     
+    // Determinar el tipo de pedido para el dashboard
+    const paymentType = orderType === "fraccionado" ? "fractional" : "direct";
+    const lotStatus = orderType === "fraccionado" ? "accumulating" : null;
+    
     await paymentDocRef.set({
       paymentId,
       status: payment.status,
+      buyerId,  // ✅ Necesario para filtrar por usuario en el dashboard
+      factoryId,  // ✅ Necesario para filtrar por fabricante
+      productId,  // ✅ Necesario para mostrar el producto
+      type: paymentType,  // ✅ "fractional" o "direct" para filtrar en dashboard
+      lotStatus: lotStatus,  // ✅ "accumulating" o null
+      lotId: lotId || null,  // ✅ Referencia al lote si es fraccionado
+      total: payment.transaction_amount || 0,  // ✅ Necesario para calcular total invertido
       createdAt: new Date(),
       metadata: cleanMetadata,
       processed: true,
@@ -351,8 +362,8 @@ export async function POST(req: NextRequest) {
       }
 
       const lotData = lotDoc.data()!;
-      const currentQty = lotData.currentQty || 0;
-      const minimumQty = lotData.minimumQty || MF;
+      const currentQty = lotData.accumulatedQty || lotData.currentQty || 0;  // ← Usar accumulatedQty
+      const minimumQty = lotData.minimumQty || lotData.minimumOrder || MF;
       const newCurrentQty = currentQty + originalQty;
 
       console.log(`📊 Lote ${lotId}:`, {
@@ -362,9 +373,9 @@ export async function POST(req: NextRequest) {
         minimum: minimumQty
       });
 
-      // Actualizar lote
+      // Actualizar lote con la estructura correcta
       await lotRef.update({
-        currentQty: newCurrentQty,
+        accumulatedQty: newCurrentQty,  // ← Usar accumulatedQty en lugar de currentQty
         updatedAt: new Date(),
       });
 
@@ -491,6 +502,19 @@ export async function POST(req: NextRequest) {
           status: "completed",
           completedAt: new Date(),
         });
+
+        // ✅ Actualizar lotStatus de todos los pagos de este lote
+        const paymentsInLot = await db
+          .collection("payments")
+          .where("lotId", "==", lotId)
+          .get();
+        
+        const batch = db.batch();
+        paymentsInLot.docs.forEach(doc => {
+          batch.update(doc.ref, { lotStatus: "closed" });
+        });
+        await batch.commit();
+        console.log(`✅ Actualizado lotStatus a "closed" para ${paymentsInLot.size} pagos`);
 
         // ENVIAR EMAIL AL FABRICANTE (LOTE COMPLETADO)
         if (factoryEmail) {
