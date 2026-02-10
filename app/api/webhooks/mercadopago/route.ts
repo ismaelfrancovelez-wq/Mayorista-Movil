@@ -300,19 +300,20 @@ export async function POST(req: NextRequest) {
     const lotStatus = orderType === "fraccionado" ? "accumulating" : null;
     
     await paymentDocRef.set({
-      paymentId,
-      status: payment.status,
-      buyerId,  // ✅ Necesario para filtrar por usuario en el dashboard
-      factoryId,  // ✅ Necesario para filtrar por fabricante
-      productId,  // ✅ Necesario para mostrar el producto
-      type: paymentType,  // ✅ "fractional" o "direct" para filtrar en dashboard
-      lotStatus: lotStatus,  // ✅ "accumulating" o null
-      lotId: lotId || null,  // ✅ Referencia al lote si es fraccionado
-      total: payment.transaction_amount || 0,  // ✅ Necesario para calcular total invertido
-      createdAt: new Date(),
-      metadata: cleanMetadata,
-      processed: true,
-    });
+  paymentId,
+  status: payment.status,
+  retailerId: buyerId,  // ← CAMBIADO: ahora guarda con "retailerId"
+  buyerId,  // ← MANTENER: por si se usa en otro lugar
+  factoryId,  // ✅ Necesario para filtrar por fabricante
+  productId,  // ✅ Necesario para mostrar el producto
+  type: paymentType,  // ✅ "fractional" o "direct" para filtrar en dashboard
+  lotStatus: lotStatus,  // ✅ "accumulating" o null
+  lotId: lotId || null,  // ✅ Referencia al lote si es fraccionado
+  total: payment.transaction_amount || 0,  // ✅ Necesario para calcular total invertido
+  createdAt: new Date(),
+  metadata: cleanMetadata,
+  processed: true,
+});
     console.log("✅ Pago guardado en Firestore");
 
     // ========================================
