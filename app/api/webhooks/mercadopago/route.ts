@@ -302,14 +302,19 @@ export async function POST(req: NextRequest) {
     await paymentDocRef.set({
   paymentId,
   status: payment.status,
-  retailerId: buyerId,  // ← CAMBIADO: ahora guarda con "retailerId"
-  buyerId,  // ← MANTENER: por si se usa en otro lugar
+  retailerId: buyerId,  // ✅ AGREGADO: Para que lo encuentre la página de pedidos
+  buyerId,  // ✅ Mantener por compatibilidad
   factoryId,  // ✅ Necesario para filtrar por fabricante
   productId,  // ✅ Necesario para mostrar el producto
-  type: paymentType,  // ✅ "fractional" o "direct" para filtrar en dashboard
+  qty: originalQty,  // ✅ AGREGADO: Cantidad comprada
+  orderType: orderType,  // ✅ AGREGADO: "fraccionado" o "directa" (no "fractional")
+  lotType: lotType || null,  // ✅ AGREGADO: Tipo de lote
+  type: paymentType,  // ✅ Mantener por compatibilidad ("fractional" o "direct")
   lotStatus: lotStatus,  // ✅ "accumulating" o null
   lotId: lotId || null,  // ✅ Referencia al lote si es fraccionado
-  total: payment.transaction_amount || 0,  // ✅ Necesario para calcular total invertido
+  amount: (payment.transaction_amount || 0) - (shippingCost || 0),  // ✅ AGREGADO: Monto del producto sin envío
+  shippingCost: shippingCost || 0,  // ✅ AGREGADO: Costo de envío
+  total: payment.transaction_amount || 0,  // ✅ Total pagado (producto + envío)
   createdAt: new Date(),
   metadata: cleanMetadata,
   processed: true,
