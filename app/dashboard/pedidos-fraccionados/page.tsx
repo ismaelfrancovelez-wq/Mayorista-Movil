@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, doc, getDoc, getDocs, QueryDocumentSnapshot, DocumentData } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "../../../lib/firebase-client";
 import ActiveRoleBadge from "../../../components/ActiveRoleBadge";
 import SwitchRoleButton from "../../../components/SwitchRoleButton";
@@ -89,13 +89,10 @@ export default function DashboardRevendedor() {
       for (const lotDoc of snapshot.docs) {
         const lotData = lotDoc.data();
 
-        // Obtener participantes del lote
-        // ✅ CORRECCIÓN: Usar collection() en lugar de lotDoc.ref.collection()
-        const participantsQuery = query(
-          collection(db, "lots", lotDoc.id, "participants")
-        );
-        const participantsSnap = await getDocs(participantsQuery);
-        const participants = participantsSnap.docs.map((d: QueryDocumentSnapshot<DocumentData>) => d.data());
+        // ✅ FIX: Obtener participantes usando getDocs en la subcolección
+        const participantsRef = collection(db, "lots", lotDoc.id, "participants");
+        const participantsSnap = await getDocs(participantsRef);
+        const participants = participantsSnap.docs.map((d: any) => d.data());
 
         // Verificar si este usuario tiene pedidos en este lote
         const userParticipant = participants.find((p: any) => p.buyerId === userId);

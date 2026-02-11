@@ -90,17 +90,13 @@ export default function PedidosPage() {
           if (lotSnap.exists()) {
             const lotData = lotSnap.data();
             status = lotData.status || "accumulating";
-            // ✅ CORRECCIÓN: Asegurar que sean números, no undefined
-            const tempAccumulatedQty = lotData.accumulatedQty ?? 0;
-            const tempMinimumQty = lotData.minimumQty ?? lotData.minimumOrder ?? product?.minimumOrder ?? 0;
+            accumulatedQty = lotData.accumulatedQty || 0;
+            minimumQty = lotData.minimumQty || lotData.minimumOrder || product?.minimumOrder || 0;
             
-            accumulatedQty = tempAccumulatedQty;
-            minimumQty = tempMinimumQty;
-            
-            // ✅ CORRECCIÓN: Validar que minimumQty no sea 0 antes de dividir
-            if (tempMinimumQty > 0) {
-              progress = Math.round((tempAccumulatedQty / tempMinimumQty) * 100);
-              remaining = Math.max(0, tempMinimumQty - tempAccumulatedQty);
+            // ✅ FIX: Solo calcular si minimumQty existe
+            if (minimumQty && minimumQty > 0 && accumulatedQty !== undefined) {
+              progress = Math.round((accumulatedQty / minimumQty) * 100);
+              remaining = Math.max(0, minimumQty - accumulatedQty);
             }
           }
         }
@@ -280,7 +276,7 @@ export default function PedidosPage() {
                   </div>
 
                   {/* Progreso del lote (solo para fraccionados en progreso) */}
-                  {isFraccionado && isEnProceso && order.progress !== undefined && order.minimumQty !== undefined && order.accumulatedQty !== undefined && (
+                  {isFraccionado && isEnProceso && order.progress !== undefined && order.accumulatedQty !== undefined && order.minimumQty !== undefined && (
                     <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="font-medium text-purple-900">Progreso del lote</span>
@@ -296,7 +292,9 @@ export default function PedidosPage() {
                       </div>
                       <div className="flex justify-between text-xs text-purple-700">
                         <span>{order.progress}% completado</span>
-                        <span>Faltan {order.remaining || 0} unidades</span>
+                        {order.remaining !== undefined && (
+                          <span>Faltan {order.remaining} unidades</span>
+                        )}
                       </div>
                     </div>
                   )}
