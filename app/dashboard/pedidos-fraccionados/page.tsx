@@ -23,26 +23,40 @@ type ActiveLot = {
 
 export default function DashboardRevendedor() {
   const [userId, setUserId] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [pedidosTotales, setPedidosTotales] = useState(0);
   const [pedidosEnProceso, setPedidosEnProceso] = useState(0);
   const [totalInvertido, setTotalInvertido] = useState(0);
   const [activeLots, setActiveLots] = useState<ActiveLot[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
 
+  // ✅ Obtener userId desde /api/auth/me (como lo hace tu web)
   useEffect(() => {
-    // Obtener userId de las cookies
-    const userIdCookie = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("userId="))
-      ?.split("=")[1];
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        
+        if (!res.ok) {
+          setAuthLoading(false);
+          return;
+        }
 
-    if (userIdCookie) {
-      setUserId(userIdCookie);
+        const data = await res.json();
+        setUserId(data.userId);
+        setRole(data.role);
+        setAuthLoading(false);
+      } catch (error) {
+        console.error("Error verificando autenticación:", error);
+        setAuthLoading(false);
+      }
     }
+
+    checkAuth();
   }, []);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || authLoading) return;
 
     setLoading(true);
 
@@ -89,7 +103,7 @@ export default function DashboardRevendedor() {
       for (const lotDoc of snapshot.docs) {
         const lotData = lotDoc.data();
 
-        // ✅ FIX: Obtener participantes usando getDocs en la subcolección
+        // ✅ Obtener participantes usando getDocs en la subcolección
         const participantsRef = collection(db, "lots", lotDoc.id, "participants");
         const participantsSnap = await getDocs(participantsRef);
         const participants = participantsSnap.docs.map((d: any) => d.data());
@@ -138,10 +152,38 @@ export default function DashboardRevendedor() {
       unsubscribePayments();
       unsubscribeLots();
     };
-  }, [userId]);
+  }, [userId, authLoading]);
 
-  if (!userId) {
-    return <div className="p-6">No autorizado</div>;
+  // Mostrar loading mientras verifica la autenticación
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar error si no está autenticado
+  if (!userId || role !== "retailer") {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-3xl font-bold mb-4">No autorizado</h1>
+          <p className="text-red-600">
+            Debes iniciar sesión como revendedor para acceder a esta página
+          </p>
+          <a
+            href="/login"
+            className="inline-block mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Iniciar sesión
+          </a>
+        </div>
+      </div>
+    );
   }
 
   return (

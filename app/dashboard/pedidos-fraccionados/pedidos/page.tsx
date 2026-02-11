@@ -32,23 +32,37 @@ type Pedido = {
 
 export default function PedidosPage() {
   const [userId, setUserId] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [orders, setOrders] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
 
+  // ✅ Obtener userId desde /api/auth/me (como lo hace tu web)
   useEffect(() => {
-    // Obtener userId de las cookies
-    const userIdCookie = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("userId="))
-      ?.split("=")[1];
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        
+        if (!res.ok) {
+          setAuthLoading(false);
+          return;
+        }
 
-    if (userIdCookie) {
-      setUserId(userIdCookie);
+        const data = await res.json();
+        setUserId(data.userId);
+        setRole(data.role);
+        setAuthLoading(false);
+      } catch (error) {
+        console.error("Error verificando autenticación:", error);
+        setAuthLoading(false);
+      }
     }
+
+    checkAuth();
   }, []);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || authLoading) return;
 
     setLoading(true);
 
@@ -93,7 +107,7 @@ export default function PedidosPage() {
             accumulatedQty = lotData.accumulatedQty || 0;
             minimumQty = lotData.minimumQty || lotData.minimumOrder || product?.minimumOrder || 0;
             
-            // ✅ FIX: Solo calcular si minimumQty existe
+            // ✅ Solo calcular si minimumQty existe
             if (minimumQty && minimumQty > 0 && accumulatedQty !== undefined) {
               progress = Math.round((accumulatedQty / minimumQty) * 100);
               remaining = Math.max(0, minimumQty - accumulatedQty);
@@ -134,16 +148,35 @@ export default function PedidosPage() {
     });
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, authLoading]);
 
-  if (!userId) {
+  // Mostrar loading mientras verifica la autenticación
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar error si no está autenticado
+  if (!userId || role !== "retailer") {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold mb-4">No autorizado</h1>
           <p className="text-red-600">
-            Debes iniciar sesión para acceder a esta página
+            Debes iniciar sesión como revendedor para acceder a esta página
           </p>
+          <a
+            href="/login"
+            className="inline-block mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Iniciar sesión
+          </a>
         </div>
       </div>
     );
