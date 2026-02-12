@@ -30,7 +30,17 @@ async function DashboardFabricanteContent() {
     .orderBy("closedAt", "desc")
     .get();
 
-  const closedLots = [];
+  const closedLots: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    qty: number;
+    pricePerUnit: number;
+    total: number;
+    ganancia: number;
+    closedAt: string;
+    closedAtTimestamp: number;
+  }> = [];
 
   for (const lotDoc of lotsSnap.docs) {
     const lotData = lotDoc.data();
@@ -73,7 +83,17 @@ async function DashboardFabricanteContent() {
     .orderBy("createdAt", "desc")
     .get();
 
-  const directOrders = [];
+  const directOrders: Array<{
+    id: string;
+    productId: string;
+    productName: string;
+    qty: number;
+    pricePerUnit: number;
+    total: number;
+    ganancia: number;
+    closedAt: string;
+    closedAtTimestamp: number;
+  }> = [];
 
   for (const paymentDoc of directOrdersSnap.docs) {
     const payment = paymentDoc.data();
