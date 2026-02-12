@@ -4,10 +4,12 @@ import Link from "next/link";
 import ActiveRoleBadge from "../../../components/ActiveRoleBadge";
 import SwitchRoleButton from "../../../components/SwitchRoleButton";
 import { formatCurrency } from "../../../lib/utils";
-import { Suspense } from "react"; // ✅ NUEVO
-import { DashboardSkeleton } from "../../../components/DashboardSkeleton"; // ✅ NUEVO
+import { Suspense } from "react";
+import { DashboardSkeleton } from "../../../components/DashboardSkeleton";
 
-// ✅ NUEVO: Separar contenido en función async
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function DashboardFabricanteContent() {
   const userId = cookies().get("userId")?.value;
   const role = cookies().get("activeRole")?.value;
@@ -17,56 +19,104 @@ async function DashboardFabricanteContent() {
   }
 
   /* ===============================
-     💳 PEDIDOS CERRADOS
+     💳 LOTES CERRADOS (FRACCIONADOS COMPLETADOS)
   =============================== */
-  const ordersSnap = await db
+  
+  // ✅ NUEVO: Obtener lotes cerrados
+  const lotsSnap = await db
+    .collection("lots")
+    .where("factoryId", "==", userId)
+    .where("status", "==", "closed")
+    .orderBy("closedAt", "desc")
+    .get();
+
+  const closedLots = [];
+
+  for (const lotDoc of lotsSnap.docs) {
+    const lotData = lotDoc.data();
+    
+    // Obtener información del producto
+    const productDoc = await db.collection("products").doc(lotData.productId).get();
+    const productData = productDoc.data();
+    
+    // Calcular ingresos del lote
+    const accumulatedQty = lotData.accumulatedQty || 0;
+    const productPrice = productData?.price || 0;
+    const totalIngresos = accumulatedQty * productPrice;
+    
+    // ✅ GANANCIA REAL: precio * cantidad (el fabricante recibe el precio completo)
+    // La comisión de la plataforma se descuenta del lado del comprador
+    const ganancia = totalIngresos;
+    
+    closedLots.push({
+      id: lotDoc.id,
+      productId: lotData.productId,
+      productName: productData?.name || "Producto",
+      qty: accumulatedQty,
+      pricePerUnit: productPrice,
+      total: totalIngresos,
+      ganancia: ganancia,
+      closedAt: lotData.closedAt?.toDate().toLocaleDateString("es-AR") || "-",
+      closedAtTimestamp: lotData.closedAt?.toMillis() || 0,
+    });
+  }
+
+  /* ===============================
+     🚚 PEDIDOS DIRECTOS COMPLETADOS
+  =============================== */
+  
+  const directOrdersSnap = await db
     .collection("payments")
     .where("factoryId", "==", userId)
-    .where("lotStatus", "==", "closed")
+    .where("orderType", "==", "directa")
+    .where("status", "==", "approved")
     .orderBy("createdAt", "desc")
     .get();
 
-  const orders = ordersSnap.docs.map((doc) => {
-    const o = doc.data();
+  const directOrders = [];
 
-    const qty = o.qty || 0;
-    const netProfitPerUnit = o.netProfitPerUnit || 0;
-
-    return {
-      id: doc.id,
-      productId: o.productId || "-",
-      productName: o.productName || "Producto",
-      qty,
-      netProfitPerUnit,
-      netProfit: qty * netProfitPerUnit, // 👈 GANANCIA REAL
-      total:
-        (o.totalProductPrice || 0) +
-        (o.shippingIncome || 0),
-      createdAt: o.createdAt
-        ? o.createdAt.toDate().toLocaleDateString("es-AR")
-        : "-",
-    };
-  });
+  for (const paymentDoc of directOrdersSnap.docs) {
+    const payment = paymentDoc.data();
+    
+    // Obtener información del producto
+    const productDoc = await db.collection("products").doc(payment.productId).get();
+    const productData = productDoc.data();
+    
+    const qty = payment.qty || 0;
+    const productPrice = productData?.price || 0;
+    const totalIngresos = qty * productPrice;
+    
+    directOrders.push({
+      id: paymentDoc.id,
+      productId: payment.productId,
+      productName: productData?.name || "Producto",
+      qty: qty,
+      pricePerUnit: productPrice,
+      total: totalIngresos,
+      ganancia: totalIngresos,
+      closedAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+      closedAtTimestamp: payment.createdAt?.toMillis() || 0,
+    });
+  }
 
   /* ===============================
-     📊 MÉTRICAS
+     📊 COMBINAR Y ORDENAR TODOS LOS PEDIDOS
   =============================== */
-  // ✅ Ingresos totales (producto + envío que recibe el fabricante)
-  const ingresosTotales = orders.reduce(
-    (acc, o) => acc + (o.total || 0),
-    0
+  
+  const allOrders = [...closedLots, ...directOrders].sort(
+    (a, b) => b.closedAtTimestamp - a.closedAtTimestamp
   );
-
-  // ✅ Ganancia neta REAL del fabricante (SOLO informativo)
-  const gananciaNeta = orders.reduce(
-    (acc, o) => acc + (o.netProfit || 0),
-    0
-  );
-
-  const pedidosTotales = orders.length;
 
   /* ===============================
-     🧾 UI - ✅ FIX ERROR 21: formatCurrency
+     💰 MÉTRICAS
+  =============================== */
+  
+  const ingresosTotales = allOrders.reduce((acc, o) => acc + (o.total || 0), 0);
+  const gananciaNeta = allOrders.reduce((acc, o) => acc + (o.ganancia || 0), 0);
+  const pedidosTotales = allOrders.length;
+
+  /* ===============================
+     🧾 UI
   =============================== */
   return (
     <div className="min-h-screen bg-gray-50">
@@ -129,12 +179,12 @@ async function DashboardFabricanteContent() {
         {/* PEDIDOS RECIENTES */}
         <div className="bg-white rounded-2xl shadow p-8 mb-14">
           <h2 className="text-xl font-semibold mb-6">
-            Pedidos recientes
+            Pedidos completados
           </h2>
 
-          {orders.length === 0 ? (
+          {allOrders.length === 0 ? (
             <p className="text-gray-500">
-              Todavía no recibiste pedidos.
+              Todavía no recibiste pedidos completados.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -144,12 +194,13 @@ async function DashboardFabricanteContent() {
                     <th className="pb-3 text-left">Producto</th>
                     <th className="pb-3 text-left">ID producto</th>
                     <th className="pb-3 text-left">Cantidad</th>
+                    <th className="pb-3 text-left">Precio/unidad</th>
                     <th className="pb-3 text-left">Fecha</th>
                     <th className="pb-3 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((o) => (
+                  {allOrders.map((o) => (
                     <tr
                       key={o.id}
                       className="border-b last:border-0 hover:bg-gray-50"
@@ -160,8 +211,9 @@ async function DashboardFabricanteContent() {
                       <td className="text-xs text-gray-500">
                         {o.productId}
                       </td>
-                      <td>{o.qty}</td>
-                      <td>{o.createdAt}</td>
+                      <td>{o.qty} unidades</td>
+                      <td>{formatCurrency(o.pricePerUnit)}</td>
+                      <td>{o.closedAt}</td>
                       <td className="text-right font-semibold">
                         {formatCurrency(o.total)}
                       </td>
@@ -211,7 +263,6 @@ async function DashboardFabricanteContent() {
   );
 }
 
-// ✅ NUEVO: Página principal con Suspense
 export default function DashboardFabricante() {
   return (
     <Suspense fallback={<DashboardSkeleton />}>
