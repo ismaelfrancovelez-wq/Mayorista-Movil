@@ -129,10 +129,43 @@ export default function PedidosPage() {
         })
       );
 
-      // Ordenar por fecha (más recientes primero)
-      ordersData.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
+      // ✅ AGRUPAR pedidos fraccionados del mismo usuario en el mismo lote
+      // Los directos siempre se muestran individualmente (1 compra = 1 tarjeta)
+      const fraccionadoMap = new Map<string, Pedido>();
+      const finalOrders: Pedido[] = [];
 
-      setOrders(ordersData);
+      for (const order of ordersData) {
+        if (order.orderType === "fraccionado" && order.lotId) {
+          const key = order.lotId;
+          if (fraccionadoMap.has(key)) {
+            // Ya existe una entrada para este lote → acumular qty y montos
+            const existing = fraccionadoMap.get(key)!;
+            existing.qty += order.qty;
+            existing.amount += order.amount;
+            existing.total += order.total;
+            existing.shippingCost += order.shippingCost;
+            // Conservar la fecha más reciente
+            if (order.createdAtTimestamp > existing.createdAtTimestamp) {
+              existing.createdAtTimestamp = order.createdAtTimestamp;
+              existing.createdAt = order.createdAt;
+            }
+          } else {
+            // Primera vez que aparece este lote → registrar
+            fraccionadoMap.set(key, { ...order });
+          }
+        } else {
+          // Directos: siempre se muestran individualmente
+          finalOrders.push(order);
+        }
+      }
+
+      // Agregar los fraccionados ya agrupados
+      fraccionadoMap.forEach((order) => finalOrders.push(order));
+
+      // Ordenar por fecha (más recientes primero)
+      finalOrders.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
+
+      setOrders(finalOrders);
       setLoading(false);
     });
 

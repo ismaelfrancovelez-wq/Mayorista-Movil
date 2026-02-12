@@ -69,7 +69,9 @@ export default function DashboardRevendedor() {
       );
 
       setPedidosTotales(totales.length);
-      setPedidosEnProceso(enProceso.length);
+      // ✅ FIX: contar lotes únicos en proceso, no documentos individuales
+      const lotesEnProcesoUnicos = new Set(enProceso.map(o => o.lotId).filter(Boolean));
+      setPedidosEnProceso(lotesEnProcesoUnicos.size);
       setTotalInvertido(invertido);
     });
 
@@ -111,9 +113,9 @@ export default function DashboardRevendedor() {
           const lotData = lotSnap.data();
           if (lotData.status === "closed") continue;
 
-          // Obtener qty del usuario desde su pago
-          const userPayment = snapshot.docs.find(d => d.data().lotId === lotId);
-          const userQty = userPayment?.data().qty || 0;
+          // ✅ FIX: sumar qty de TODOS los pagos del usuario para este lote
+          const userPaymentsForLot = snapshot.docs.filter(d => d.data().lotId === lotId);
+          const userQty = userPaymentsForLot.reduce((acc, d) => acc + (d.data().qty || 0), 0);
 
           // Nombres: primero intentar del lote, si no buscar en las colecciones
           let productName = lotData.productName || "";
