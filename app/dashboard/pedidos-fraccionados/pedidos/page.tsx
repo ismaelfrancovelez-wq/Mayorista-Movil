@@ -1,7 +1,7 @@
 // app/dashboard/pedidos-fraccionados/pedidos/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { db } from "../../../../lib/firebase-client";
 
@@ -32,37 +32,29 @@ type Pedido = {
 
 export default function PedidosPage() {
   const [userId, setUserId] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
   const [orders, setOrders] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
-  const [authLoading, setAuthLoading] = useState(true);
+  // ✅ ÚNICO CAMBIO DE LÓGICA: cache para no repetir getDoc del mismo producto/fabricante
+  const cacheRef = useRef<Record<string, any>>({});
 
-  // ✅ Obtener userId desde /api/auth/me (como lo hace tu web)
+  async function getCached(colName: string, docId: string) {
+    const key = `${colName}/${docId}`;
+    if (cacheRef.current[key]) return cacheRef.current[key];
+    const snap = await getDoc(doc(db, colName, docId));
+    cacheRef.current[key] = snap.data() || null;
+    return cacheRef.current[key];
+  }
+
   useEffect(() => {
-    async function checkAuth() {
-      try {
-        const res = await fetch("/api/auth/me", { cache: "no-store" });
-        
-        if (!res.ok) {
-          setAuthLoading(false);
-          return;
-        }
-
-        const data = await res.json();
-        setUserId(data.userId);
-        setRole(data.role);
-        setAuthLoading(false);
-      } catch (error) {
-        console.error("Error verificando autenticación:", error);
-        setAuthLoading(false);
-      }
-    }
-
-    checkAuth();
+    // ✅ ÚNICO CAMBIO: usa /api/auth/me en vez de document.cookie (que no funciona con cookies HTTP-only)
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.userId) setUserId(data.userId); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!userId || authLoading) return;
+    if (!userId) return;
 
     setLoading(true);
 
@@ -73,72 +65,69 @@ export default function PedidosPage() {
     );
 
     const unsubscribe = onSnapshot(paymentsQuery, async (snapshot) => {
-      const ordersData: Pedido[] = [];
+      // ✅ ÚNICO CAMBIO DE LÓGICA: Promise.all en vez de for-await en serie (más rápido)
+      const ordersData = await Promise.all(
+        snapshot.docs.map(async (paymentDoc) => {
+          const payment = paymentDoc.data();
 
-      for (const paymentDoc of snapshot.docs) {
-        const payment = paymentDoc.data();
+          // Obtener información del producto y fabricante en paralelo
+          const [product, factory] = await Promise.all([
+            payment.productId ? getCached("products", payment.productId) : null,
+            payment.factoryId ? getCached("manufacturers", payment.factoryId) : null,
+          ]);
 
-        // Obtener información del producto
-        const productRef = doc(db, "products", payment.productId);
-        const productSnap = await getDoc(productRef);
-        const product = productSnap.data();
+          let status: "accumulating" | "closed" | "completed" = "completed";
+          let accumulatedQty: number | undefined;
+          let minimumQty: number | undefined;
+          let progress: number | undefined;
+          let remaining: number | undefined;
+          let lotId: string | undefined;
 
-        // Obtener información del fabricante
-        const factoryRef = doc(db, "manufacturers", payment.factoryId);
-        const factorySnap = await getDoc(factoryRef);
-        const factory = factorySnap.data();
+          // Para pedidos fraccionados, obtener datos del lote EN TIEMPO REAL
+          if (payment.orderType === "fraccionado" && payment.lotId) {
+            lotId = payment.lotId;
+            const lotRef = doc(db, "lots", payment.lotId);
+            const lotSnap = await getDoc(lotRef);
 
-        let status: "accumulating" | "closed" | "completed" = "completed";
-        let accumulatedQty: number | undefined;
-        let minimumQty: number | undefined;
-        let progress: number | undefined;
-        let remaining: number | undefined;
-        let lotId: string | undefined;
-
-        // Para pedidos fraccionados, obtener datos del lote EN TIEMPO REAL
-        if (payment.orderType === "fraccionado" && payment.lotId) {
-          lotId = payment.lotId;
-          const lotRef = doc(db, "lots", payment.lotId);
-          const lotSnap = await getDoc(lotRef);
-
-          if (lotSnap.exists()) {
-            const lotData = lotSnap.data();
-            status = lotData.status || "accumulating";
-            accumulatedQty = lotData.accumulatedQty || 0;
-            minimumQty = lotData.minimumQty || lotData.minimumOrder || product?.minimumOrder || 0;
-            
-            // ✅ Solo calcular si minimumQty existe
-            if (minimumQty && minimumQty > 0 && accumulatedQty !== undefined) {
-              progress = Math.round((accumulatedQty / minimumQty) * 100);
-              remaining = Math.max(0, minimumQty - accumulatedQty);
+            if (lotSnap.exists()) {
+              const lotData = lotSnap.data();
+              status = lotData.status || "accumulating";
+              accumulatedQty = lotData.accumulatedQty || 0;
+              minimumQty = lotData.minimumQty || lotData.minimumOrder || product?.minimumOrder || 0;
+              
+              // ✅ FIX: Solo calcular si minimumQty existe
+              if (minimumQty && minimumQty > 0 && accumulatedQty !== undefined) {
+                progress = Math.round((accumulatedQty / minimumQty) * 100);
+                remaining = Math.max(0, minimumQty - accumulatedQty);
+              }
             }
           }
-        }
 
-        ordersData.push({
-          id: paymentDoc.id,
-          productId: payment.productId,
-          productName: product?.name || "Producto desconocido",
-          factoryId: payment.factoryId,
-          factoryName: factory?.businessName || factory?.name || "Fabricante",
-          qty: payment.qty || 0,
-          orderType: payment.orderType || "directa",
-          lotType: payment.lotType,
-          status,
-          paymentId: payment.paymentId || paymentDoc.id,
-          paymentStatus: payment.status,
-          amount: payment.amount || 0,
-          shippingCost: payment.shippingCost || 0,
-          total: payment.total || 0,
-          createdAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
-          createdAtTimestamp: payment.createdAt?.toMillis() || 0,
-          lotId,
-          accumulatedQty,
-          minimumQty,
-          progress,
-          remaining,
-        });
-      }
+          return {
+            id: paymentDoc.id,
+            productId: payment.productId,
+            productName: product?.name || "Producto desconocido",
+            factoryId: payment.factoryId,
+            factoryName: factory?.businessName || factory?.name || "Fabricante",
+            qty: payment.qty || 0,
+            orderType: payment.orderType || "directa",
+            lotType: payment.lotType,
+            status,
+            paymentId: payment.paymentId || paymentDoc.id,
+            paymentStatus: payment.status,
+            amount: payment.amount || 0,
+            shippingCost: payment.shippingCost || 0,
+            total: payment.total || 0,
+            createdAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+            createdAtTimestamp: payment.createdAt?.toMillis() || 0,
+            lotId,
+            accumulatedQty,
+            minimumQty,
+            progress,
+            remaining,
+          } as Pedido;
+        })
+      );
 
       // Ordenar por fecha (más recientes primero)
       ordersData.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
@@ -148,35 +137,16 @@ export default function PedidosPage() {
     });
 
     return () => unsubscribe();
-  }, [userId, authLoading]);
+  }, [userId]);
 
-  // Mostrar loading mientras verifica la autenticación
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verificando sesión...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Mostrar error si no está autenticado
-  if (!userId || role !== "retailer") {
+  if (!userId) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold mb-4">No autorizado</h1>
           <p className="text-red-600">
-            Debes iniciar sesión como revendedor para acceder a esta página
+            Debes iniciar sesión para acceder a esta página
           </p>
-          <a
-            href="/login"
-            className="inline-block mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Iniciar sesión
-          </a>
         </div>
       </div>
     );

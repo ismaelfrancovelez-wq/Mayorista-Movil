@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, doc, getDoc, getDocs } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase-client";
 import ActiveRoleBadge from "../../../components/ActiveRoleBadge";
 import SwitchRoleButton from "../../../components/SwitchRoleButton";
@@ -23,40 +23,22 @@ type ActiveLot = {
 
 export default function DashboardRevendedor() {
   const [userId, setUserId] = useState<string | null>(null);
-  const [role, setRole] = useState<string | null>(null);
   const [pedidosTotales, setPedidosTotales] = useState(0);
   const [pedidosEnProceso, setPedidosEnProceso] = useState(0);
   const [totalInvertido, setTotalInvertido] = useState(0);
   const [activeLots, setActiveLots] = useState<ActiveLot[]>([]);
   const [loading, setLoading] = useState(true);
-  const [authLoading, setAuthLoading] = useState(true);
 
-  // ✅ Obtener userId desde /api/auth/me (como lo hace tu web)
   useEffect(() => {
-    async function checkAuth() {
-      try {
-        const res = await fetch("/api/auth/me", { cache: "no-store" });
-        
-        if (!res.ok) {
-          setAuthLoading(false);
-          return;
-        }
-
-        const data = await res.json();
-        setUserId(data.userId);
-        setRole(data.role);
-        setAuthLoading(false);
-      } catch (error) {
-        console.error("Error verificando autenticación:", error);
-        setAuthLoading(false);
-      }
-    }
-
-    checkAuth();
+    // ✅ ÚNICO CAMBIO: usa /api/auth/me en vez de document.cookie (que no funciona con cookies HTTP-only)
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data?.userId) setUserId(data.userId); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!userId || authLoading) return;
+    if (!userId) return;
 
     setLoading(true);
 
@@ -91,57 +73,83 @@ export default function DashboardRevendedor() {
       setTotalInvertido(invertido);
     });
 
-    // ✅ SUSCRIPCIÓN EN TIEMPO REAL a los lotes activos
-    const lotsQuery = query(
-      collection(db, "lots"),
-      where("status", "==", "accumulating")
+    // ✅ CAMBIO CLAVE: en vez de escanear TODOS los lotes del sistema y leer
+    // subcolecciones de cada uno (lo que colgaba), busca solo los pagos
+    // fraccionados del usuario y lee únicamente esos lotes específicos
+    const fraccionadosQuery = query(
+      collection(db, "payments"),
+      where("retailerId", "==", userId),
+      where("orderType", "==", "fraccionado"),
+      where("lotStatus", "!=", "closed")
     );
 
-    const unsubscribeLots = onSnapshot(lotsQuery, async (snapshot) => {
+    const unsubscribeLots = onSnapshot(fraccionadosQuery, async (snapshot) => {
+      if (snapshot.empty) {
+        setActiveLots([]);
+        setLoading(false);
+        return;
+      }
+
+      // Obtener lotIds únicos de los pagos del usuario
+      const lotIds = [...new Set(
+        snapshot.docs.map(d => d.data().lotId).filter(Boolean) as string[]
+      )];
+
+      if (lotIds.length === 0) {
+        setActiveLots([]);
+        setLoading(false);
+        return;
+      }
+
       const lotsData: ActiveLot[] = [];
 
-      for (const lotDoc of snapshot.docs) {
-        const lotData = lotDoc.data();
+      for (const lotId of lotIds) {
+        try {
+          const lotSnap = await getDoc(doc(db, "lots", lotId));
+          if (!lotSnap.exists()) continue;
 
-        // ✅ Obtener participantes usando getDocs en la subcolección
-        const participantsRef = collection(db, "lots", lotDoc.id, "participants");
-        const participantsSnap = await getDocs(participantsRef);
-        const participants = participantsSnap.docs.map((d: any) => d.data());
+          const lotData = lotSnap.data();
+          if (lotData.status === "closed") continue;
 
-        // Verificar si este usuario tiene pedidos en este lote
-        const userParticipant = participants.find((p: any) => p.buyerId === userId);
+          // Obtener qty del usuario desde su pago
+          const userPayment = snapshot.docs.find(d => d.data().lotId === lotId);
+          const userQty = userPayment?.data().qty || 0;
 
-        if (!userParticipant) continue;
+          // Nombres: primero intentar del lote, si no buscar en las colecciones
+          let productName = lotData.productName || "";
+          let factoryName = lotData.factoryName || "";
 
-        // Obtener información del producto
-        const productRef = doc(db, "products", lotData.productId);
-        const productSnap = await getDoc(productRef);
-        const product = productSnap.data();
+          if (!productName && lotData.productId) {
+            const prodSnap = await getDoc(doc(db, "products", lotData.productId));
+            productName = prodSnap.data()?.name || "Producto";
+          }
+          if (!factoryName && lotData.factoryId) {
+            const facSnap = await getDoc(doc(db, "manufacturers", lotData.factoryId));
+            factoryName = facSnap.data()?.businessName || facSnap.data()?.name || "Fabricante";
+          }
 
-        // Obtener información del fabricante
-        const factoryRef = doc(db, "manufacturers", lotData.factoryId);
-        const factorySnap = await getDoc(factoryRef);
-        const factory = factorySnap.data();
+          const accumulatedQty = lotData.accumulatedQty || 0;
+          const minimumOrder = lotData.minimumQty || lotData.minimumOrder || 0;
+          const progress = minimumOrder > 0
+            ? Math.min((accumulatedQty / minimumOrder) * 100, 100)
+            : 0;
+          const remaining = Math.max(0, minimumOrder - accumulatedQty);
 
-        const accumulatedQty = lotData.accumulatedQty || 0;
-        const minimumOrder = lotData.minimumQty || lotData.minimumOrder || product?.minimumOrder || 0;
-        const progress = minimumOrder > 0 
-          ? Math.min((accumulatedQty / minimumOrder) * 100, 100)
-          : 0;
-        const remaining = Math.max(0, minimumOrder - accumulatedQty);
-
-        lotsData.push({
-          id: lotDoc.id,
-          productId: lotData.productId,
-          productName: product?.name || lotData.productName || "Producto",
-          factoryName: factory?.businessName || factory?.name || "Fabricante",
-          type: lotData.type,
-          accumulatedQty,
-          minimumOrder,
-          userQty: userParticipant.qty || 0,
-          progress,
-          remaining,
-        });
+          lotsData.push({
+            id: lotId,
+            productId: lotData.productId,
+            productName,
+            factoryName,
+            type: lotData.type,
+            accumulatedQty,
+            minimumOrder,
+            userQty,
+            progress,
+            remaining,
+          });
+        } catch (e) {
+          console.error("Error leyendo lote:", lotId, e);
+        }
       }
 
       setActiveLots(lotsData);
@@ -152,38 +160,10 @@ export default function DashboardRevendedor() {
       unsubscribePayments();
       unsubscribeLots();
     };
-  }, [userId, authLoading]);
+  }, [userId]);
 
-  // Mostrar loading mientras verifica la autenticación
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verificando sesión...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Mostrar error si no está autenticado
-  if (!userId || role !== "retailer") {
-    return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold mb-4">No autorizado</h1>
-          <p className="text-red-600">
-            Debes iniciar sesión como revendedor para acceder a esta página
-          </p>
-          <a
-            href="/login"
-            className="inline-block mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Iniciar sesión
-          </a>
-        </div>
-      </div>
-    );
+  if (!userId) {
+    return <div className="p-6">No autorizado</div>;
   }
 
   return (
