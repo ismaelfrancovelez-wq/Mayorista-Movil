@@ -22,12 +22,11 @@ async function DashboardFabricanteContent() {
      💳 LOTES CERRADOS (FRACCIONADOS COMPLETADOS)
   =============================== */
   
-  // ✅ NUEVO: Obtener lotes cerrados
+  // ✅ LOTES CERRADOS (sin orderBy para evitar índice)
   const lotsSnap = await db
     .collection("lots")
     .where("factoryId", "==", userId)
     .where("status", "==", "closed")
-    .orderBy("closedAt", "desc")
     .get();
 
   const closedLots: Array<{
@@ -52,11 +51,11 @@ async function DashboardFabricanteContent() {
     // Calcular ingresos del lote
     const accumulatedQty = lotData.accumulatedQty || 0;
     const productPrice = productData?.price || 0;
+    const netProfitPerUnit = productData?.netProfitPerUnit || 0;
     const totalIngresos = accumulatedQty * productPrice;
     
-    // ✅ GANANCIA REAL: precio * cantidad (el fabricante recibe el precio completo)
-    // La comisión de la plataforma se descuenta del lado del comprador
-    const ganancia = totalIngresos;
+    // ✅ GANANCIA REAL: cantidad × ganancia neta por unidad
+    const ganancia = accumulatedQty * netProfitPerUnit;
     
     closedLots.push({
       id: lotDoc.id,
@@ -104,7 +103,11 @@ async function DashboardFabricanteContent() {
     
     const qty = payment.qty || 0;
     const productPrice = productData?.price || 0;
+    const netProfitPerUnit = productData?.netProfitPerUnit || 0;
     const totalIngresos = qty * productPrice;
+    
+    // ✅ GANANCIA REAL: cantidad × ganancia neta por unidad
+    const ganancia = qty * netProfitPerUnit;
     
     directOrders.push({
       id: paymentDoc.id,
