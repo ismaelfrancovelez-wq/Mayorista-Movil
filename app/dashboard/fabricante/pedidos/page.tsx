@@ -1,310 +1,233 @@
-// app/dashboard/pedidos-fraccionados/pedidos/page.tsx
 import { db } from "../../../../lib/firebase-admin";
 import { cookies } from "next/headers";
+import BackButton from "../../../../components/BackButton";
 import { formatCurrency } from "../../../../lib/utils";
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 10; // ✅ 10 segundos (actualización rápida)
+export const revalidate = 0;
 
-type Pedido = {
+type Order = {
   id: string;
-  productId: string;
+  type: 'lote' | 'directo';
   productName: string;
-  factoryName: string;
   qty: number;
-  orderType: "directa" | "fraccionado";
-  lotType?: string;
-  status: "accumulating" | "closed" | "completed";
-  amount: number;
-  shippingCost: number;
+  pricePerUnit: number;
   total: number;
-  createdAt: string;
-  createdAtTimestamp: number;
-  lotProgress?: {
-    currentQty: number;
-    targetQty: number;
-    percentage: number;
-    remaining: number;
-  };
+  ganancia: number;
+  date: string;
+  status: string;
+  buyers?: Array<{
+    name: string;
+    qty: number;
+    address: string;
+  }>;
 };
 
-async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
-  // ✅ OPTIMIZACIÓN 1: Últimos 50 pedidos (buen balance)
-  const paymentsSnap = await db
-    .collection("payments")
-    .where("retailerId", "==", retailerId)
-    .orderBy("createdAt", "desc")
-    .limit(50)
-    .get();
-
-  if (paymentsSnap.empty) {
-    return [];
-  }
-
-  const orders: Pedido[] = [];
-
-  // ✅ OPTIMIZACIÓN: Solo consultar lotes únicos (si hay pedidos fraccionados)
-  const lotIds = new Set<string>();
-
-  paymentsSnap.docs.forEach(doc => {
-    const payment = doc.data();
-    if (payment.lotId) lotIds.add(payment.lotId);
-  });
-
-  // ✅ OPTIMIZACIÓN: Batch query para lotes (solo los campos necesarios)
-  const lotsMap = new Map();
-  if (lotIds.size > 0) {
-    const lotIdsArray = Array.from(lotIds);
-    for (let i = 0; i < lotIdsArray.length; i += 10) {
-      const batch = lotIdsArray.slice(i, i + 10);
-      const lotsSnap = await db
-        .collection("lots")
-        .where("__name__", "in", batch)
-        .get();
-      lotsSnap.docs.forEach(doc => {
-        const data = doc.data();
-        lotsMap.set(doc.id, {
-          status: data.status,
-          accumulatedQty: data.accumulatedQty,
-          minimumOrder: data.minimumOrder || data.minimumQty,
-        });
-      });
-    }
-  }
-
-  // ✅ Procesar todos los pagos usando datos guardados (sin consultas extra)
-  for (const paymentDoc of paymentsSnap.docs) {
-    const payment = paymentDoc.data();
-
-    // ✅ OPTIMIZACIÓN: Usar datos guardados directamente (sin consultas extra)
-    const productName = payment.productName || "Producto";
-    const factoryName = payment.factoryName || "Fabricante";
-    const productPrice = payment.productPrice || 0;
-
-    let status: "accumulating" | "closed" | "completed" = "completed";
-    let lotProgress: Pedido["lotProgress"] | undefined;
-
-    if (payment.orderType === "fraccionado" && payment.lotId) {
-      const lotData = lotsMap.get(payment.lotId);
-      
-      if (lotData) {
-        status = lotData.status || "accumulating";
-        
-        const currentQty = lotData.accumulatedQty || 0;
-        const targetQty = lotData.minimumOrder || 0;
-        
-        if (targetQty > 0) {
-          lotProgress = {
-            currentQty,
-            targetQty,
-            percentage: Math.min((currentQty / targetQty) * 100, 100),
-            remaining: Math.max(targetQty - currentQty, 0),
-          };
-        }
-      } else {
-        status = "accumulating";
-      }
-    }
-
-    orders.push({
-      id: paymentDoc.id,
-      productId: payment.productId,
-      productName,
-      factoryName,
-      qty: payment.qty || 0,
-      orderType: payment.orderType || "directa",
-      lotType: payment.lotType,
-      status,
-      amount: payment.amount || 0,
-      shippingCost: payment.shippingCost || 0,
-      total: payment.total || 0,
-      createdAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
-      createdAtTimestamp: payment.createdAt?.toMillis() || 0,
-      lotProgress,
-    });
-  }
-
-  return orders;
-}
-
-export default async function PedidosPage() {
+export default async function PedidosFabricantePage() {
   const userId = cookies().get("userId")?.value;
   const role = cookies().get("activeRole")?.value;
 
-  if (!userId || role !== "retailer") {
-    return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-6xl mx-auto">
-          <h1 className="text-3xl font-bold mb-4">No autorizado</h1>
-          <p className="text-red-600">
-            Debes tener rol de revendedor para acceder a esta página
-          </p>
-        </div>
-      </div>
-    );
+  if (!userId || role !== "manufacturer") {
+    return <div className="p-6">No autorizado</div>;
   }
 
-  const orders = await getRetailerOrders(userId);
+  /* ===============================
+     📦 LOTES CERRADOS
+  =============================== */
+  
+  const lotsSnap = await db
+    .collection("lots")
+    .where("factoryId", "==", userId)
+    .where("status", "==", "closed")
+    .get();
+
+  const lotOrders: Order[] = [];
+
+  for (const lotDoc of lotsSnap.docs) {
+    const lotData = lotDoc.data();
+    
+    // ✅ Intentar obtener producto (puede no existir)
+    const productDoc = await db.collection("products").doc(lotData.productId).get();
+    const productData = productDoc.exists ? productDoc.data() : null;
+    
+    // ✅ Usar datos guardados en el lote
+    const productName = lotData.productName || productData?.name || "Producto eliminado";
+    const productPrice = lotData.productPrice || productData?.price || 0;
+    const netProfitPerUnit = lotData.netProfitPerUnit || productData?.netProfitPerUnit || 0;
+    
+    // Obtener participantes
+    const participantsSnap = await lotDoc.ref.collection("participants").get();
+    const buyers = participantsSnap.docs.map(doc => {
+      const data = doc.data();
+      return {
+        name: data.buyerName || "Usuario",
+        qty: data.qty || 0,
+        address: data.buyerAddress || "N/A",
+      };
+    });
+    
+    const accumulatedQty = lotData.accumulatedQty || 0;
+    
+    lotOrders.push({
+      id: lotDoc.id,
+      type: 'lote',
+      productName: productName,  // ✅ Usar variable
+      qty: accumulatedQty,
+      pricePerUnit: productPrice,  // ✅ Usar variable
+      total: accumulatedQty * productPrice,
+      ganancia: accumulatedQty * netProfitPerUnit,  // ✅ Usar variable
+      date: lotData.closedAt?.toDate().toLocaleDateString("es-AR") || "-",
+      status: "Completado",
+      buyers,
+    });
+  }
+
+  /* ===============================
+     🚚 PEDIDOS DIRECTOS
+  =============================== */
+  
+  const directOrdersSnap = await db
+    .collection("payments")
+    .where("factoryId", "==", userId)
+    .where("orderType", "==", "directa")
+    .where("status", "==", "approved")
+    .get();
+
+  const directOrders: Order[] = [];
+
+  for (const paymentDoc of directOrdersSnap.docs) {
+    const payment = paymentDoc.data();
+    
+    // ✅ Intentar obtener producto
+    const productDoc = await db.collection("products").doc(payment.productId).get();
+    const productData = productDoc.exists ? productDoc.data() : null;
+    
+    // ✅ Usar datos de payment si existe
+    const productName = payment.productName || productData?.name || "Producto eliminado";
+    const qty = payment.qty || 0;
+    const productPrice = productData?.price || (payment.amount / qty) || 0;
+    const netProfitPerUnit = productData?.netProfitPerUnit || 0;
+    
+    // Obtener info del comprador
+    const buyerDoc = await db.collection("users").doc(payment.retailerId || payment.buyerId).get();
+    const buyerData = buyerDoc.data();
+    
+    const retailerDoc = await db.collection("retailers").doc(payment.retailerId || payment.buyerId).get();
+    const retailerData = retailerDoc.data();
+    
+    directOrders.push({
+      id: paymentDoc.id,
+      type: 'directo',
+      productName: productName,  // ✅ Usar variable
+      qty,
+      pricePerUnit: productPrice,  // ✅ Usar variable
+      total: qty * productPrice,
+      ganancia: qty * netProfitPerUnit,  // ✅ Usar variable
+      date: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+      status: "Completado",
+      buyers: [{
+        name: buyerData?.name || buyerData?.email || "Usuario",
+        qty,
+        address: retailerData?.address?.formatted || "N/A",
+      }],
+    });
+  }
+
+  /* ===============================
+     📊 COMBINAR TODOS
+  =============================== */
+  
+  const allOrders = [...lotOrders, ...directOrders];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto p-8">
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        <BackButton className="mb-4" />
         
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Mis Pedidos
-          </h1>
-          <p className="text-gray-600">
-            Últimos 50 pedidos (actualizado cada 10 segundos)
-          </p>
-        </div>
+        <h1 className="text-3xl font-bold mb-2">
+          Pedidos de tus productos
+        </h1>
+        <p className="text-gray-600 mb-8">
+          Historial completo de lotes cerrados y pedidos directos
+        </p>
 
-        {orders.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <p className="text-gray-500 text-lg mb-4">
-              No tienes pedidos todavía
+        {allOrders.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-8 text-center">
+            <p className="text-gray-500 text-lg">
+              No tenés pedidos completados todavía.
             </p>
-            <p className="text-gray-400 mb-6">
-              Empieza a comprar productos al por mayor
-            </p>
-            <a
-              href="/explorar"
-              className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-            >
-              Explorar productos
-            </a>
           </div>
         ) : (
-          <div className="space-y-4">
-            {orders.map((order) => {
-              const isFraccionado = order.orderType === "fraccionado";
-              const isEnProceso = isFraccionado && order.status === "accumulating";
-              
-              return (
-                <div
-                  key={order.id}
-                  className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold text-gray-900">
-                          {order.productName}
-                        </h3>
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${
-                            isFraccionado
-                              ? "bg-purple-100 text-purple-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {isFraccionado ? "Compra fraccionada" : "Compra directa"}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500 mb-1">{order.createdAt}</p>
-                      <p className="text-sm text-gray-600">
-                        <span className="font-medium">Fabricante:</span> {order.factoryName}
-                      </p>
+          <div className="space-y-6">
+            {allOrders.map((order) => (
+              <div key={order.id} className="bg-white rounded-lg shadow-sm p-6">
+                {/* Header */}
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-xl font-semibold">{order.productName}</h3>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        order.type === 'lote' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {order.type === 'lote' ? 'Lote Fraccionado' : 'Pedido Directo'}
+                      </span>
                     </div>
-                    
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        isEnProceso
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-green-100 text-green-800"
-                      }`}
-                    >
-                      {isEnProceso ? "En progreso" : "Completado"}
-                    </span>
+                    <p className="text-sm text-gray-500">{order.date}</p>
                   </div>
+                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                    {order.status}
+                  </span>
+                </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                    <div>
-                      <p className="text-gray-500">Cantidad</p>
-                      <p className="font-semibold text-gray-900">{order.qty} unidades</p>
-                    </div>
-
-                    <div>
-                      <p className="text-gray-500">Modalidad</p>
-                      <p className="font-semibold text-gray-900">
-                        {isFraccionado
-                          ? order.lotType === "fractional_shipping"
-                            ? "Fraccionado envío"
-                            : "Fraccionado retiro"
-                          : "Directa"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-gray-500">Producto</p>
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(order.amount)}
-                      </p>
-                    </div>
-
-                    {order.shippingCost > 0 && (
-                      <div>
-                        <p className="text-gray-500">Envío</p>
-                        <p className="font-semibold text-gray-900">
-                          {formatCurrency(order.shippingCost)}
-                        </p>
-                      </div>
-                    )}
+                {/* Resumen */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Cantidad total</p>
+                    <p className="font-semibold">{order.qty} unidades</p>
                   </div>
-
-                  {isFraccionado && isEnProceso && order.lotProgress && (
-                    <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="font-medium text-purple-900">Progreso del lote</span>
-                        <span className="text-purple-700">
-                          {order.lotProgress.currentQty} / {order.lotProgress.targetQty} unidades
-                        </span>
-                      </div>
-                      <div className="w-full bg-purple-200 rounded-full h-3 mb-2">
-                        <div
-                          className="bg-purple-600 h-3 rounded-full transition-all"
-                          style={{ width: `${Math.min(order.lotProgress.percentage, 100)}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-purple-700">
-                        <span>{Math.round(order.lotProgress.percentage)}% completado</span>
-                        <span>Faltan {order.lotProgress.remaining} unidades</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="pt-4 border-t border-gray-200">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm text-gray-500">Total pagado</p>
-                        <p className="text-lg font-bold text-gray-900">
-                          {formatCurrency(order.total)}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {isFraccionado && isEnProceso && (
-                      <p className="text-xs text-purple-600 mt-3 flex items-center gap-1">
-                        <span>⏳</span>
-                        <span>Esperando a que el lote se complete</span>
-                      </p>
-                    )}
-                    {isFraccionado && !isEnProceso && (
-                      <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
-                        <span>✅</span>
-                        <span>Lote completado - El fabricante procesará tu pedido</span>
-                      </p>
-                    )}
-                    {!isFraccionado && (
-                      <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
-                        <span>📦</span>
-                        <span>Compra directa completada</span>
-                      </p>
-                    )}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Precio/unidad</p>
+                    <p className="font-semibold">{formatCurrency(order.pricePerUnit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Total ingresos</p>
+                    <p className="font-semibold">{formatCurrency(order.total)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Ganancia neta</p>
+                    <p className="font-semibold text-green-600">{formatCurrency(order.ganancia)}</p>
                   </div>
                 </div>
-              );
-            })}
+
+                {/* Compradores */}
+                {order.buyers && order.buyers.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-sm mb-3">
+                      {order.type === 'lote' 
+                        ? `Distribución por revendedor (${order.buyers.length})` 
+                        : 'Cliente'}
+                    </h4>
+                    <div className="space-y-2">
+                      {order.buyers.map((buyer, idx) => (
+                        <div key={idx} className="border border-gray-200 rounded-lg p-3 text-sm">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="font-medium">{buyer.name}</p>
+                              <p className="text-xs text-gray-500 mt-1">{buyer.address}</p>
+                            </div>
+                            <span className="px-2 py-1 bg-gray-100 rounded text-xs font-medium">
+                              {buyer.qty} unidades
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
