@@ -50,13 +50,13 @@ async function DashboardRevendedorContent() {
 
   // ✅ PEDIDOS CERRADOS (directos + fraccionados cerrados)
   const pedidosTotales = orders.filter(o =>
-    o.type === "direct" ||
-    (o.type === "fractional" && o.lotStatus === "closed")
+    o.orderType === "directa" ||
+    (o.orderType === "fraccionado" && o.lotStatus === "closed")
   );
 
   // ⏳ PEDIDOS FRACCIONADOS EN PROCESO
   const pedidosEnProceso = orders.filter(o =>
-    o.type === "fractional" && o.lotStatus !== "closed"
+    o.orderType === "fraccionado" && o.lotStatus !== "closed"
   );
 
   // 💰 TOTAL INVERTIDO (solo pedidos cerrados)
@@ -74,7 +74,7 @@ async function DashboardRevendedorContent() {
   // Obtener IDs únicos de lotes del usuario
   const userLotIds = [...new Set(
     orders
-      .filter(o => o.type === "fractional" && o.lotId && o.lotStatus === "accumulating")
+      .filter(o => o.orderType === "fraccionado" && o.lotId && o.lotStatus === "accumulating")
       .map(o => o.lotId)
   )];
 
