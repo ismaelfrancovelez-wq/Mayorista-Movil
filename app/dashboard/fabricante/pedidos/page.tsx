@@ -46,8 +46,14 @@ export default async function PedidosFabricantePage() {
   for (const lotDoc of lotsSnap.docs) {
     const lotData = lotDoc.data();
     
+    // ✅ Intentar obtener producto (puede no existir)
     const productDoc = await db.collection("products").doc(lotData.productId).get();
-    const productData = productDoc.data();
+    const productData = productDoc.exists ? productDoc.data() : null;
+    
+    // ✅ Usar datos guardados en el lote
+    const productName = lotData.productName || productData?.name || "Producto eliminado";
+    const productPrice = lotData.productPrice || productData?.price || 0;
+    const netProfitPerUnit = lotData.netProfitPerUnit || productData?.netProfitPerUnit || 0;
     
     // Obtener participantes
     const participantsSnap = await lotDoc.ref.collection("participants").get();
@@ -61,17 +67,15 @@ export default async function PedidosFabricantePage() {
     });
     
     const accumulatedQty = lotData.accumulatedQty || 0;
-    const productPrice = productData?.price || 0;
-    const netProfitPerUnit = productData?.netProfitPerUnit || 0;
     
     lotOrders.push({
       id: lotDoc.id,
       type: 'lote',
-      productName: productData?.name || "Producto",
+      productName: productName,  // ✅ Usar variable
       qty: accumulatedQty,
-      pricePerUnit: productPrice,
+      pricePerUnit: productPrice,  // ✅ Usar variable
       total: accumulatedQty * productPrice,
-      ganancia: accumulatedQty * netProfitPerUnit,
+      ganancia: accumulatedQty * netProfitPerUnit,  // ✅ Usar variable
       date: lotData.closedAt?.toDate().toLocaleDateString("es-AR") || "-",
       status: "Completado",
       buyers,
@@ -94,8 +98,15 @@ export default async function PedidosFabricantePage() {
   for (const paymentDoc of directOrdersSnap.docs) {
     const payment = paymentDoc.data();
     
+    // ✅ Intentar obtener producto
     const productDoc = await db.collection("products").doc(payment.productId).get();
-    const productData = productDoc.data();
+    const productData = productDoc.exists ? productDoc.data() : null;
+    
+    // ✅ Usar datos de payment si existe
+    const productName = payment.productName || productData?.name || "Producto eliminado";
+    const qty = payment.qty || 0;
+    const productPrice = productData?.price || (payment.amount / qty) || 0;
+    const netProfitPerUnit = productData?.netProfitPerUnit || 0;
     
     // Obtener info del comprador
     const buyerDoc = await db.collection("users").doc(payment.retailerId || payment.buyerId).get();
@@ -104,18 +115,14 @@ export default async function PedidosFabricantePage() {
     const retailerDoc = await db.collection("retailers").doc(payment.retailerId || payment.buyerId).get();
     const retailerData = retailerDoc.data();
     
-    const qty = payment.qty || 0;
-    const productPrice = productData?.price || 0;
-    const netProfitPerUnit = productData?.netProfitPerUnit || 0;
-    
     directOrders.push({
       id: paymentDoc.id,
       type: 'directo',
-      productName: productData?.name || "Producto",
+      productName: productName,  // ✅ Usar variable
       qty,
-      pricePerUnit: productPrice,
+      pricePerUnit: productPrice,  // ✅ Usar variable
       total: qty * productPrice,
-      ganancia: qty * netProfitPerUnit,
+      ganancia: qty * netProfitPerUnit,  // ✅ Usar variable
       date: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
       status: "Completado",
       buyers: [{

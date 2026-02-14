@@ -44,23 +44,23 @@ async function DashboardFabricanteContent() {
   for (const lotDoc of lotsSnap.docs) {
     const lotData = lotDoc.data();
     
-    // Obtener información del producto
+    // ✅ Intentar obtener producto (puede no existir si fue borrado)
     const productDoc = await db.collection("products").doc(lotData.productId).get();
-    const productData = productDoc.data();
+    const productData = productDoc.exists ? productDoc.data() : null;
     
-    // Calcular ingresos del lote
+    // ✅ PRIORIDAD: Usar datos guardados en el lote (si existen), sino buscar en producto
+    const productName = lotData.productName || productData?.name || "Producto eliminado";
+    const productPrice = lotData.productPrice || productData?.price || 0;
+    const netProfitPerUnit = lotData.netProfitPerUnit || productData?.netProfitPerUnit || 0;
+    
     const accumulatedQty = lotData.accumulatedQty || 0;
-    const productPrice = productData?.price || 0;
-    const netProfitPerUnit = productData?.netProfitPerUnit || 0;
     const totalIngresos = accumulatedQty * productPrice;
-    
-    // ✅ GANANCIA REAL: cantidad × ganancia neta por unidad
     const ganancia = accumulatedQty * netProfitPerUnit;
     
     closedLots.push({
       id: lotDoc.id,
       productId: lotData.productId,
-      productName: productData?.name || "Producto",
+      productName: productName,  // ✅ Usar variable calculada arriba
       qty: accumulatedQty,
       pricePerUnit: productPrice,
       total: totalIngresos,
@@ -97,26 +97,28 @@ async function DashboardFabricanteContent() {
   for (const paymentDoc of directOrdersSnap.docs) {
     const payment = paymentDoc.data();
     
-    // Obtener información del producto
+    // ✅ Intentar obtener producto (puede no existir si fue borrado)
     const productDoc = await db.collection("products").doc(payment.productId).get();
-    const productData = productDoc.data();
+    const productData = productDoc.exists ? productDoc.data() : null;
     
+    // ✅ PRIORIDAD: Usar datos guardados en payment, sino buscar en producto
+    const productName = payment.productName || productData?.name || "Producto eliminado";
     const qty = payment.qty || 0;
-    const productPrice = productData?.price || 0;
+    
+    // Para directos, necesitamos buscar el precio en el producto o usar el monto del payment
+    const productPrice = productData?.price || (payment.amount / qty) || 0;
     const netProfitPerUnit = productData?.netProfitPerUnit || 0;
     const totalIngresos = qty * productPrice;
-    
-    // ✅ GANANCIA REAL: cantidad × ganancia neta por unidad
     const ganancia = qty * netProfitPerUnit;
     
     directOrders.push({
       id: paymentDoc.id,
       productId: payment.productId,
-      productName: productData?.name || "Producto",
+      productName: productName,  // ✅ Usar variable calculada
       qty: qty,
       pricePerUnit: productPrice,
       total: totalIngresos,
-      ganancia: totalIngresos,
+      ganancia: ganancia,  // ✅ Usar ganancia calculada correctamente
       closedAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
       closedAtTimestamp: payment.createdAt?.toMillis() || 0,
     });

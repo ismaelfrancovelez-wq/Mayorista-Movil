@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
       lotId = lot.id;
       console.log(`✅ Lote obtenido/creado: ${lotId}`);
 
-      // ✅ ACTUALIZAR CANTIDAD ACUMULADA (con type guard)
+      // ✅ ACTUALIZAR CANTIDAD ACUMULADA + GUARDAR DATOS DEL PRODUCTO
       const lotRef = db.collection("lots").doc(lotId);
       const currentQty = (lot as any).accumulatedQty || 0;
       newCurrentQty = currentQty + originalQty;
@@ -297,6 +297,10 @@ export async function POST(req: NextRequest) {
       await lotRef.update({
         accumulatedQty: newCurrentQty,
         updatedAt: FieldValue.serverTimestamp(),
+        // ✅ NUEVO: Guardar datos del producto para no perderlos si se borra
+        productName: productName,
+        productPrice: productPrice,
+        netProfitPerUnit: productData.netProfitPerUnit || 0,
       });
 
       console.log(`📊 Lote actualizado: ${currentQty} → ${newCurrentQty} / ${minimumQty}`);
