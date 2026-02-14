@@ -29,11 +29,10 @@ type Pedido = {
 };
 
 async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
-  // ✅ OPTIMIZACIÓN 1: Últimos 50 pedidos (buen balance)
+  // ✅ Query sin orderBy (se ordena en JavaScript después)
   const paymentsSnap = await db
     .collection("payments")
     .where("retailerId", "==", retailerId)
-    .orderBy("createdAt", "desc")
     .limit(50)
     .get();
 
@@ -123,6 +122,9 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
       lotProgress,
     });
   }
+
+  // ✅ Ordenar en JavaScript (sin índice de Firestore)
+  orders.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
 
   return orders;
 }

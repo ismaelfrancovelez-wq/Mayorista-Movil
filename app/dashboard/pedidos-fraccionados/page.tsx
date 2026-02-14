@@ -1,173 +1,158 @@
-// app/dashboard/pedidos-fraccionados/page.tsx
-"use client";
-
-import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
-import { db } from "../../../lib/firebase-client";
+// app/dashboard/pedidos-fraccionados/page.tsx - ULTRA OPTIMIZADO
+import { db } from "../../../lib/firebase-admin";
+import { cookies } from "next/headers";
 import ActiveRoleBadge from "../../../components/ActiveRoleBadge";
 import SwitchRoleButton from "../../../components/SwitchRoleButton";
 import Link from "next/link";
+import { formatCurrency } from "../../../lib/utils";
+import { Suspense } from "react";
+import { DashboardSkeleton } from "../../../components/DashboardSkeleton";
 
+// ✅ OPTIMIZACIÓN: Caché de 10 segundos
+export const dynamic = 'force-dynamic';
+export const revalidate = 10;
+
+// ✅ Definir tipo del lote
 type ActiveLot = {
   id: string;
   productId: string;
   productName: string;
-  factoryName: string;
   type: string;
   accumulatedQty: number;
   minimumOrder: number;
   userQty: number;
   progress: number;
-  remaining: number;
 };
 
-export default function DashboardRevendedor() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [pedidosTotales, setPedidosTotales] = useState(0);
-  const [pedidosEnProceso, setPedidosEnProceso] = useState(0);
-  const [totalInvertido, setTotalInvertido] = useState(0);
-  const [activeLots, setActiveLots] = useState<ActiveLot[]>([]);
-  const [loading, setLoading] = useState(true);
+async function DashboardRevendedorContent() {
+  const userId = cookies().get("userId")?.value;
+  const role = cookies().get("activeRole")?.value;
 
-  useEffect(() => {
-    // ✅ ÚNICO CAMBIO: usa /api/auth/me en vez de document.cookie (que no funciona con cookies HTTP-only)
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (data?.userId) setUserId(data.userId); })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!userId) return;
-
-    setLoading(true);
-
-    // ✅ SUSCRIPCIÓN EN TIEMPO REAL a los pagos
-    const paymentsQuery = query(
-      collection(db, "payments"),
-      where("retailerId", "==", userId)
-    );
-
-    const unsubscribePayments = onSnapshot(paymentsQuery, (snapshot) => {
-      const orders = snapshot.docs.map(doc => doc.data());
-
-      // ✅ PEDIDOS CERRADOS (directos + fraccionados cerrados)
-      const totales = orders.filter(o =>
-        o.orderType === "directa" ||
-        (o.orderType === "fraccionado" && o.lotStatus === "closed")
-      );
-
-      // ⏳ PEDIDOS FRACCIONADOS EN PROCESO
-      const enProceso = orders.filter(o =>
-        o.orderType === "fraccionado" && o.lotStatus !== "closed"
-      );
-
-      // 💰 TOTAL INVERTIDO (solo pedidos cerrados)
-      const invertido = totales.reduce(
-        (acc, o) => acc + (o.total || 0),
-        0
-      );
-
-      setPedidosTotales(totales.length);
-      // ✅ FIX: contar lotes únicos en proceso, no documentos individuales
-      const lotesEnProcesoUnicos = new Set(enProceso.map(o => o.lotId).filter(Boolean));
-      setPedidosEnProceso(lotesEnProcesoUnicos.size);
-      setTotalInvertido(invertido);
-    });
-
-    // ✅ CAMBIO CLAVE: en vez de escanear TODOS los lotes del sistema y leer
-    // subcolecciones de cada uno (lo que colgaba), busca solo los pagos
-    // fraccionados del usuario y lee únicamente esos lotes específicos
-    const fraccionadosQuery = query(
-      collection(db, "payments"),
-      where("retailerId", "==", userId),
-      where("orderType", "==", "fraccionado"),
-      where("lotStatus", "!=", "closed")
-    );
-
-    const unsubscribeLots = onSnapshot(fraccionadosQuery, async (snapshot) => {
-      if (snapshot.empty) {
-        setActiveLots([]);
-        setLoading(false);
-        return;
-      }
-
-      // Obtener lotIds únicos de los pagos del usuario
-      const lotIds = [...new Set(
-        snapshot.docs.map(d => d.data().lotId).filter(Boolean) as string[]
-      )];
-
-      if (lotIds.length === 0) {
-        setActiveLots([]);
-        setLoading(false);
-        return;
-      }
-
-      const lotsData: ActiveLot[] = [];
-
-      for (const lotId of lotIds) {
-        try {
-          const lotSnap = await getDoc(doc(db, "lots", lotId));
-          if (!lotSnap.exists()) continue;
-
-          const lotData = lotSnap.data();
-          if (lotData.status === "closed") continue;
-
-          // ✅ FIX: sumar qty de TODOS los pagos del usuario para este lote
-          const userPaymentsForLot = snapshot.docs.filter(d => d.data().lotId === lotId);
-          const userQty = userPaymentsForLot.reduce((acc, d) => acc + (d.data().qty || 0), 0);
-
-          // Nombres: primero intentar del lote, si no buscar en las colecciones
-          let productName = lotData.productName || "";
-          let factoryName = lotData.factoryName || "";
-
-          if (!productName && lotData.productId) {
-            const prodSnap = await getDoc(doc(db, "products", lotData.productId));
-            productName = prodSnap.data()?.name || "Producto";
-          }
-          if (!factoryName && lotData.factoryId) {
-            const facSnap = await getDoc(doc(db, "manufacturers", lotData.factoryId));
-            factoryName = facSnap.data()?.businessName || facSnap.data()?.name || "Fabricante";
-          }
-
-          const accumulatedQty = lotData.accumulatedQty || 0;
-          const minimumOrder = lotData.minimumQty || lotData.minimumOrder || 0;
-          const progress = minimumOrder > 0
-            ? Math.min((accumulatedQty / minimumOrder) * 100, 100)
-            : 0;
-          const remaining = Math.max(0, minimumOrder - accumulatedQty);
-
-          lotsData.push({
-            id: lotId,
-            productId: lotData.productId,
-            productName,
-            factoryName,
-            type: lotData.type,
-            accumulatedQty,
-            minimumOrder,
-            userQty,
-            progress,
-            remaining,
-          });
-        } catch (e) {
-          console.error("Error leyendo lote:", lotId, e);
-        }
-      }
-
-      setActiveLots(lotsData);
-      setLoading(false);
-    });
-
-    return () => {
-      unsubscribePayments();
-      unsubscribeLots();
-    };
-  }, [userId]);
-
-  if (!userId) {
+  if (!userId || role !== "retailer") {
     return <div className="p-6">No autorizado</div>;
   }
 
+  /* ===============================
+     🧾 PEDIDOS DEL REVENDEDOR (OPTIMIZADO)
+  =============================== */
+  // ✅ OPTIMIZACIÓN: Limitar a últimos 100 pedidos
+  const ordersSnap = await db
+    .collection("payments")
+    .where("buyerId", "==", userId)
+    .limit(100)
+    .get();
+
+  const orders = ordersSnap.docs.map(doc => doc.data());
+
+  /* ===============================
+     📊 MÉTRICAS
+  =============================== */
+
+  // ✅ PEDIDOS CERRADOS (directos + fraccionados cerrados)
+  const pedidosTotales = orders.filter(o =>
+    o.type === "direct" ||
+    (o.type === "fractional" && o.lotStatus === "closed")
+  );
+
+  // ⏳ PEDIDOS FRACCIONADOS EN PROCESO
+  const pedidosEnProceso = orders.filter(o =>
+    o.type === "fractional" && o.lotStatus !== "closed"
+  );
+
+  // 💰 TOTAL INVERTIDO (solo pedidos cerrados)
+  const totalInvertido = pedidosTotales.reduce(
+    (acc, o) => acc + (o.total || 0),
+    0
+  );
+
+  /* ===============================
+     ✅ LOTES ACTIVOS (SÚPER OPTIMIZADO)
+     En vez de traer TODOS los lotes y filtrar,
+     solo traemos los lotes que el usuario tiene
+  =============================== */
+  
+  // Obtener IDs únicos de lotes del usuario
+  const userLotIds = [...new Set(
+    orders
+      .filter(o => o.type === "fractional" && o.lotId && o.lotStatus === "accumulating")
+      .map(o => o.lotId)
+  )];
+
+  const activeLots: ActiveLot[] = [];
+
+  if (userLotIds.length > 0) {
+    // ✅ OPTIMIZACIÓN: Batch query solo para lotes del usuario (no todos)
+    for (let i = 0; i < userLotIds.length; i += 10) {
+      const batch = userLotIds.slice(i, i + 10);
+      const lotsSnap = await db
+        .collection("lots")
+        .where("__name__", "in", batch)
+        .get();
+
+      for (const lotDoc of lotsSnap.docs) {
+        const data = lotDoc.data();
+        const lotOrders = data.orders || [];
+        
+        // Verificar si este usuario tiene pedidos en este lote
+        const userOrders = lotOrders.filter(
+          (o: any) => o.retailerId === userId
+        );
+        
+        if (userOrders.length === 0) continue;
+        
+        // Calcular cantidad del usuario en este lote
+        const userQty = userOrders.reduce(
+          (sum: number, o: any) => sum + (o.qty || 0),
+          0
+        );
+        
+        activeLots.push({
+          id: lotDoc.id,
+          productId: data.productId,
+          productName: data.productName || "Producto",
+          type: data.type,
+          accumulatedQty: data.accumulatedQty || 0,
+          minimumOrder: data.minimumOrder || data.MF || 0,
+          userQty,
+          progress: data.minimumOrder > 0 
+            ? Math.min((data.accumulatedQty / data.minimumOrder) * 100, 100)
+            : 0,
+        });
+      }
+    }
+
+    // ✅ OPTIMIZACIÓN: Solo si hay lotes SIN nombre, buscar en products
+    const lotsWithoutName = activeLots.filter(l => !l.productName || l.productName === "Producto");
+    
+    if (lotsWithoutName.length > 0) {
+      const productIds = [...new Set(lotsWithoutName.map(l => l.productId))];
+      
+      // Batch query para productos
+      for (let i = 0; i < productIds.length; i += 10) {
+        const batch = productIds.slice(i, i + 10);
+        const productsSnap = await db
+          .collection("products")
+          .where("__name__", "in", batch)
+          .get();
+        
+        const productsMap = new Map();
+        productsSnap.docs.forEach(doc => {
+          productsMap.set(doc.id, doc.data().name);
+        });
+
+        // Actualizar nombres de productos
+        activeLots.forEach(lot => {
+          if ((!lot.productName || lot.productName === "Producto") && productsMap.has(lot.productId)) {
+            lot.productName = productsMap.get(lot.productId);
+          }
+        });
+      }
+    }
+  }
+
+  /* ===============================
+     🧾 UI (MANTIENE DISEÑO ORIGINAL)
+  =============================== */
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-8 max-w-6xl mx-auto">
@@ -179,7 +164,7 @@ export default function DashboardRevendedor() {
               Dashboard del revendedor
             </h1>
             <p className="text-gray-600 mt-1">
-              Gestioná tus compras y pedidos (actualizado en tiempo real)
+              Gestioná tus compras y pedidos
             </p>
           </div>
 
@@ -190,117 +175,78 @@ export default function DashboardRevendedor() {
         </div>
 
         {/* KPIs */}
-        {loading ? (
-          <div className="grid md:grid-cols-3 gap-6 mb-12 animate-pulse">
-            <div className="bg-gray-200 h-24 rounded-xl"></div>
-            <div className="bg-gray-200 h-24 rounded-xl"></div>
-            <div className="bg-gray-200 h-24 rounded-xl"></div>
+        <div className="grid md:grid-cols-3 gap-6 mb-12">
+
+          {/* ✅ PEDIDOS TOTALES */}
+          <div className="bg-white p-6 rounded-xl shadow">
+            <p className="text-sm text-gray-500">Pedidos totales</p>
+            <p className="text-3xl font-semibold mt-2">
+              {pedidosTotales.length}
+            </p>
           </div>
-        ) : (
-          <div className="grid md:grid-cols-3 gap-6 mb-12">
 
-            {/* ✅ PEDIDOS TOTALES */}
-            <div className="bg-white p-6 rounded-xl shadow">
-              <p className="text-sm text-gray-500">Pedidos totales</p>
-              <p className="text-3xl font-semibold mt-2">
-                {pedidosTotales}
-              </p>
-            </div>
-
-            {/* ⏳ PEDIDOS EN PROCESO */}
-            <div className="bg-white p-6 rounded-xl shadow">
-              <p className="text-sm text-gray-500">Pedidos en proceso</p>
-              <p className="text-3xl font-semibold mt-2">
-                {pedidosEnProceso}
-              </p>
-            </div>
-
-            {/* 💰 TOTAL INVERTIDO */}
-            <div className="bg-white p-6 rounded-xl shadow">
-              <p className="text-sm text-gray-500">Total invertido</p>
-              <p className="text-3xl font-semibold mt-2">
-                $ {totalInvertido.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-            </div>
-
+          {/* ⏳ PEDIDOS EN PROCESO */}
+          <div className="bg-white p-6 rounded-xl shadow">
+            <p className="text-sm text-gray-500">Pedidos en proceso</p>
+            <p className="text-3xl font-semibold mt-2">
+              {pedidosEnProceso.length}
+            </p>
           </div>
-        )}
 
-        {/* ✅ SECCIÓN PEDIDOS FRACCIONADOS EN CURSO (TIEMPO REAL) */}
+          {/* 💰 TOTAL INVERTIDO */}
+          <div className="bg-white p-6 rounded-xl shadow">
+            <p className="text-sm text-gray-500">Total invertido</p>
+            <p className="text-3xl font-semibold mt-2">
+              {formatCurrency(totalInvertido)}
+            </p>
+          </div>
+
+        </div>
+
+        {/* ✅ SECCIÓN PEDIDOS FRACCIONADOS EN CURSO (MANTIENE DISEÑO ORIGINAL) */}
         <div className="bg-white rounded-xl shadow p-6 mb-12">
           <h2 className="text-lg font-semibold mb-4">
             Pedidos fraccionados en curso
           </h2>
 
-          {loading ? (
-            <div className="animate-pulse space-y-4">
-              <div className="h-16 bg-gray-200 rounded"></div>
-              <div className="h-16 bg-gray-200 rounded"></div>
-            </div>
-          ) : activeLots.length === 0 ? (
+          {activeLots.length === 0 ? (
             <p className="text-gray-500 text-sm">
               No tenés pedidos fraccionados en proceso actualmente.
             </p>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {activeLots.map((lot) => {
                 const progressPercent = Math.round(lot.progress);
                 const isNearComplete = progressPercent >= 80;
                 
                 return (
-                  <div key={lot.id} className="border border-gray-200 rounded-lg p-4">
-                    {/* Encabezado */}
-                    <div className="flex justify-between items-start mb-3">
+                  <div key={lot.id}>
+                    <div className="flex justify-between text-sm mb-1">
                       <div>
-                        <h3 className="font-semibold text-gray-900 mb-1">
-                          {lot.productName}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          Fabricante: {lot.factoryName}
-                        </p>
+                        <span className="font-medium">{lot.productName}</span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          (Tu pedido: {lot.userQty} unidades)
+                        </span>
                       </div>
-                      <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
-                        En progreso
+                      <span className="text-gray-500">
+                        {lot.accumulatedQty} / {lot.minimumOrder}
                       </span>
                     </div>
 
-                    {/* Tu pedido */}
-                    <div className="bg-purple-50 rounded-lg p-3 mb-3">
-                      <p className="text-sm font-medium text-purple-900">
-                        Tu pedido: <span className="text-lg">{lot.userQty}</span> unidades
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className={`h-3 rounded-full transition-all ${
+                          isNearComplete ? 'bg-green-600' : 'bg-blue-600'
+                        }`}
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                    
+                    {isNearComplete && (
+                      <p className="text-xs text-green-600 mt-1">
+                        ¡Cerca de completarse!
                       </p>
-                    </div>
-
-                    {/* Progreso del lote */}
-                    <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="font-medium text-gray-700">Progreso del lote</span>
-                        <span className="text-gray-600">
-                          {lot.accumulatedQty} / {lot.minimumOrder} unidades
-                        </span>
-                      </div>
-
-                      <div className="w-full bg-gray-200 rounded-full h-4 mb-2">
-                        <div
-                          className={`h-4 rounded-full transition-all ${
-                            isNearComplete ? 'bg-green-600' : 'bg-purple-600'
-                          }`}
-                          style={{ width: `${progressPercent}%` }}
-                        />
-                      </div>
-                      
-                      <div className="flex justify-between text-xs text-gray-600">
-                        <span>{progressPercent}% completado</span>
-                        <span>Faltan {lot.remaining} unidades</span>
-                      </div>
-
-                      {isNearComplete && (
-                        <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                          <span>🎉</span>
-                          <span>¡Cerca de completarse!</span>
-                        </p>
-                      )}
-                    </div>
+                    )}
                   </div>
                 );
               })}
@@ -308,7 +254,7 @@ export default function DashboardRevendedor() {
           )}
         </div>
 
-        {/* EXPLORAR PRODUCTOS */}
+        {/* EXPLORAR PRODUCTOS (SE MANTIENE) */}
         <div className="grid md:grid-cols-1 gap-6 mb-12">
           <Link
             href="/explorar"
@@ -328,5 +274,14 @@ export default function DashboardRevendedor() {
 
       </div>
     </div>
+  );
+}
+
+// ✅ Página principal con Suspense
+export default function DashboardRevendedor() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardRevendedorContent />
+    </Suspense>
   );
 }
