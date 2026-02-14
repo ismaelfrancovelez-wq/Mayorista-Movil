@@ -1,10 +1,10 @@
-// app/dashboard/pedidos-fraccionados/pedidos/page.tsx
+// app/dashboard/pedidos-fraccionados/pedidos/page.tsx - CON AGRUPACIÓN
 import { db } from "../../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import { formatCurrency } from "../../../../lib/utils";
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 10; // ✅ 10 segundos (actualización rápida)
+export const revalidate = 10;
 
 type Pedido = {
   id: string;
@@ -14,12 +14,14 @@ type Pedido = {
   qty: number;
   orderType: "directa" | "fraccionado";
   lotType?: string;
+  lotId?: string; // ✅ NUEVO
   status: "accumulating" | "closed" | "completed";
   amount: number;
   shippingCost: number;
   total: number;
   createdAt: string;
   createdAtTimestamp: number;
+  purchaseCount?: number; // ✅ NUEVO: Número de compras agrupadas
   lotProgress?: {
     currentQty: number;
     targetQty: number;
@@ -29,7 +31,7 @@ type Pedido = {
 };
 
 async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
-  // ✅ Query sin orderBy (se ordena en JavaScript después)
+  // Query sin orderBy (se ordena en JavaScript después)
   const paymentsSnap = await db
     .collection("payments")
     .where("retailerId", "==", retailerId)
@@ -42,7 +44,7 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
 
   const orders: Pedido[] = [];
 
-  // ✅ OPTIMIZACIÓN: Solo consultar lotes únicos (si hay pedidos fraccionados)
+  // ✅ Obtener IDs únicos de lotes
   const lotIds = new Set<string>();
 
   paymentsSnap.docs.forEach(doc => {
@@ -50,7 +52,7 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     if (payment.lotId) lotIds.add(payment.lotId);
   });
 
-  // ✅ OPTIMIZACIÓN: Batch query para lotes (solo los campos necesarios)
+  // ✅ Batch query para lotes (solo los campos necesarios)
   const lotsMap = new Map();
   if (lotIds.size > 0) {
     const lotIdsArray = Array.from(lotIds);
@@ -71,62 +73,120 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     }
   }
 
-  // ✅ Procesar todos los pagos usando datos guardados (sin consultas extra)
+  // ✅ AGRUPAR pedidos fraccionados por lotId
+  const fractionalGrouped = new Map<string, {
+    payments: any[];
+    totalQty: number;
+    totalAmount: number;
+    totalShipping: number;
+    totalTotal: number;
+    oldestDate: number;
+    latestDate: number;
+  }>();
+
+  const directOrders: Pedido[] = [];
+
   for (const paymentDoc of paymentsSnap.docs) {
     const payment = paymentDoc.data();
 
-    // ✅ OPTIMIZACIÓN: Usar datos guardados directamente (sin consultas extra)
-    const productName = payment.productName || "Producto";
-    const factoryName = payment.factoryName || "Fabricante";
-    const productPrice = payment.productPrice || 0;
+    // ✅ Pedidos DIRECTOS - No agrupar
+    if (payment.orderType === "directa") {
+      const productName = payment.productName || "Producto";
+      const factoryName = payment.factoryName || "Fabricante";
+
+      directOrders.push({
+        id: paymentDoc.id,
+        productId: payment.productId,
+        productName,
+        factoryName,
+        qty: payment.qty || 0,
+        orderType: "directa",
+        status: "completed",
+        amount: payment.amount || 0,
+        shippingCost: payment.shippingCost || 0,
+        total: payment.total || 0,
+        createdAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+        createdAtTimestamp: payment.createdAt?.toMillis() || 0,
+      });
+    }
+    // ✅ Pedidos FRACCIONADOS - Agrupar por lotId
+    else if (payment.orderType === "fraccionado" && payment.lotId) {
+      const lotId = payment.lotId;
+
+      if (fractionalGrouped.has(lotId)) {
+        const group = fractionalGrouped.get(lotId)!;
+        group.payments.push(payment);
+        group.totalQty += payment.qty || 0;
+        group.totalAmount += payment.amount || 0;
+        group.totalShipping += payment.shippingCost || 0;
+        group.totalTotal += payment.total || 0;
+        group.latestDate = Math.max(group.latestDate, payment.createdAt?.toMillis() || 0);
+        group.oldestDate = Math.min(group.oldestDate, payment.createdAt?.toMillis() || 0);
+      } else {
+        fractionalGrouped.set(lotId, {
+          payments: [payment],
+          totalQty: payment.qty || 0,
+          totalAmount: payment.amount || 0,
+          totalShipping: payment.shippingCost || 0,
+          totalTotal: payment.total || 0,
+          oldestDate: payment.createdAt?.toMillis() || 0,
+          latestDate: payment.createdAt?.toMillis() || 0,
+        });
+      }
+    }
+  }
+
+  // ✅ Convertir grupos fraccionados a pedidos
+  for (const [lotId, group] of fractionalGrouped.entries()) {
+    const firstPayment = group.payments[0];
+    const lotData = lotsMap.get(lotId);
 
     let status: "accumulating" | "closed" | "completed" = "completed";
     let lotProgress: Pedido["lotProgress"] | undefined;
 
-    if (payment.orderType === "fraccionado" && payment.lotId) {
-      const lotData = lotsMap.get(payment.lotId);
-      
-      if (lotData) {
-        status = lotData.status || "accumulating";
-        
-        const currentQty = lotData.accumulatedQty || 0;
-        const targetQty = lotData.minimumOrder || 0;
-        
-        if (targetQty > 0) {
-          lotProgress = {
-            currentQty,
-            targetQty,
-            percentage: Math.min((currentQty / targetQty) * 100, 100),
-            remaining: Math.max(targetQty - currentQty, 0),
-          };
-        }
-      } else {
-        status = "accumulating";
+    if (lotData) {
+      status = lotData.status === "closed" ? "closed" : "accumulating";
+
+      const currentQty = lotData.accumulatedQty || 0;
+      const targetQty = lotData.minimumOrder || 0;
+
+      if (targetQty > 0) {
+        lotProgress = {
+          currentQty,
+          targetQty,
+          percentage: Math.min((currentQty / targetQty) * 100, 100),
+          remaining: Math.max(targetQty - currentQty, 0),
+        };
       }
     }
 
     orders.push({
-      id: paymentDoc.id,
-      productId: payment.productId,
-      productName,
-      factoryName,
-      qty: payment.qty || 0,
-      orderType: payment.orderType || "directa",
-      lotType: payment.lotType,
+      id: lotId, // Usar lotId como id del pedido agrupado
+      productId: firstPayment.productId,
+      productName: firstPayment.productName || "Producto",
+      factoryName: firstPayment.factoryName || "Fabricante",
+      qty: group.totalQty, // ✅ SUMA de todas las compras
+      orderType: "fraccionado",
+      lotType: firstPayment.lotType,
+      lotId: lotId,
       status,
-      amount: payment.amount || 0,
-      shippingCost: payment.shippingCost || 0,
-      total: payment.total || 0,
-      createdAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
-      createdAtTimestamp: payment.createdAt?.toMillis() || 0,
+      amount: group.totalAmount, // ✅ SUMA
+      shippingCost: group.totalShipping, // ✅ SUMA
+      total: group.totalTotal, // ✅ SUMA
+      purchaseCount: group.payments.length, // ✅ Número de compras
+      createdAt: new Date(group.oldestDate).toLocaleDateString("es-AR"),
+      createdAtTimestamp: group.latestDate, // Usar fecha más reciente para ordenar
       lotProgress,
     });
   }
 
-  // ✅ Ordenar en JavaScript (sin índice de Firestore)
-  orders.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
+  // ✅ Combinar directos y fraccionados
+  const allOrders = [...orders, ...directOrders];
 
-  return orders;
+  // ✅ Ordenar por fecha (más reciente primero)
+  allOrders.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
+
+  return allOrders;
 }
 
 export default async function PedidosPage() {
@@ -223,7 +283,14 @@ export default async function PedidosPage() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
                     <div>
                       <p className="text-gray-500">Cantidad</p>
-                      <p className="font-semibold text-gray-900">{order.qty} unidades</p>
+                      <p className="font-semibold text-gray-900">
+                        {order.qty} unidades
+                        {order.purchaseCount && order.purchaseCount > 1 && (
+                          <span className="text-xs text-gray-500 block">
+                            ({order.purchaseCount} compras)
+                          </span>
+                        )}
+                      </p>
                     </div>
 
                     <div>
