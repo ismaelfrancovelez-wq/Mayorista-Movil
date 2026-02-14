@@ -357,6 +357,7 @@ export async function POST(req: NextRequest) {
       buyerId,
       factoryId,
       productId,
+      productName: productName,  // ✅ NUEVO: Guardar nombre del producto
       qty: originalQty,
       orderType: orderType,
       lotType: lotType || null,
