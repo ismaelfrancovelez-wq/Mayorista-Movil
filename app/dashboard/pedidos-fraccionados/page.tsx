@@ -1,4 +1,4 @@
-// app/dashboard/pedidos-fraccionados/page.tsx - ULTRA OPTIMIZADO
+// app/dashboard/pedidos-fraccionados/page.tsx - CORREGIDO Y MEJORADO
 import { db } from "../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import ActiveRoleBadge from "../../../components/ActiveRoleBadge";
@@ -22,6 +22,7 @@ type ActiveLot = {
   minimumOrder: number;
   userQty: number;
   progress: number;
+  userPayments: number; // Número de compras del usuario
 };
 
 async function DashboardRevendedorContent() {
@@ -33,9 +34,8 @@ async function DashboardRevendedorContent() {
   }
 
   /* ===============================
-     🧾 PEDIDOS DEL REVENDEDOR (OPTIMIZADO)
+     🧾 PEDIDOS DEL REVENDEDOR
   =============================== */
-  // ✅ OPTIMIZACIÓN: Limitar a últimos 100 pedidos
   const ordersSnap = await db
     .collection("payments")
     .where("buyerId", "==", userId)
@@ -66,24 +66,53 @@ async function DashboardRevendedorContent() {
   );
 
   /* ===============================
-     ✅ LOTES ACTIVOS (SÚPER OPTIMIZADO)
-     En vez de traer TODOS los lotes y filtrar,
-     solo traemos los lotes que el usuario tiene
+     ✅ LOTES ACTIVOS - VERSIÓN MEJORADA
+     Agrupa por lote y suma las cantidades
   =============================== */
   
-  // Obtener IDs únicos de lotes del usuario
-  const userLotIds = [...new Set(
-    orders
-      .filter(o => o.orderType === "fraccionado" && o.lotId && o.lotStatus === "accumulating")
-      .map(o => o.lotId)
-  )];
+  // Obtener payments fraccionados activos del usuario
+  const activeFractionalPayments = orders.filter(o => 
+    o.orderType === "fraccionado" && 
+    o.lotId && 
+    o.lotStatus === "accumulating"
+  );
+
+  // Agrupar por lotId y sumar cantidades
+  const lotMap = new Map<string, {
+    lotId: string;
+    productId: string;
+    productName: string;
+    totalQty: number;
+    payments: number;
+  }>();
+
+  activeFractionalPayments.forEach(payment => {
+    const lotId = payment.lotId;
+    if (!lotId) return;
+
+    if (lotMap.has(lotId)) {
+      const existing = lotMap.get(lotId)!;
+      existing.totalQty += (payment.qty || 0);
+      existing.payments += 1;
+    } else {
+      lotMap.set(lotId, {
+        lotId,
+        productId: payment.productId,
+        productName: payment.productName || "Producto",
+        totalQty: payment.qty || 0,
+        payments: 1,
+      });
+    }
+  });
 
   const activeLots: ActiveLot[] = [];
 
-  if (userLotIds.length > 0) {
-    // ✅ OPTIMIZACIÓN: Batch query solo para lotes del usuario (no todos)
-    for (let i = 0; i < userLotIds.length; i += 10) {
-      const batch = userLotIds.slice(i, i + 10);
+  // Si hay lotes, obtenerlos
+  if (lotMap.size > 0) {
+    const lotIds = Array.from(lotMap.keys());
+    
+    for (let i = 0; i < lotIds.length; i += 10) {
+      const batch = lotIds.slice(i, i + 10);
       const lotsSnap = await db
         .collection("lots")
         .where("__name__", "in", batch)
@@ -91,29 +120,20 @@ async function DashboardRevendedorContent() {
 
       for (const lotDoc of lotsSnap.docs) {
         const data = lotDoc.data();
-        const lotOrders = data.orders || [];
+        const lotId = lotDoc.id;
+        const userInfo = lotMap.get(lotId);
         
-        // Verificar si este usuario tiene pedidos en este lote
-        const userOrders = lotOrders.filter(
-          (o: any) => o.retailerId === userId
-        );
-        
-        if (userOrders.length === 0) continue;
-        
-        // Calcular cantidad del usuario en este lote
-        const userQty = userOrders.reduce(
-          (sum: number, o: any) => sum + (o.qty || 0),
-          0
-        );
-        
+        if (!userInfo) continue;
+
         activeLots.push({
-          id: lotDoc.id,
+          id: lotId,
           productId: data.productId,
-          productName: data.productName || "Producto",
+          productName: userInfo.productName,
           type: data.type,
           accumulatedQty: data.accumulatedQty || 0,
           minimumOrder: data.minimumOrder || data.MF || 0,
-          userQty,
+          userQty: userInfo.totalQty, // ✅ Suma de todas las compras del usuario
+          userPayments: userInfo.payments, // ✅ Número de compras
           progress: data.minimumOrder > 0 
             ? Math.min((data.accumulatedQty / data.minimumOrder) * 100, 100)
             : 0,
@@ -121,13 +141,12 @@ async function DashboardRevendedorContent() {
       }
     }
 
-    // ✅ OPTIMIZACIÓN: Solo si hay lotes SIN nombre, buscar en products
+    // ✅ Solo buscar nombres de productos si faltan
     const lotsWithoutName = activeLots.filter(l => !l.productName || l.productName === "Producto");
     
     if (lotsWithoutName.length > 0) {
       const productIds = [...new Set(lotsWithoutName.map(l => l.productId))];
       
-      // Batch query para productos
       for (let i = 0; i < productIds.length; i += 10) {
         const batch = productIds.slice(i, i + 10);
         const productsSnap = await db
@@ -140,7 +159,6 @@ async function DashboardRevendedorContent() {
           productsMap.set(doc.id, doc.data().name);
         });
 
-        // Actualizar nombres de productos
         activeLots.forEach(lot => {
           if ((!lot.productName || lot.productName === "Producto") && productsMap.has(lot.productId)) {
             lot.productName = productsMap.get(lot.productId);
@@ -151,7 +169,7 @@ async function DashboardRevendedorContent() {
   }
 
   /* ===============================
-     🧾 UI (MANTIENE DISEÑO ORIGINAL)
+     🧾 UI
   =============================== */
   return (
     <div className="min-h-screen bg-gray-50">
@@ -203,7 +221,7 @@ async function DashboardRevendedorContent() {
 
         </div>
 
-        {/* ✅ SECCIÓN PEDIDOS FRACCIONADOS EN CURSO (MANTIENE DISEÑO ORIGINAL) */}
+        {/* ✅ SECCIÓN PEDIDOS FRACCIONADOS EN CURSO */}
         <div className="bg-white rounded-xl shadow p-6 mb-12">
           <h2 className="text-lg font-semibold mb-4">
             Pedidos fraccionados en curso
@@ -225,7 +243,8 @@ async function DashboardRevendedorContent() {
                       <div>
                         <span className="font-medium">{lot.productName}</span>
                         <span className="text-xs text-gray-500 ml-2">
-                          (Tu pedido: {lot.userQty} unidades)
+                          (Tu pedido: {lot.userQty} unidades
+                          {lot.userPayments > 1 && ` en ${lot.userPayments} compras`})
                         </span>
                       </div>
                       <span className="text-gray-500">
@@ -254,7 +273,7 @@ async function DashboardRevendedorContent() {
           )}
         </div>
 
-        {/* EXPLORAR PRODUCTOS (SE MANTIENE) */}
+        {/* EXPLORAR PRODUCTOS */}
         <div className="grid md:grid-cols-1 gap-6 mb-12">
           <Link
             href="/explorar"
