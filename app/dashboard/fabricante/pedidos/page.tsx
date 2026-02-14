@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { formatCurrency } from "../../../../lib/utils";
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 30; // ✅ 30 segundos (buen balance)
+export const revalidate = 10; // ✅ 10 segundos (actualización rápida)
 
 type Pedido = {
   id: string;
@@ -43,17 +43,15 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
 
   const orders: Pedido[] = [];
 
-  // ✅ OPTIMIZACIÓN 2: Solo consultar lotes únicos
+  // ✅ OPTIMIZACIÓN: Solo consultar lotes únicos (si hay pedidos fraccionados)
   const lotIds = new Set<string>();
-  const manufacturerIds = new Set<string>();
 
   paymentsSnap.docs.forEach(doc => {
     const payment = doc.data();
     if (payment.lotId) lotIds.add(payment.lotId);
-    if (payment.factoryId) manufacturerIds.add(payment.factoryId);
   });
 
-  // ✅ OPTIMIZACIÓN 3: Batch query para lotes (solo si hay pedidos fraccionados)
+  // ✅ OPTIMIZACIÓN: Batch query para lotes (solo los campos necesarios)
   const lotsMap = new Map();
   if (lotIds.size > 0) {
     const lotIdsArray = Array.from(lotIds);
@@ -74,32 +72,14 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     }
   }
 
-  // ✅ OPTIMIZACIÓN 4: Batch query para fabricantes
-  const manufacturersMap = new Map();
-  if (manufacturerIds.size > 0) {
-    const manufacturerIdsArray = Array.from(manufacturerIds);
-    for (let i = 0; i < manufacturerIdsArray.length; i += 10) {
-      const batch = manufacturerIdsArray.slice(i, i + 10);
-      const manufacturersSnap = await db
-        .collection("manufacturers")
-        .where("__name__", "in", batch)
-        .get();
-      manufacturersSnap.docs.forEach(doc => {
-        const data = doc.data();
-        manufacturersMap.set(doc.id, data.businessName || data.name || "Fabricante");
-      });
-    }
-  }
-
-  // ✅ OPTIMIZACIÓN 5: Usar datos guardados en payment (sin consultas extra)
+  // ✅ Procesar todos los pagos usando datos guardados (sin consultas extra)
   for (const paymentDoc of paymentsSnap.docs) {
     const payment = paymentDoc.data();
 
-    // ✅ Usar productName guardado (sin consultar products)
+    // ✅ OPTIMIZACIÓN: Usar datos guardados directamente (sin consultas extra)
     const productName = payment.productName || "Producto";
-    
-    // ✅ Usar nombre de fabricante del caché
-    const factoryName = manufacturersMap.get(payment.factoryId) || "Fabricante";
+    const factoryName = payment.factoryName || "Fabricante";
+    const productPrice = payment.productPrice || 0;
 
     let status: "accumulating" | "closed" | "completed" = "completed";
     let lotProgress: Pedido["lotProgress"] | undefined;
@@ -175,7 +155,7 @@ export default async function PedidosPage() {
             Mis Pedidos
           </h1>
           <p className="text-gray-600">
-            Últimos 50 pedidos (actualizado cada 30 segundos)
+            Últimos 50 pedidos (actualizado cada 10 segundos)
           </p>
         </div>
 

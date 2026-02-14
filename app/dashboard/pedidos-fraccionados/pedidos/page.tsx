@@ -1,222 +1,164 @@
 // app/dashboard/pedidos-fraccionados/pedidos/page.tsx
-"use client";
+import { db } from "../../../../lib/firebase-admin";
+import { cookies } from "next/headers";
+import { formatCurrency } from "../../../../lib/utils";
 
-import { useEffect, useState, useRef } from "react";
-import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
-import { db } from "../../../../lib/firebase-client";
+export const dynamic = 'force-dynamic';
+export const revalidate = 10; // ✅ 10 segundos (actualización rápida)
 
 type Pedido = {
   id: string;
   productId: string;
   productName: string;
-  factoryId: string;
   factoryName: string;
   qty: number;
   orderType: "directa" | "fraccionado";
   lotType?: string;
   status: "accumulating" | "closed" | "completed";
-  paymentId: string;
-  paymentStatus: string;
   amount: number;
   shippingCost: number;
   total: number;
   createdAt: string;
   createdAtTimestamp: number;
-  // Datos del lote (solo para fraccionados)
-  lotId?: string;
-  accumulatedQty?: number;
-  minimumQty?: number;
-  progress?: number;
-  remaining?: number;
+  lotProgress?: {
+    currentQty: number;
+    targetQty: number;
+    percentage: number;
+    remaining: number;
+  };
 };
 
-export default function PedidosPage() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [orders, setOrders] = useState<Pedido[]>([]);
-  const [loading, setLoading] = useState(true);
-  // ✅ ÚNICO CAMBIO DE LÓGICA: cache para no repetir getDoc del mismo producto/fabricante
-  const cacheRef = useRef<Record<string, any>>({});
+async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
+  // ✅ OPTIMIZACIÓN 1: Últimos 50 pedidos (buen balance)
+  const paymentsSnap = await db
+    .collection("payments")
+    .where("retailerId", "==", retailerId)
+    .orderBy("createdAt", "desc")
+    .limit(50)
+    .get();
 
-  async function getCached(colName: string, docId: string) {
-    const key = `${colName}/${docId}`;
-    if (cacheRef.current[key]) return cacheRef.current[key];
-    const snap = await getDoc(doc(db, colName, docId));
-    cacheRef.current[key] = snap.data() || null;
-    return cacheRef.current[key];
+  if (paymentsSnap.empty) {
+    return [];
   }
 
-  useEffect(() => {
-    // ✅ ÚNICO CAMBIO: usa /api/auth/me en vez de document.cookie (que no funciona con cookies HTTP-only)
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (data?.userId) setUserId(data.userId); })
-      .catch(() => {});
-  }, []);
+  const orders: Pedido[] = [];
 
-  useEffect(() => {
-    if (!userId) return;
+  // ✅ OPTIMIZACIÓN: Solo consultar lotes únicos (si hay pedidos fraccionados)
+  const lotIds = new Set<string>();
 
-    setLoading(true);
+  paymentsSnap.docs.forEach(doc => {
+    const payment = doc.data();
+    if (payment.lotId) lotIds.add(payment.lotId);
+  });
 
-    // ✅ SUSCRIPCIÓN EN TIEMPO REAL a los pagos del usuario
-    const paymentsQuery = query(
-      collection(db, "payments"),
-      where("retailerId", "==", userId)
-    );
+  // ✅ OPTIMIZACIÓN: Batch query para lotes (solo los campos necesarios)
+  const lotsMap = new Map();
+  if (lotIds.size > 0) {
+    const lotIdsArray = Array.from(lotIds);
+    for (let i = 0; i < lotIdsArray.length; i += 10) {
+      const batch = lotIdsArray.slice(i, i + 10);
+      const lotsSnap = await db
+        .collection("lots")
+        .where("__name__", "in", batch)
+        .get();
+      lotsSnap.docs.forEach(doc => {
+        const data = doc.data();
+        lotsMap.set(doc.id, {
+          status: data.status,
+          accumulatedQty: data.accumulatedQty,
+          minimumOrder: data.minimumOrder || data.minimumQty,
+        });
+      });
+    }
+  }
 
-    const unsubscribe = onSnapshot(paymentsQuery, async (snapshot) => {
-      // ✅ ÚNICO CAMBIO DE LÓGICA: Promise.all en vez de for-await en serie (más rápido)
-      const ordersData = await Promise.all(
-        snapshot.docs.map(async (paymentDoc) => {
-          const payment = paymentDoc.data();
+  // ✅ Procesar todos los pagos usando datos guardados (sin consultas extra)
+  for (const paymentDoc of paymentsSnap.docs) {
+    const payment = paymentDoc.data();
 
-          // Obtener información del producto y fabricante en paralelo
-          const [product, factory] = await Promise.all([
-            payment.productId ? getCached("products", payment.productId) : null,
-            payment.factoryId ? getCached("manufacturers", payment.factoryId) : null,
-          ]);
+    // ✅ OPTIMIZACIÓN: Usar datos guardados directamente (sin consultas extra)
+    const productName = payment.productName || "Producto";
+    const factoryName = payment.factoryName || "Fabricante";
+    const productPrice = payment.productPrice || 0;
 
-          let status: "accumulating" | "closed" | "completed" = "completed";
-          let accumulatedQty: number | undefined;
-          let minimumQty: number | undefined;
-          let progress: number | undefined;
-          let remaining: number | undefined;
-          let lotId: string | undefined;
+    let status: "accumulating" | "closed" | "completed" = "completed";
+    let lotProgress: Pedido["lotProgress"] | undefined;
 
-          // Para pedidos fraccionados, obtener datos del lote EN TIEMPO REAL
-          if (payment.orderType === "fraccionado" && payment.lotId) {
-            lotId = payment.lotId;
-            const lotRef = doc(db, "lots", payment.lotId);
-            const lotSnap = await getDoc(lotRef);
-
-            if (lotSnap.exists()) {
-              const lotData = lotSnap.data();
-              status = lotData.status || "accumulating";
-              accumulatedQty = lotData.accumulatedQty || 0;
-              minimumQty = lotData.minimumQty || lotData.minimumOrder || product?.minimumOrder || 0;
-              
-              // ✅ FIX: Solo calcular si minimumQty existe
-              if (minimumQty && minimumQty > 0 && accumulatedQty !== undefined) {
-                progress = Math.round((accumulatedQty / minimumQty) * 100);
-                remaining = Math.max(0, minimumQty - accumulatedQty);
-              }
-            }
-          }
-
-          return {
-            id: paymentDoc.id,
-            productId: payment.productId,
-            productName: product?.name || "Producto desconocido",
-            factoryId: payment.factoryId,
-            factoryName: factory?.businessName || factory?.name || "Fabricante",
-            qty: payment.qty || 0,
-            orderType: payment.orderType || "directa",
-            lotType: payment.lotType,
-            status,
-            paymentId: payment.paymentId || paymentDoc.id,
-            paymentStatus: payment.status,
-            amount: payment.amount || 0,
-            shippingCost: payment.shippingCost || 0,
-            total: payment.total || 0,
-            createdAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
-            createdAtTimestamp: payment.createdAt?.toMillis() || 0,
-            lotId,
-            accumulatedQty,
-            minimumQty,
-            progress,
-            remaining,
-          } as Pedido;
-        })
-      );
-
-      // ✅ AGRUPAR pedidos fraccionados del mismo usuario en el mismo lote
-      // Los directos siempre se muestran individualmente (1 compra = 1 tarjeta)
-      const fraccionadoMap = new Map<string, Pedido>();
-      const finalOrders: Pedido[] = [];
-
-      for (const order of ordersData) {
-        if (order.orderType === "fraccionado" && order.lotId) {
-          const key = order.lotId;
-          if (fraccionadoMap.has(key)) {
-            // Ya existe una entrada para este lote → acumular qty y montos
-            const existing = fraccionadoMap.get(key)!;
-            existing.qty += order.qty;
-            existing.amount += order.amount;
-            existing.total += order.total;
-            existing.shippingCost += order.shippingCost;
-            // Conservar la fecha más reciente
-            if (order.createdAtTimestamp > existing.createdAtTimestamp) {
-              existing.createdAtTimestamp = order.createdAtTimestamp;
-              existing.createdAt = order.createdAt;
-            }
-          } else {
-            // Primera vez que aparece este lote → registrar
-            fraccionadoMap.set(key, { ...order });
-          }
-        } else {
-          // Directos: siempre se muestran individualmente
-          finalOrders.push(order);
+    if (payment.orderType === "fraccionado" && payment.lotId) {
+      const lotData = lotsMap.get(payment.lotId);
+      
+      if (lotData) {
+        status = lotData.status || "accumulating";
+        
+        const currentQty = lotData.accumulatedQty || 0;
+        const targetQty = lotData.minimumOrder || 0;
+        
+        if (targetQty > 0) {
+          lotProgress = {
+            currentQty,
+            targetQty,
+            percentage: Math.min((currentQty / targetQty) * 100, 100),
+            remaining: Math.max(targetQty - currentQty, 0),
+          };
         }
+      } else {
+        status = "accumulating";
       }
+    }
 
-      // Agregar los fraccionados ya agrupados
-      fraccionadoMap.forEach((order) => finalOrders.push(order));
-
-      // Ordenar por fecha (más recientes primero)
-      finalOrders.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
-
-      setOrders(finalOrders);
-      setLoading(false);
+    orders.push({
+      id: paymentDoc.id,
+      productId: payment.productId,
+      productName,
+      factoryName,
+      qty: payment.qty || 0,
+      orderType: payment.orderType || "directa",
+      lotType: payment.lotType,
+      status,
+      amount: payment.amount || 0,
+      shippingCost: payment.shippingCost || 0,
+      total: payment.total || 0,
+      createdAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+      createdAtTimestamp: payment.createdAt?.toMillis() || 0,
+      lotProgress,
     });
+  }
 
-    return () => unsubscribe();
-  }, [userId]);
+  return orders;
+}
 
-  if (!userId) {
+export default async function PedidosPage() {
+  const userId = cookies().get("userId")?.value;
+  const role = cookies().get("activeRole")?.value;
+
+  if (!userId || role !== "retailer") {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold mb-4">No autorizado</h1>
           <p className="text-red-600">
-            Debes iniciar sesión para acceder a esta página
+            Debes tener rol de revendedor para acceder a esta página
           </p>
         </div>
       </div>
     );
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/3 mb-8"></div>
-            <div className="space-y-4">
-              <div className="h-32 bg-gray-200 rounded"></div>
-              <div className="h-32 bg-gray-200 rounded"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const orders = await getRetailerOrders(userId);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto p-8">
         
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Mis Pedidos
           </h1>
           <p className="text-gray-600">
-            Historial completo de tus compras (actualizado en tiempo real)
+            Últimos 50 pedidos (actualizado cada 10 segundos)
           </p>
         </div>
 
-        {/* Lista de pedidos */}
         {orders.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
             <p className="text-gray-500 text-lg mb-4">
@@ -276,7 +218,6 @@ export default function PedidosPage() {
                     </span>
                   </div>
 
-                  {/* Información del pedido */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
                     <div>
                       <p className="text-gray-500">Cantidad</p>
@@ -288,7 +229,7 @@ export default function PedidosPage() {
                       <p className="font-semibold text-gray-900">
                         {isFraccionado
                           ? order.lotType === "fractional_shipping"
-                            ? "Fraccionado con envío"
+                            ? "Fraccionado envío"
                             : "Fraccionado retiro"
                           : "Directa"}
                       </p>
@@ -297,7 +238,7 @@ export default function PedidosPage() {
                     <div>
                       <p className="text-gray-500">Producto</p>
                       <p className="font-semibold text-gray-900">
-                        ${order.amount.toFixed(2)}
+                        {formatCurrency(order.amount)}
                       </p>
                     </div>
 
@@ -305,32 +246,29 @@ export default function PedidosPage() {
                       <div>
                         <p className="text-gray-500">Envío</p>
                         <p className="font-semibold text-gray-900">
-                          ${order.shippingCost.toFixed(2)}
+                          {formatCurrency(order.shippingCost)}
                         </p>
                       </div>
                     )}
                   </div>
 
-                  {/* Progreso del lote (solo para fraccionados en progreso) */}
-                  {isFraccionado && isEnProceso && order.progress !== undefined && order.accumulatedQty !== undefined && order.minimumQty !== undefined && (
+                  {isFraccionado && isEnProceso && order.lotProgress && (
                     <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="font-medium text-purple-900">Progreso del lote</span>
                         <span className="text-purple-700">
-                          {order.accumulatedQty} / {order.minimumQty} unidades
+                          {order.lotProgress.currentQty} / {order.lotProgress.targetQty} unidades
                         </span>
                       </div>
                       <div className="w-full bg-purple-200 rounded-full h-3 mb-2">
                         <div
                           className="bg-purple-600 h-3 rounded-full transition-all"
-                          style={{ width: `${Math.min(order.progress, 100)}%` }}
+                          style={{ width: `${Math.min(order.lotProgress.percentage, 100)}%` }}
                         />
                       </div>
                       <div className="flex justify-between text-xs text-purple-700">
-                        <span>{order.progress}% completado</span>
-                        {order.remaining !== undefined && (
-                          <span>Faltan {order.remaining} unidades</span>
-                        )}
+                        <span>{Math.round(order.lotProgress.percentage)}% completado</span>
+                        <span>Faltan {order.lotProgress.remaining} unidades</span>
                       </div>
                     </div>
                   )}
@@ -340,28 +278,15 @@ export default function PedidosPage() {
                       <div>
                         <p className="text-sm text-gray-500">Total pagado</p>
                         <p className="text-lg font-bold text-gray-900">
-                          ${order.total.toFixed(2)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500">Estado del pago</p>
-                        <p
-                          className={`text-sm font-medium ${
-                            order.paymentStatus === "approved"
-                              ? "text-green-600"
-                              : "text-yellow-600"
-                          }`}
-                        >
-                          {order.paymentStatus === "approved" ? "Pagado" : "Pendiente"}
+                          {formatCurrency(order.total)}
                         </p>
                       </div>
                     </div>
                     
-                    {/* Mensaje de estado */}
                     {isFraccionado && isEnProceso && (
                       <p className="text-xs text-purple-600 mt-3 flex items-center gap-1">
                         <span>⏳</span>
-                        <span>Esperando a que el lote se complete para procesar tu pedido</span>
+                        <span>Esperando a que el lote se complete</span>
                       </p>
                     )}
                     {isFraccionado && !isEnProceso && (
@@ -373,7 +298,7 @@ export default function PedidosPage() {
                     {!isFraccionado && (
                       <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
                         <span>📦</span>
-                        <span>Compra directa completada - El fabricante procesará tu pedido</span>
+                        <span>Compra directa completada</span>
                       </p>
                     )}
                   </div>

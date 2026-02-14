@@ -1,5 +1,4 @@
-// app/explorar/[productId]/page.tsx - VERSIÓN ACTUALIZADA CON IMAGEN
-
+// app/explorar/[productId]/page.tsx - OPTIMIZADO
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { db } from "../../../lib/firebase-admin";
@@ -7,6 +6,9 @@ import type { Product } from "../../../lib/types/product";
 import ProductPurchaseClient from "../../../components/products/ProductPurchaseClient";
 import ManufacturerInfoCard from "../../../components/ManufacturerInfoCard.tsx";
 import Link from "next/link";
+
+// ✅ OPTIMIZACIÓN: Caché de 30 segundos (actualización rápida)
+export const revalidate = 30;
 
 /* ===============================
     📍 OBTENER PRODUCTO
@@ -28,7 +30,6 @@ async function getProduct(
 
 /* ===============================
     🏢 OBTENER INFO DEL FABRICANTE
-    🔧 CORREGIDO para leer verification.status
 ================================ */
 async function getManufacturerInfo(factoryId: string) {
   console.log("🔍 Buscando manufacturer con ID:", factoryId);
@@ -42,7 +43,6 @@ async function getManufacturerInfo(factoryId: string) {
   
   const data = snap.data();
   
-  // 🔧 LEER EL ESTADO DE VERIFICACIÓN CORRECTAMENTE
   const isVerified = data?.verification?.status === "verified";
   
   console.log("✅ Manufacturer encontrado:", {
@@ -58,7 +58,7 @@ async function getManufacturerInfo(factoryId: string) {
     phone: data?.phone || "",
     email: data?.email || "",
     schedule: data?.schedule || null,
-    verified: isVerified, // 🔧 CORREGIDO: usar verification.status === "verified"
+    verified: isVerified,
   };
 }
 
@@ -101,7 +101,6 @@ export default async function ProductDetailPage({
     return <div className="p-8">Producto no encontrado</div>;
   }
 
-  // ✅ Obtener info del fabricante
   const manufacturerInfo = await getManufacturerInfo(product.factoryId);
 
   const minimumOrder = Number(product.minimumOrder) || 0;
@@ -117,11 +116,10 @@ export default async function ProductDetailPage({
           ← Volver a explorar
         </Link>
 
-        {/* 🆕 LAYOUT DE 2 COLUMNAS CON IMAGEN */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="grid lg:grid-cols-2 gap-0">
             
-            {/* 🆕 COLUMNA IZQUIERDA - IMAGEN */}
+            {/* COLUMNA IZQUIERDA - IMAGEN */}
             <div className="relative bg-gray-100">
               {product.imageUrl ? (
                 <img

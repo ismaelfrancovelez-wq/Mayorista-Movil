@@ -356,8 +356,10 @@ export async function POST(req: NextRequest) {
       retailerId: buyerId,
       buyerId,
       factoryId,
+      factoryName: factoryName,  // ✅ OPTIMIZACIÓN: Guardar nombre del fabricante
       productId,
-      productName: productName,  // ✅ NUEVO: Guardar nombre del producto
+      productName: productName,  // ✅ OPTIMIZACIÓN: Guardar nombre del producto
+      productPrice: productPrice,  // ✅ OPTIMIZACIÓN: Guardar precio del producto
       qty: originalQty,
       orderType: orderType,
       lotType: lotType || null,

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 import { getAdminServices } from "../../../../lib/firebase-admin";
+
+// ✅ OPTIMIZACIÓN: Caché de 10 segundos (actualización rápida)
+export const revalidate = 10;
 
 export async function GET() {
   try {
     const { adminDb } = await getAdminServices();
 
+    // ✅ OPTIMIZACIÓN: Sin límite - Paginación en frontend
     const snap = await adminDb
       .collection("products")
       .where("active", "==", true)
@@ -23,8 +24,8 @@ export async function GET() {
         minimumOrder: data.minimumOrder,
         category: data.category || "otros",
         factoryId: data.factoryId,
-        imageUrl: data.imageUrl || null, // 🆕 AGREGAR imageUrl
-        featured: data.featured || false, // 🆕 AGREGAR featured para el explorador
+        imageUrl: data.imageUrl || null,
+        featured: data.featured || false,
         shippingMethods: data.shipping?.methods ?? [],
       };
     });
