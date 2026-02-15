@@ -28,6 +28,10 @@ export default function DestacadosPage() {
   
   const [loadingPayment, setLoadingPayment] = useState(false);
   const [error, setError] = useState("");
+  
+  // Estados para mis destacados activos
+  const [myFeatured, setMyFeatured] = useState<any[]>([]);
+  const [loadingMyFeatured, setLoadingMyFeatured] = useState(true);
 
   // ✅ Cargar productos del fabricante
   useEffect(() => {
@@ -71,6 +75,24 @@ export default function DestacadosPage() {
     }
 
     loadProducts();
+  }, []);
+
+  // Cargar mis destacados activos
+  useEffect(() => {
+    async function loadMyFeatured() {
+      try {
+        const res = await fetch("/api/featured/my-featured");
+        if (res.ok) {
+          const data = await res.json();
+          setMyFeatured(data.items || []);
+        }
+      } catch (err) {
+        console.error("Error cargando destacados:", err);
+      } finally {
+        setLoadingMyFeatured(false);
+      }
+    }
+    loadMyFeatured();
   }, []);
 
   async function handleCreateFeatured() {
@@ -295,11 +317,52 @@ export default function DestacadosPage() {
             Mis destacados activos
           </h2>
           
-          <div className="bg-white rounded-xl shadow p-6">
-            <p className="text-gray-500 text-sm">
-              Aquí aparecerán tus productos o fábrica cuando estén destacados
-            </p>
-          </div>
+          {loadingMyFeatured ? (
+            <div className="bg-white rounded-xl shadow p-6 text-sm text-gray-500">
+              Cargando...
+            </div>
+          ) : myFeatured.length === 0 ? (
+            <div className="bg-white rounded-xl shadow p-6">
+              <p className="text-gray-500 text-sm">
+                Aquí aparecerán tus productos o fábrica cuando estén destacados
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {myFeatured.map((item) => {
+                const endDate = new Date(item.endDate);
+                const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                return (
+                  <div key={item.id} className={`bg-white rounded-xl shadow p-6 flex items-center justify-between gap-4 border-l-4 ${item.active ? 'border-green-500' : 'border-gray-300'}`}>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">{item.type === 'factory' ? '🏭' : '📦'}</span>
+                        <span className="font-semibold text-gray-900">{item.metadata?.name || item.itemId}</span>
+                        {item.active ? (
+                          <span className="bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full">Activo</span>
+                        ) : (
+                          <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2 py-0.5 rounded-full">Vencido</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        {item.type === 'factory' ? 'Fábrica' : 'Producto'} destacado
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {item.active ? (
+                        <>
+                          <p className="text-2xl font-bold text-gray-900">{daysLeft}</p>
+                          <p className="text-xs text-gray-500">días restantes</p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-400">Venció el {endDate.toLocaleDateString('es-AR')}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
       </div>
