@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import GooglePlacesAutocomplete from "../../../../components/GooglePlacesAutocomplete";
+import { uploadImage, validateImageFile } from "../../../../lib/firebase-storage";
 
 type DaySchedule = {
   open: string;
@@ -47,6 +48,7 @@ export default function PerfilFabricantePage() {
   const [profileImageUrl, setProfileImageUrl] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -140,8 +142,34 @@ export default function PerfilFabricantePage() {
     try {
       let imageUrl = profileImageUrl;
       
+      // ✅ FIX: subir imagen a Firebase Storage antes de guardar
       if (profileImage) {
-        console.log("🔸 Imagen seleccionada (upload pendiente):", profileImage.name);
+        const validation = validateImageFile(profileImage);
+        if (!validation.valid) {
+          setError(validation.error || "Imagen inválida");
+          setLoading(false);
+          return;
+        }
+
+        try {
+          setUploadingImage(true);
+          console.log("📤 Subiendo imagen de perfil...");
+          imageUrl = await uploadImage(profileImage, "manufacturers");
+          console.log("✅ Imagen subida:", imageUrl);
+          setProfileImageUrl(imageUrl);
+          setProfileImage(null);
+        } catch (uploadErr: any) {
+          console.error("❌ Error subiendo imagen:", uploadErr);
+          setError(
+            "No se pudo subir la imagen. " +
+            (uploadErr?.message || "Verificá tu conexión e intentá de nuevo.")
+          );
+          setLoading(false);
+          setUploadingImage(false);
+          return;
+        } finally {
+          setUploadingImage(false);
+        }
       }
 
       const res = await fetch("/api/manufacturers/profile", {
@@ -197,6 +225,8 @@ export default function PerfilFabricantePage() {
     { key: 'saturday', label: 'Sábado' },
     { key: 'sunday', label: 'Domingo' },
   ];
+
+  const isWorking = loading || uploadingImage;
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -287,6 +317,16 @@ export default function PerfilFabricantePage() {
             onChange={(e) => setProfileImage(e.target.files?.[0] || null)}
             className="text-sm"
           />
+          {profileImage && (
+            <p className="text-xs text-blue-600 mt-1">
+              📎 {profileImage.name} — se subirá al guardar
+            </p>
+          )}
+          {uploadingImage && (
+            <p className="text-xs text-blue-600 mt-1 animate-pulse">
+              ⏳ Subiendo imagen...
+            </p>
+          )}
           <p className="text-xs text-gray-500 mt-1">
             Recomendado: imagen cuadrada, mínimo 200x200px
           </p>
@@ -499,10 +539,10 @@ export default function PerfilFabricantePage() {
       {/* BOTÓN GUARDAR */}
       <button
         onClick={handleSave}
-        disabled={loading}
+        disabled={isWorking}
         className="w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50"
       >
-        {loading ? "Guardando..." : "Guardar perfil"}
+        {uploadingImage ? "Subiendo imagen..." : loading ? "Guardando..." : "Guardar perfil"}
       </button>
     </div>
   );

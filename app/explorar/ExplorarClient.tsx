@@ -14,6 +14,11 @@ type Product = {
   featured: boolean;
   shippingMethods: string[];
   imageUrl?: string;
+  // 🆕 Datos del fabricante
+  manufacturerName?: string;
+  manufacturerImageUrl?: string;
+  manufacturerVerified?: boolean;
+  isIntermediary?: boolean;
 };
 
 type SortOption = "price_asc" | "price_desc" | "min_asc" | "min_desc" | "name";
@@ -323,10 +328,52 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                           </span>
                         </div>
                       )}
+
+                      {/* 🆕 AVATAR DEL FABRICANTE estilo Instagram - esquina inferior izquierda */}
+                      <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
+                        <div className="relative">
+                          <div className={`w-9 h-9 rounded-full p-0.5 shadow ${product.manufacturerVerified ? 'bg-blue-500' : 'bg-white/80'}`}>
+                            <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                              {product.manufacturerImageUrl ? (
+                                <img
+                                  src={product.manufacturerImageUrl}
+                                  alt={product.manufacturerName || "Fabricante"}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
+                                  {product.manufacturerName ? product.manufacturerName.charAt(0).toUpperCase() : "F"}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {/* Check verificado */}
+                          {product.manufacturerVerified && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white">
+                              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                        {/* Badge intermediario */}
+                        {product.isIntermediary && (
+                          <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-semibold shadow">
+                            Intermediario
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* CONTENIDO DEL CARD */}
                     <div className="p-6 flex flex-col flex-grow">
+                      {/* 🆕 Nombre fabricante */}
+                      {product.manufacturerName && (
+                        <p className="text-xs text-gray-400 mb-1 truncate">
+                          {product.manufacturerName}
+                        </p>
+                      )}
+
                       {/* Nombre */}
                       <h2 className="text-lg font-semibold mb-2 line-clamp-2">
                         {product.name}
@@ -337,10 +384,10 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                         {CATEGORY_LABELS[product.category]}
                       </p>
 
-                      {/* Precio */}
+                      {/* Precio - 🆕 text-gray-900 en lugar de text-blue-600 */}
                       <p className="text-gray-900 mb-1">
                         <span className="font-medium">Precio:</span>{" "}
-                        <span className="font-bold text-blue-600">
+                        <span className="font-bold text-gray-900">
                           ${product.price.toLocaleString("es-AR")}
                         </span>
                       </p>
@@ -350,7 +397,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                         Pedido mínimo: {product.minimumOrder} unidades
                       </p>
 
-                      {/* Botón */}
+                      {/* Botón - idéntico al original */}
                       <Link
                         href={`/explorar/${product.id}`}
                         className="mt-auto w-full bg-blue-600 text-white text-center py-2 rounded-lg hover:bg-blue-700 transition font-medium"

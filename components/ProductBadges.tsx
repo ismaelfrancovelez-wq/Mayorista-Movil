@@ -58,9 +58,9 @@ export default function ProductBadges({
         </span>
       )}
 
-      {/* BADGE DE INTERMEDIARIO */}
+      {/* BADGE DE INTERMEDIARIO - 🆕 azul sólido (era naranja) */}
       {isIntermediary && (
-        <span className={`inline-flex items-center gap-1 bg-orange-100 text-orange-700 font-semibold rounded-full ${classes.badge}`}>
+        <span className={`inline-flex items-center gap-1 bg-blue-600 text-white font-semibold rounded-full ${classes.badge}`}>
           <svg 
             className={classes.icon}
             viewBox="0 0 24 24" 

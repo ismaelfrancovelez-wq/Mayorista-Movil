@@ -158,7 +158,8 @@ export default async function ProductDetailPage({
               {/* HEADER */}
               <div className="mb-6">
                 <h1 className="text-3xl font-bold mb-4">{product.name}</h1>
-                <p className="text-4xl text-blue-600 font-bold">
+                {/* 🆕 Precio en negro (era text-blue-600) */}
+                <p className="text-4xl text-gray-900 font-bold">
                   ${product.price.toLocaleString("es-AR")}
                 </p>
               </div>
@@ -195,6 +196,53 @@ export default async function ProductDetailPage({
                   <h3 className="text-lg font-semibold text-gray-900 mb-3">
                     Información del Fabricante
                   </h3>
+
+                  {/* 🆕 Avatar del fabricante estilo Instagram */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="relative flex-shrink-0">
+                      <div className={`w-12 h-12 rounded-full p-0.5 ${manufacturerInfo.verified ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                        <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                          {manufacturerInfo.profileImageUrl ? (
+                            <img
+                              src={manufacturerInfo.profileImageUrl}
+                              alt={manufacturerInfo.businessName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-100 flex items-center justify-center text-base font-bold text-gray-500">
+                              {manufacturerInfo.businessName.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {/* Check verificado sobre el avatar */}
+                      {manufacturerInfo.verified && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white">
+                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">{manufacturerInfo.businessName}</p>
+                      {/* Badges junto al nombre */}
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {manufacturerInfo.verified && (
+                          <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold">
+                            ✓ Verificado
+                          </span>
+                        )}
+                        {product.isIntermediary && (
+                          // 🆕 "Intermediario" en azul (era "Gestionado por plataforma" en morado)
+                          <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
+                            Intermediario
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="space-y-2 text-gray-700">
                     <p>
                       <span className="font-medium">Empresa:</span>{" "}
@@ -221,11 +269,12 @@ export default async function ProductDetailPage({
                       </div>
                     )}
                     {product.isIntermediary && (
-                      <div className="flex items-center gap-2 text-purple-600">
+                      // 🆕 "Intermediario" en azul (era "Gestionado por plataforma" con ícono triángulo morado)
+                      <div className="flex items-center gap-2 text-blue-600">
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                          <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
                         </svg>
-                        <span className="text-sm font-medium">Gestionado por plataforma</span>
+                        <span className="text-sm font-medium">Intermediario</span>
                       </div>
                     )}
                   </div>

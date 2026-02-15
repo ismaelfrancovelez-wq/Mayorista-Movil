@@ -15,6 +15,11 @@ type Product = {
   featured: boolean;
   shippingMethods: string[];
   imageUrl?: string;
+  // 🆕 Datos del fabricante
+  manufacturerName?: string;
+  manufacturerImageUrl?: string;
+  manufacturerVerified?: boolean;
+  isIntermediary?: boolean;
 };
 
 async function getProducts(): Promise<Product[]> {
@@ -24,8 +29,42 @@ async function getProducts(): Promise<Product[]> {
       .where("active", "==", true)
       .get();
 
+    // 🆕 Obtener IDs de fabricantes únicos para consulta batch
+    const factoryIds = [...new Set(
+      snap.docs.map(doc => doc.data().factoryId).filter(Boolean)
+    )] as string[];
+
+    // 🆕 Fetch fabricantes en batch (Firestore soporta hasta 10 por 'in')
+    const manufacturerMap: Record<string, {
+      businessName?: string;
+      profileImageUrl?: string;
+      verified?: boolean;
+    }> = {};
+
+    if (factoryIds.length > 0) {
+      const chunks: string[][] = [];
+      for (let i = 0; i < factoryIds.length; i += 10) {
+        chunks.push(factoryIds.slice(i, i + 10));
+      }
+      for (const chunk of chunks) {
+        const manuSnap = await db
+          .collection("manufacturers")
+          .where("__name__", "in", chunk)
+          .get();
+        manuSnap.docs.forEach(doc => {
+          const data = doc.data();
+          manufacturerMap[doc.id] = {
+            businessName: data.businessName || "",
+            profileImageUrl: data.profileImageUrl || "",
+            verified: data.verification?.status === "verified",
+          };
+        });
+      }
+    }
+
     const products = snap.docs.map((doc) => {
       const data = doc.data();
+      const manufacturer = data.factoryId ? manufacturerMap[data.factoryId] : null;
       return {
         id: doc.id,
         name: data.name || "Producto",
@@ -35,6 +74,11 @@ async function getProducts(): Promise<Product[]> {
         featured: data.featured || false,
         shippingMethods: data.shipping?.methods || [],
         imageUrl: data.imageUrl || undefined,
+        // 🆕 Fabricante
+        manufacturerName: manufacturer?.businessName || undefined,
+        manufacturerImageUrl: manufacturer?.profileImageUrl || undefined,
+        manufacturerVerified: manufacturer?.verified || false,
+        isIntermediary: data.isIntermediary || false,
       };
     });
 
