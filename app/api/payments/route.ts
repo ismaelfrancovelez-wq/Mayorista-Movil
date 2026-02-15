@@ -23,6 +23,9 @@ export async function POST(req: Request) {
 
     const preference = new Preference(client);
 
+    // ✅ FIX: usar variable de entorno en lugar de ngrok/localhost hardcodeado
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mayoristamovil.vercel.app";
+
     const result = await preference.create({
       body: {
         items: [
@@ -34,11 +37,9 @@ export async function POST(req: Request) {
           },
         ],
 
-        // 🔔 WEBHOOK (YA FUNCIONA)
-        notification_url:
-          "https://thatcher-nonideological-windingly.ngrok-free.dev/api/webhooks/mercadopago",
+        // ✅ FIX: webhook apunta a la URL correcta via env var
+        notification_url: `${baseUrl}/api/webhooks/mercadopago`,
 
-        // 🧠 METADATA (ESTO ERA LO QUE FALTABA)
         metadata: {
           orderType: "fraccionado",
           productId: body.productId ?? "prod_test_123",
@@ -48,11 +49,10 @@ export async function POST(req: Request) {
           factoryId: "factory_test",
         },
 
-        // ⛔ auto_return NO usar
         back_urls: {
-          success: "http://localhost:3000/success",
-          failure: "http://localhost:3000/failure",
-          pending: "http://localhost:3000/pending",
+          success: `${baseUrl}/success`,
+          failure: `${baseUrl}/failure`,
+          pending: `${baseUrl}/pending`,
         },
       },
     });

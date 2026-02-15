@@ -27,9 +27,8 @@ export async function createPreference({
   metadata: {
     productId: string;
     qty: number;
-    tipo: "directa" | "fraccionada" | "destacado"; // ✅ AGREGADO "destacado"
+    tipo: "directa" | "fraccionada" | "destacado";
     withShipping: boolean;
-    // ✅ NUEVO: Campos opcionales para destacadoss
     featuredType?: "product" | "factory";
     featuredItemId?: string;
     featuredDuration?: number;
@@ -41,6 +40,10 @@ export async function createPreference({
   };
 }) {
   const preference = new Preference(client);
+
+  // ✅ FIX: notification_url para que MP llame al webhook cuando se aprueba el pago
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mayoristamovil.vercel.app";
+  const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
 
   const response = await preference.create({
     body: {
@@ -55,6 +58,7 @@ export async function createPreference({
       metadata,
       back_urls,
       auto_return: "approved",
+      notification_url: notificationUrl, // ✅ AGREGADO
     },
   });
 
