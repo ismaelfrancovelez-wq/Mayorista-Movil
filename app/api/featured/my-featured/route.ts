@@ -16,46 +16,57 @@ export async function GET() {
 
     const now = new Date();
 
-    // Buscar destacados donde el fabricante es el dueño
-    // Para fábricas: factoryId == userId
-    // Para productos: necesitamos buscar por itemId en productos del fabricante
-    const snap = await db
+    // Sin orderBy para evitar requerir índice compuesto
+    const byFactoryId = await db
       .collection("featured")
       .where("factoryId", "==", userId)
-      .orderBy("createdAt", "desc")
       .get();
+
+    const byItemId = await db
+      .collection("featured")
+      .where("itemId", "==", userId)
+      .get();
+
+    // Unir sin duplicados
+    const seen = new Set<string>();
+    const allDocs = [...byFactoryId.docs, ...byItemId.docs].filter(doc => {
+      if (seen.has(doc.id)) return false;
+      seen.add(doc.id);
+      return true;
+    });
 
     const items: any[] = [];
 
-    for (const doc of snap.docs) {
+    for (const doc of allDocs) {
       const data = doc.data();
-      const endDate = data.endDate?.toDate ? data.endDate.toDate() : new Date(data.endDate);
+      const endDate = data.endDate?.toDate
+        ? data.endDate.toDate()
+        : new Date(data.endDate);
 
-      // Marcar como expirado si ya venció
       if (endDate < now && data.active) {
         await doc.ref.update({ expired: true, active: false, updatedAt: new Date() });
-        items.push({
-          id: doc.id,
-          type: data.type,
-          itemId: data.itemId,
-          active: false,
-          expired: true,
-          endDate: endDate.toISOString(),
-          metadata: data.metadata || {},
-        });
-        continue;
       }
+
+      const isActive = endDate >= now && data.active && !data.expired;
+      const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
 
       items.push({
         id: doc.id,
         type: data.type,
         itemId: data.itemId,
-        active: data.active,
-        expired: data.expired,
+        active: isActive,
+        expired: !isActive,
         endDate: endDate.toISOString(),
+        daysLeft,
         metadata: data.metadata || {},
       });
     }
+
+    // Ordenar en memoria: activos primero, luego por fecha
+    items.sort((a, b) => {
+      if (b.active !== a.active) return b.active ? 1 : -1;
+      return new Date(b.endDate).getTime() - new Date(a.endDate).getTime();
+    });
 
     return NextResponse.json({ items });
   } catch (error) {
