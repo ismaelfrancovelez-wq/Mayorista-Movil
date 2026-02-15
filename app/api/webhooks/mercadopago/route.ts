@@ -112,6 +112,92 @@ export async function POST(req: NextRequest) {
     }
 
     // ========================================
+    // MANEJAR PAGO DE DESTACADO
+    // ========================================
+    // Detectar antes de parsear metadata completa
+    const rawMeta = payment.metadata || {};
+    const rawTipo = rawMeta?.tipo || rawMeta?.tipo;
+    
+    if (rawTipo === "destacado") {
+      console.log("⭐ Procesando pago de DESTACADO...");
+      
+      const featuredType = rawMeta.featuredType || rawMeta.featured_type;
+      const featuredItemId = rawMeta.featuredItemId || rawMeta.featured_item_id;
+      const featuredDuration = Number(rawMeta.featuredDuration || rawMeta.featured_duration || 7);
+      
+      if (!featuredType || !featuredItemId) {
+        console.error("❌ Metadata de destacado incompleta:", rawMeta);
+        throw new Error("Metadata de destacado incompleta");
+      }
+
+      // Calcular fechas
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + featuredDuration);
+
+      // Obtener metadata del item para mostrar en home
+      let itemMetadata: any = {};
+      if (featuredType === "product") {
+        const productSnap = await db.collection("products").doc(featuredItemId).get();
+        if (productSnap.exists) {
+          const p = productSnap.data()!;
+          itemMetadata = { name: p.name || "Producto", imageUrl: p.imageUrl || "" };
+        }
+      } else {
+        const factorySnap = await db.collection("manufacturers").doc(featuredItemId).get();
+        if (factorySnap.exists) {
+          const f = factorySnap.data()!;
+          itemMetadata = { name: f.businessName || f.name || "Fábrica", imageUrl: f.profileImageUrl || "" };
+        }
+      }
+
+      // Para productos, obtener el factoryId real del producto
+      let ownerFactoryId = featuredItemId; // para factory el itemId ES el userId
+      if (featuredType === "product") {
+        const pSnap = await db.collection("products").doc(featuredItemId).get();
+        if (pSnap.exists) {
+          ownerFactoryId = pSnap.data()!.factoryId || featuredItemId;
+        }
+      }
+
+      // Crear documento en colección featured
+      const featuredRef = db.collection("featured").doc();
+      await featuredRef.set({
+        type: featuredType,
+        itemId: featuredItemId,
+        factoryId: ownerFactoryId, // siempre el userId del fabricante dueño
+        duration: featuredDuration,
+        startDate: FieldValue.serverTimestamp(),
+        endDate,
+        paymentId,
+        amount: payment.transaction_amount || 0,
+        active: true,
+        expired: false,
+        metadata: itemMetadata,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      // Guardar pago
+      await paymentDocRef.set({
+        paymentId,
+        status: payment.status,
+        tipo: "destacado",
+        featuredType,
+        featuredItemId,
+        featuredDuration,
+        featuredId: featuredRef.id,
+        amount: payment.transaction_amount || 0,
+        createdAt: FieldValue.serverTimestamp(),
+        processed: true,
+      });
+
+      console.log("✅ Destacado creado con ID:", featuredRef.id);
+      return NextResponse.json({ ok: true, featuredId: featuredRef.id });
+    }
+
+
+    // ========================================
     // PARSEAR Y NORMALIZAR METADATA
     // ========================================
     let metadata = payment.metadata;
