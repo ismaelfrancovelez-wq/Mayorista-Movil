@@ -1,4 +1,5 @@
-// app/explorar/[productId]/page.tsx - OPTIMIZADO
+// app/explorar/[productId]/page.tsx - DISEÑO ORIGINAL + OPTIMIZADO
+
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { db } from "../../../lib/firebase-admin";
@@ -7,7 +8,7 @@ import ProductPurchaseClient from "../../../components/products/ProductPurchaseC
 import ManufacturerInfoCard from "../../../components/ManufacturerInfoCard.tsx";
 import Link from "next/link";
 
-// ✅ OPTIMIZACIÓN: Caché de 30 segundos (actualización rápida)
+// ✅ OPTIMIZACIÓN: Caché de 30 segundos
 export const revalidate = 30;
 
 /* ===============================
@@ -116,6 +117,7 @@ export default async function ProductDetailPage({
           ← Volver a explorar
         </Link>
 
+        {/* LAYOUT DE 2 COLUMNAS CON IMAGEN */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="grid lg:grid-cols-2 gap-0">
             

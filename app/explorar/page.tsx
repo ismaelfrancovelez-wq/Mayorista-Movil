@@ -1,4 +1,4 @@
-// app/explorar/page.tsx - SERVER COMPONENT CON PAGINACIÓN
+// app/explorar/page.tsx - DISEÑO ORIGINAL + OPTIMIZADO
 import { db } from "../../lib/firebase-admin";
 import { ProductCategory, CATEGORY_LABELS } from "../../lib/types/product";
 import ExplorarClient from "./ExplorarClient";
