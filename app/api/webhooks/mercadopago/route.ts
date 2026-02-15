@@ -360,6 +360,7 @@ export async function POST(req: NextRequest) {
       productId,
       productName: productName,  // ✅ OPTIMIZACIÓN: Guardar nombre del producto
       productPrice: productPrice,  // ✅ OPTIMIZACIÓN: Guardar precio del producto
+      netProfitPerUnit: productData.netProfitPerUnit || 0,  // ✅ OPTIMIZACIÓN: Guardar ganancia por unidad
       qty: originalQty,
       orderType: orderType,
       lotType: lotType || null,

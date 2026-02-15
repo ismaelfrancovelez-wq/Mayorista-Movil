@@ -106,8 +106,8 @@ async function DashboardFabricanteContent() {
     const qty = payment.qty || 0;
     
     // Para directos, necesitamos buscar el precio en el producto o usar el monto del payment
-    const productPrice = productData?.price || (payment.amount / qty) || 0;
-    const netProfitPerUnit = productData?.netProfitPerUnit || 0;
+    const productPrice = payment.productPrice || productData?.price || (payment.amount / qty) || 0;
+    const netProfitPerUnit = payment.netProfitPerUnit || productData?.netProfitPerUnit || 0;
     const totalIngresos = qty * productPrice;
     const ganancia = qty * netProfitPerUnit;
     

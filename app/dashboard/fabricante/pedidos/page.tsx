@@ -105,8 +105,8 @@ export default async function PedidosFabricantePage() {
     // ✅ Usar datos de payment si existe
     const productName = payment.productName || productData?.name || "Producto eliminado";
     const qty = payment.qty || 0;
-    const productPrice = productData?.price || (payment.amount / qty) || 0;
-    const netProfitPerUnit = productData?.netProfitPerUnit || 0;
+    const productPrice = payment.productPrice || productData?.price || (payment.amount / qty) || 0;
+    const netProfitPerUnit = payment.netProfitPerUnit || productData?.netProfitPerUnit || 0;
     
     // Obtener info del comprador
     const buyerDoc = await db.collection("users").doc(payment.retailerId || payment.buyerId).get();
