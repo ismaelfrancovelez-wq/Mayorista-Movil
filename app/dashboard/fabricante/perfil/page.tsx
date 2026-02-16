@@ -59,6 +59,12 @@ export default function PerfilFabricantePage() {
   const [mpConnected, setMpConnected] = useState<boolean | null>(null);
   const [mpEmail, setMpEmail] = useState("");
 
+  // 🆕 Estados para eliminar cuenta
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   /* ===============================
      🔥 CARGAR DATOS EXISTENTES
   =============================== */
@@ -142,7 +148,6 @@ export default function PerfilFabricantePage() {
     try {
       let imageUrl = profileImageUrl;
       
-      // ✅ FIX: subir imagen a Firebase Storage antes de guardar
       if (profileImage) {
         const validation = validateImageFile(profileImage);
         if (!validation.valid) {
@@ -200,6 +205,29 @@ export default function PerfilFabricantePage() {
       setError(err.message || "Error al guardar perfil");
     } finally {
       setLoading(false);
+    }
+  }
+
+  /* ===============================
+     🗑️ ELIMINAR CUENTA
+  =============================== */
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== "ELIMINAR") {
+      setDeleteError("Escribí ELIMINAR para confirmar");
+      return;
+    }
+    setDeletingAccount(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch("/api/auth/delete-account", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al eliminar la cuenta");
+      }
+      router.push("/");
+    } catch (err: any) {
+      setDeleteError(err.message || "Error al eliminar la cuenta");
+      setDeletingAccount(false);
     }
   }
 
@@ -390,7 +418,7 @@ export default function PerfilFabricantePage() {
         </div>
       </div>
 
-       {/* DIRECCIÓN - 🆕 CON AUTOCOMPLETADO */}
+      {/* DIRECCIÓN */}
       <div className="bg-white rounded-xl shadow p-6 mb-6">
         <h2 className="font-semibold text-lg mb-4">📍 Dirección de la fábrica</h2>
 
@@ -424,9 +452,7 @@ export default function PerfilFabricantePage() {
               step="any"
               readOnly
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Se completa automáticamente
-            </p>
+            <p className="text-xs text-gray-500 mt-1">Se completa automáticamente</p>
           </div>
 
           <div>
@@ -440,13 +466,10 @@ export default function PerfilFabricantePage() {
               step="any"
               readOnly
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Se completa automáticamente
-            </p>
+            <p className="text-xs text-gray-500 mt-1">Se completa automáticamente</p>
           </div>
         </div>
       </div>
-
 
       {/* HORARIOS DE ATENCIÓN */}
       <div className="bg-white rounded-xl shadow p-6 mb-6">
@@ -497,31 +520,23 @@ export default function PerfilFabricantePage() {
         </div>
       </div>
 
-      {/* ✅ MERCADO PAGO EN PERFIL */}
+      {/* MERCADO PAGO */}
       <div className="bg-white rounded-xl shadow p-6 mb-6">
         <h2 className="font-semibold text-lg mb-4">💳 Mercado Pago</h2>
         
         {mpConnected === true && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-green-800 font-medium">
-                ✓ Cuenta vinculada
-              </p>
-              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                Activa
-              </span>
+              <p className="text-sm text-green-800 font-medium">✓ Cuenta vinculada</p>
+              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Activa</span>
             </div>
-            {mpEmail && (
-              <p className="text-sm text-green-700">{mpEmail}</p>
-            )}
+            {mpEmail && <p className="text-sm text-green-700">{mpEmail}</p>}
           </div>
         )}
 
         {mpConnected === false && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <p className="text-sm text-orange-800 font-medium mb-2">
-              ⚠️ Cuenta no vinculada
-            </p>
+            <p className="text-sm text-orange-800 font-medium mb-2">⚠️ Cuenta no vinculada</p>
             <p className="text-sm text-orange-700 mb-3">
               Vinculá tu Mercado Pago para recibir pagos directamente
             </p>
@@ -544,6 +559,63 @@ export default function PerfilFabricantePage() {
       >
         {uploadingImage ? "Subiendo imagen..." : loading ? "Guardando..." : "Guardar perfil"}
       </button>
+
+      {/* =====================
+          🗑️ ZONA DE PELIGRO
+      ===================== */}
+      <div className="mt-16 border-t border-red-200 pt-8 mb-12">
+        <h2 className="text-lg font-semibold text-red-600 mb-1">Zona de peligro</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Eliminar tu cuenta es permanente. Se borrarán tu perfil, productos, verificación y datos asociados.
+        </p>
+
+        {!showDeleteConfirm ? (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="border border-red-500 text-red-500 px-4 py-2 rounded hover:bg-red-50 transition text-sm font-medium"
+          >
+            Eliminar mi cuenta
+          </button>
+        ) : (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+            <p className="text-sm font-semibold text-red-700 mb-3">
+              ¿Estás seguro? Esta acción no se puede deshacer.
+            </p>
+            <p className="text-sm text-gray-600 mb-3">
+              Escribí <strong>ELIMINAR</strong> para confirmar:
+            </p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              className="w-full border border-red-300 rounded px-3 py-2 mb-3 text-sm focus:outline-none focus:border-red-500"
+              placeholder="ELIMINAR"
+            />
+            {deleteError && (
+              <p className="text-red-600 text-xs mb-3">{deleteError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+                className="bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition"
+              >
+                {deletingAccount ? "Eliminando..." : "Confirmar eliminación"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmText("");
+                  setDeleteError(null);
+                }}
+                className="px-4 py-2 rounded text-sm text-gray-600 hover:bg-gray-100 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
