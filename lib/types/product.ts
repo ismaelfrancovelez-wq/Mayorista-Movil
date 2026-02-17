@@ -1,5 +1,5 @@
 // lib/types/product.ts
-// ✅ CORREGIDO - z1, z2, z3, z4 (estructura real en producción)
+// ✅ ACTUALIZADO - per_km con opción roundTrip + bloqueo sin dirección
 
 export type ProfitType = "percentage" | "fixed";
 
@@ -12,6 +12,7 @@ export type OwnLogisticsPricing =
   | {
       type: "per_km";
       pricePerKm: number;
+      roundTrip: boolean;  // ✅ NUEVO: true = ida y vuelta, false = solo ida
     }
   | {
       type: "zones";

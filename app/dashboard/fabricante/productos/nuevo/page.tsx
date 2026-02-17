@@ -57,7 +57,7 @@ export default function NuevoProductoPage() {
 
   // Precio por km
   const [pricePerKm, setPricePerKm] = useState<number | "">("");
-
+  const [roundTrip, setRoundTrip] = useState(true); // Por defecto: ida y vuelta
   // ✅ 4 zonas (z1, z2, z3, z4)
   const [zones, setZones] = useState({
     z1: "",  // 0-15km
@@ -211,11 +211,12 @@ export default function NuevoProductoPage() {
       shipping.methods.push("own_logistics");
 
       if (ownType === "per_km") {
-        shipping.ownLogistics = {
-          type: "per_km",
-          pricePerKm: Number(pricePerKm),
-        };
-      }
+  shipping.ownLogistics = {
+    type: "per_km",
+    pricePerKm: Number(pricePerKm),
+    roundTrip: roundTrip,  // ✅ NUEVO
+  };
+}
 
       if (ownType === "zones") {
         shipping.ownLogistics = {
@@ -477,19 +478,34 @@ export default function NuevoProductoPage() {
                   checked={ownType === "per_km"}
                   onChange={() => setOwnType("per_km")}
                 />
-                <span>Por kilómetro (ida y vuelta)</span>
+                <span>Por kilómetro</span>
               </label>
 
               {ownType === "per_km" && (
-                <input
-                  type="number"
-                  placeholder="Precio por km (ej: 85)"
-                  className="border rounded px-3 py-2 w-full"
-                  value={pricePerKm}
-                  onChange={(e) => setPricePerKm(Number(e.target.value))}
-                  min={0}
-                />
-              )}
+  <div className="space-y-2">
+    <input
+      type="number"
+      placeholder="Precio por km (ej: 85)"
+      className="border rounded px-3 py-2 w-full"
+      value={pricePerKm}
+      onChange={(e) => setPricePerKm(Number(e.target.value))}
+      min={0}
+    />
+    
+    {/* ✅ NUEVO: Checkbox para ida y vuelta */}
+    <label className="flex items-center gap-2 ml-2">
+      <input
+        type="checkbox"
+        checked={roundTrip}
+        onChange={(e) => setRoundTrip(e.target.checked)}
+      />
+      <span className="text-sm">Calcular ida y vuelta (×2)</span>
+      <span className="text-xs text-gray-500">
+        {roundTrip ? "(se cobrará el doble)" : "(solo ida)"}
+      </span>
+    </label>
+  </div>
+)}
 
               <label className="flex items-center gap-2">
                 <input

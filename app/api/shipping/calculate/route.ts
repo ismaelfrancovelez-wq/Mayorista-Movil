@@ -1,5 +1,5 @@
 // app/api/shipping/calculate/route.ts
-// ✅ VERSIÓN FINAL - Google Maps + Per KM x2 + 4 zonas (z1,z2,z3,z4)
+// ✅ ACTUALIZADO - roundTrip configurable + OPCIÓN A (bloquear sin dirección)
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -53,6 +53,9 @@ async function getDistanceKm(origin: string, destination: string): Promise<numbe
   url.searchParams.set("origins", origin);
   url.searchParams.set("destinations", destination);
   url.searchParams.set("key", apiKey);
+  url.searchParams.set("mode", "driving");
+  url.searchParams.set("language", "es");
+  url.searchParams.set("region", "ar");
 
   const res = await fetch(url.toString());
   const data = await res.json();
@@ -89,11 +92,10 @@ export async function POST(req: Request) {
       
       return NextResponse.json(
         {
-          shippingMode: "pickup",
-          shippingCost: 0,
-          error: "Usuario no autenticado. Se asignó retiro en fábrica por defecto.",
+          error: "Usuario no autenticado",
+          missingAuth: true,
         },
-        { status: 200 }
+        { status: 401 }
       );
     }
 
@@ -111,11 +113,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingMode: "pickup",
-          shippingCost: 0,
-          error: "Datos inválidos. Se asignó retiro en fábrica por defecto.",
+          error: "Datos inválidos",
         },
-        { status: 200 }
+        { status: 400 }
       );
     }
 
@@ -135,11 +135,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingMode: "pickup",
-          shippingCost: 0,
-          error: "Producto no encontrado. Se asignó retiro en fábrica por defecto.",
+          error: "Producto no encontrado",
         },
-        { status: 200 }
+        { status: 404 }
       );
     }
 
@@ -152,11 +150,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingMode: "pickup",
-          shippingCost: 0,
-          error: "Producto sin fabricante asociado. Se asignó retiro en fábrica.",
+          error: "Producto sin fabricante asociado",
         },
-        { status: 200 }
+        { status: 400 }
       );
     }
 
@@ -178,17 +174,16 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingMode: "pickup",
-          shippingCost: 0,
-          error: "Fábrica no encontrada. Se asignó retiro en fábrica por defecto.",
+          error: "Fábrica no encontrada",
         },
-        { status: 200 }
+        { status: 404 }
       );
     }
 
     const factoryData = factorySnap.data();
     const factoryAddressText = factoryData?.address?.formattedAddress as string | undefined;
 
+    // ✅ OPCIÓN A: BLOQUEAR si falta dirección de fábrica
     if (!factoryAddressText) {
       logShippingError(
         new Error("Fábrica sin dirección"),
@@ -197,9 +192,10 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingMode: "pickup",
-          shippingCost: 0,
-          error: "Fábrica sin dirección configurada. Se asignó retiro en fábrica.",
+          error: "La fábrica no configuró su dirección. Solo podés elegir retiro en fábrica.",
+          missingAddress: true,
+          missingAddressType: "factory",
+          availableModes: shippingConfig.methods.includes("factory_pickup") ? ["pickup"] : [],
         },
         { status: 200 }
       );
@@ -221,17 +217,16 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingMode: "pickup",
-          shippingCost: 0,
-          error: "Revendedor no encontrado. Se asignó retiro en fábrica por defecto.",
+          error: "Revendedor no encontrado",
         },
-        { status: 200 }
+        { status: 404 }
       );
     }
 
     const retailerData = retailerSnap.data();
     const retailerAddressText = retailerData?.address?.formattedAddress as string | undefined;
 
+    // ✅ OPCIÓN A: BLOQUEAR si falta dirección de revendedor
     if (!retailerAddressText) {
       logShippingError(
         new Error("Revendedor sin dirección"),
@@ -240,9 +235,10 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingMode: "pickup",
-          shippingCost: 0,
-          error: "Revendedor sin dirección configurada. Se asignó retiro en fábrica.",
+          error: "Configurá tu dirección en tu perfil para ver opciones de envío",
+          missingAddress: true,
+          missingAddressType: "retailer",
+          availableModes: shippingConfig.methods.includes("factory_pickup") ? ["pickup"] : [],
         },
         { status: 200 }
       );
@@ -264,18 +260,19 @@ export async function POST(req: Request) {
     ) {
       const own = shippingConfig.ownLogistics;
 
-      // ✅ PER KM: IDA Y VUELTA (× 2)
+      // ✅ PER KM: CON OPCIÓN DE IDA O IDA Y VUELTA
       if (own.type === "per_km") {
-        const kmRoundTrip = km * 2; // ✅ IDA Y VUELTA
+        const kmToCharge = own.roundTrip ? km * 2 : km;
         return NextResponse.json({
           shippingMode: "factory",
-          shippingCost: Math.round(kmRoundTrip * own.pricePerKm),
-          km: Math.round(km * 10) / 10, // Distancia real (solo ida)
-          kmCharged: Math.round(kmRoundTrip * 10) / 10, // Distancia cobrada (ida y vuelta)
+          shippingCost: Math.round(kmToCharge * own.pricePerKm),
+          km: Math.round(km * 10) / 10,
+          kmCharged: Math.round(kmToCharge * 10) / 10,
+          roundTrip: own.roundTrip,
         });
       }
 
-      // ✅ ZONAS: 4 zonas (z1, z2, z3, z4)
+      // ✅ ZONAS: 4 zonas (z1, z2, z3, z4) - SOLO IDA
       if (own.type === "zones") {
         let zone: "z1" | "z2" | "z3" | "z4" = "z4";
         if (km <= 15) zone = "z1";       // 0-15km
@@ -317,11 +314,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        shippingMode: "pickup",
-        shippingCost: 0,
-        error: "Ocurrió un error al calcular el envío. Se asignó retiro en fábrica por defecto.",
+        error: "Ocurrió un error al calcular el envío",
       },
-      { status: 200 }
+      { status: 500 }
     );
   }
 }

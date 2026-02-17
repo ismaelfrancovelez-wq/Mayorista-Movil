@@ -1,15 +1,10 @@
 // app/api/shipping/fraccionado/route.ts
-// ✅ VERSIÓN CORREGIDA - Usa Google Maps Distance Matrix API (distancias reales por calles)
+// ✅ ACTUALIZADO - OPCIÓN A: bloquear compra si falta dirección
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
 import { calculateFraccionadoShipping } from "../../../../lib/shipping";
-
-/* ===============================
-   💲 REGLAS DE COSTO
-=============================== */
-const FIXED_COST = 3500;
 
 /* ===============================
    📊 FUNCIÓN DE LOGGING MEJORADA
@@ -61,10 +56,10 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingCost: FIXED_COST,
-          error: "Usuario no autenticado. Se asignó costo fijo por defecto.",
+          error: "Usuario no autenticado",
+          missingAuth: true,
         },
-        { status: 200 }
+        { status: 401 }
       );
     }
 
@@ -82,10 +77,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingCost: FIXED_COST,
-          error: "Datos inválidos. Se asignó costo fijo por defecto.",
+          error: "Datos inválidos",
         },
-        { status: 200 }
+        { status: 400 }
       );
     }
 
@@ -105,10 +99,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingCost: FIXED_COST,
-          error: "Producto no encontrado. Se asignó costo fijo por defecto.",
+          error: "Producto no encontrado",
         },
-        { status: 200 }
+        { status: 404 }
       );
     }
 
@@ -121,10 +114,9 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingCost: FIXED_COST,
-          error: "Producto sin fabricante asociado. Se asignó costo fijo.",
+          error: "Producto sin fabricante asociado",
         },
-        { status: 200 }
+        { status: 400 }
       );
     }
 
@@ -144,18 +136,16 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingCost: FIXED_COST,
-          error: "Fábrica no encontrada. Se asignó costo fijo por defecto.",
+          error: "Fábrica no encontrada",
         },
-        { status: 200 }
+        { status: 404 }
       );
     }
 
     const factoryData = factorySnap.data();
-
-    // ✅ CORREGIDO: usar formattedAddress (texto) para Google Maps Distance Matrix API
     const factoryAddressText = factoryData?.address?.formattedAddress as string | undefined;
 
+    // ✅ OPCIÓN A: BLOQUEAR si falta dirección de fábrica
     if (!factoryAddressText) {
       logFraccionadoError(
         new Error("Dirección de fábrica inválida"),
@@ -169,8 +159,10 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingCost: FIXED_COST,
-          error: "Fábrica sin dirección válida. Se asignó costo fijo.",
+          error: "La fábrica no configuró su dirección. No se puede calcular envío.",
+          missingAddress: true,
+          missingAddressType: "factory",
+          availableModes: [],
         },
         { status: 200 }
       );
@@ -207,11 +199,6 @@ export async function POST(req: Request) {
         const userData = userSnap.data();
         retailerData = userData;
         retailerAddressText = userData?.address?.formattedAddress ?? null;
-        
-        // Si el usuario no tiene dirección, asignar costo fijo
-        if (!retailerAddressText) {
-          console.warn("⚠️  Usuario sin dirección configurada");
-        }
       } else {
         // No existe ni en retailers ni en users
         logFraccionadoError(
@@ -221,15 +208,14 @@ export async function POST(req: Request) {
 
         return NextResponse.json(
           {
-            shippingCost: FIXED_COST,
-            error: "Usuario no encontrado. Se asignó costo fijo por defecto.",
+            error: "Usuario no encontrado",
           },
-          { status: 200 }
+          { status: 404 }
         );
       }
     }
 
-    // 3️⃣ Validar que tenga dirección válida
+    // 3️⃣ OPCIÓN A: BLOQUEAR si falta dirección de revendedor
     if (!retailerAddressText) {
       console.warn("⚠️  Dirección inválida o faltante:", retailerData?.address);
       
@@ -245,8 +231,10 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          shippingCost: FIXED_COST,
-          error: "Dirección inválida. Se asignó costo fijo. Por favor, configura tu dirección en el perfil.",
+          error: "Configurá tu dirección en tu perfil para calcular el envío",
+          missingAddress: true,
+          missingAddressType: "retailer",
+          availableModes: [],
         },
         { status: 200 }
       );
@@ -254,7 +242,7 @@ export async function POST(req: Request) {
 
     /* ===============================
        🔍 DISTANCIAS
-       ✅ CORREGIDO: Google Maps Distance Matrix API en vez de Haversine
+       ✅ Google Maps Distance Matrix API
     =============================== */
     const result = await calculateFraccionadoShipping({
       factoryAddress: factoryAddressText,
@@ -278,19 +266,16 @@ export async function POST(req: Request) {
     });
     
   } catch (error) {
-    // ✅ LOGGING COMPLETO DEL ERROR
     logFraccionadoError(error, {
       ...requestContext,
       step: "unexpected_error",
     });
 
-    // ✅ RESPUESTA SEGURA PARA EL CLIENTE
     return NextResponse.json(
       {
-        shippingCost: FIXED_COST,
-        error: "Ocurrió un error al calcular el envío fraccionado. Se asignó costo fijo por defecto.",
+        error: "Ocurrió un error al calcular el envío fraccionado",
       },
-      { status: 200 }
+      { status: 500 }
     );
   }
 }

@@ -38,11 +38,15 @@ export function validateShippingConfig(shipping: ProductShipping) {
       );
     }
 
-    if (own.type === "per_km" && own.pricePerKm <= 0) {
-      throw new ShippingConfigError(
-        "Precio por km inválido",
-        "OWN_LOGISTICS_KM_INVALID"
-      );
+    if (own.type === "per_km") {
+      if (own.pricePerKm <= 0) {
+        throw new ShippingConfigError(
+          "Precio por km inválido",
+          "OWN_LOGISTICS_KM_INVALID"
+        );
+      }
+      // roundTrip es opcional (para compatibilidad con productos viejos)
+      // Si no existe, se asume true por defecto
     }
 
     if (own.type === "zones") {
