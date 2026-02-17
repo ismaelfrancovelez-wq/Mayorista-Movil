@@ -22,17 +22,12 @@ export function calculateOwnShipping(
     return Math.round(km * config.pricePerKm);
   }
 
-  // 2️⃣ Zonas por distancia
+  // 2️⃣ Zonas por distancia (4 zonas: z1, z2, z3, z4)
   if (config.type === "zones") {
-    if (km <= 10) return config.zones.zone1;
-    if (km <= 30) return config.zones.zone2;
-    return config.zones.zone3;
-  }
-
-  // 3️⃣ Zonas geográficas
-  if (config.type === "geographic") {
-    // simplificado: asumimos AMBA
-    return config.areas.amba;
+    if (km <= 15) return config.zones.z1;   // 0-15km
+    if (km <= 35) return config.zones.z2;   // 15-35km
+    if (km <= 60) return config.zones.z3;   // 35-60km
+    return config.zones.z4;                 // +60km
   }
 
   throw new Error("Modelo de envío propio inválido");
