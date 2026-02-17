@@ -46,20 +46,11 @@ export function validateShippingConfig(shipping: ProductShipping) {
     }
 
     if (own.type === "zones") {
-      const { zone1, zone2, zone3 } = own.zones;
-      if (zone1 <= 0 || zone2 <= 0 || zone3 <= 0) {
+      const { z1, z2, z3, z4 } = own.zones;
+      if (z1 <= 0 || z2 <= 0 || z3 <= 0 || z4 <= 0) {
         throw new ShippingConfigError(
           "Zonas de distancia inválidas",
           "OWN_LOGISTICS_ZONES_INVALID"
-        );
-      }
-    }
-
-    if (own.type === "geographic") {
-      if (own.areas.amba <= 0) {
-        throw new ShippingConfigError(
-          "Precio AMBA inválido",
-          "OWN_LOGISTICS_GEO_INVALID"
         );
       }
     }
