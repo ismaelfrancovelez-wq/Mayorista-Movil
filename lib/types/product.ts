@@ -1,4 +1,5 @@
 // lib/types/product.ts
+// ✅ CORREGIDO - z1, z2, z3, z4 (estructura real en producción)
 
 export type ProfitType = "percentage" | "fixed";
 
@@ -15,17 +16,10 @@ export type OwnLogisticsPricing =
   | {
       type: "zones";
       zones: {
-        zone1: number;
-        zone2: number;
-        zone3: number;
-      };
-    }
-  | {
-      type: "geographic";
-      areas: {
-        caba: number;
-        amba: number;
-        interior: number;
+        z1: number;  // 0-15km
+        z2: number;  // 15-35km
+        z3: number;  // 35-60km
+        z4: number;  // +60km
       };
     };
 
@@ -94,7 +88,7 @@ export interface Product {
   /* ✅ Categoría del producto */
   category: ProductCategory;
 
-  /* 🖼️ IMAGEN DEL PRODUCTO - 🆕 NUEVO CAMPO */
+  /* 🖼️ IMAGEN DEL PRODUCTO */
   imageUrl?: string;
 
   /* 💰 Ganancia neta informativa por unidad (solo fabricante) */

@@ -1,40 +1,13 @@
+// app/api/shipping/calculate/route.ts
+// ✅ VERSIÓN FINAL - Google Maps + Per KM x2 + 4 zonas (z1,z2,z3,z4)
+
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
+import { env } from "../../../../lib/env";
 
 /* ===============================
-   🔍 DISTANCIA (HAVERSINE)
-=============================== */
-function distanceKm(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
-
-/* ===============================
-   🧾 TIPOS
-=============================== */
-type Address = {
-  lat: number;
-  lng: number;
-  area?: "caba" | "amba" | "interior";
-};
-
-/* ===============================
-   📊 FUNCIÓN DE LOGGING MEJORADA
+   📊 FUNCIÓN DE LOGGING
 =============================== */
 function logShippingError(error: unknown, context: Record<string, any>) {
   const errorDetails = {
@@ -47,10 +20,8 @@ function logShippingError(error: unknown, context: Record<string, any>) {
     },
   };
 
-  // ✅ Log detallado a consola
   console.error("❌ SHIPPING CALCULATE ERROR:", JSON.stringify(errorDetails, null, 2));
 
-  // ✅ TODO: Integrar con Sentry cuando esté disponible
   if (process.env.SENTRY_DSN) {
     try {
       // Sentry.captureException(error, {
@@ -63,6 +34,39 @@ function logShippingError(error: unknown, context: Record<string, any>) {
   }
 
   return errorDetails;
+}
+
+/* ===============================
+   🔍 CALCULAR DISTANCIA CON GOOGLE MAPS
+=============================== */
+async function getDistanceKm(origin: string, destination: string): Promise<number> {
+  const apiKey = env.googleMaps.apiKey();
+
+  if (!apiKey) {
+    throw new Error("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY no configurada");
+  }
+
+  const url = new URL(
+    "https://maps.googleapis.com/maps/api/distancematrix/json"
+  );
+
+  url.searchParams.set("origins", origin);
+  url.searchParams.set("destinations", destination);
+  url.searchParams.set("key", apiKey);
+
+  const res = await fetch(url.toString());
+  const data = await res.json();
+
+  if (
+    data.status !== "OK" ||
+    data.rows[0].elements[0].status !== "OK"
+  ) {
+    throw new Error(
+      `Error calculando distancia: ${data.status} / ${data.rows?.[0]?.elements?.[0]?.status}`
+    );
+  }
+
+  return data.rows[0].elements[0].distance.value / 1000;
 }
 
 export async function POST(req: Request) {
@@ -183,10 +187,12 @@ export async function POST(req: Request) {
     }
 
     const factoryData = factorySnap.data();
-    if (!factoryData || !factoryData.address) {
+    const factoryAddressText = factoryData?.address?.formattedAddress as string | undefined;
+
+    if (!factoryAddressText) {
       logShippingError(
         new Error("Fábrica sin dirección"),
-        { ...requestContext, factoryId: product.factoryId, step: "factory_address" }
+        { ...requestContext, factoryId: product.factoryId, factoryAddress: factoryData?.address, step: "factory_address" }
       );
 
       return NextResponse.json(
@@ -198,8 +204,6 @@ export async function POST(req: Request) {
         { status: 200 }
       );
     }
-
-    const fAddr = factoryData.address as Address;
 
     /* ===============================
        🛒 RETAILER
@@ -226,10 +230,12 @@ export async function POST(req: Request) {
     }
 
     const retailerData = retailerSnap.data();
-    if (!retailerData || !retailerData.address) {
+    const retailerAddressText = retailerData?.address?.formattedAddress as string | undefined;
+
+    if (!retailerAddressText) {
       logShippingError(
         new Error("Revendedor sin dirección"),
-        { ...requestContext, retailerId, step: "retailer_address" }
+        { ...requestContext, retailerId, retailerAddress: retailerData?.address, step: "retailer_address" }
       );
 
       return NextResponse.json(
@@ -242,43 +248,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const rAddr = retailerData.address as Address;
-
-    if (
-      typeof fAddr.lat !== "number" ||
-      typeof fAddr.lng !== "number" ||
-      typeof rAddr.lat !== "number" ||
-      typeof rAddr.lng !== "number"
-    ) {
-      logShippingError(
-        new Error("Direcciones incompletas o inválidas"),
-        {
-          ...requestContext,
-          factoryAddress: fAddr,
-          retailerAddress: rAddr,
-          step: "address_validation",
-        }
-      );
-
-      return NextResponse.json(
-        {
-          shippingMode: "pickup",
-          shippingCost: 0,
-          error: "Direcciones incompletas. Se asignó retiro en fábrica por defecto.",
-        },
-        { status: 200 }
-      );
-    }
-
     /* ===============================
-       🔍 DISTANCIA
+       🔍 CALCULAR DISTANCIA CON GOOGLE MAPS
     =============================== */
-    const km = distanceKm(
-      fAddr.lat,
-      fAddr.lng,
-      rAddr.lat,
-      rAddr.lng
-    );
+    const km = await getDistanceKm(factoryAddressText, retailerAddressText);
 
     /* ===============================
        🚚 APLICAR REGLAS DEL PRODUCTO
@@ -291,30 +264,26 @@ export async function POST(req: Request) {
     ) {
       const own = shippingConfig.ownLogistics;
 
+      // ✅ PER KM: IDA Y VUELTA (× 2)
       if (own.type === "per_km") {
+        const kmRoundTrip = km * 2; // ✅ IDA Y VUELTA
         return NextResponse.json({
           shippingMode: "factory",
-          shippingCost: Math.round(km * own.pricePerKm),
+          shippingCost: Math.round(kmRoundTrip * own.pricePerKm),
         });
       }
 
+      // ✅ ZONAS: 4 zonas (z1, z2, z3, z4)
       if (own.type === "zones") {
-        let zone: "z1" | "z2" | "z3" = "z3";
-        if (km <= 10) zone = "z1";
-        else if (km <= 30) zone = "z2";
+        let zone: "z1" | "z2" | "z3" | "z4" = "z4";
+        if (km <= 15) zone = "z1";       // 0-15km
+        else if (km <= 35) zone = "z2";  // 15-35km
+        else if (km <= 60) zone = "z3";  // 35-60km
+        // else z4 (+60km)
 
         return NextResponse.json({
           shippingMode: "factory",
           shippingCost: own.zones[zone],
-        });
-      }
-
-      if (own.type === "geographic") {
-        const area = rAddr.area ?? "interior";
-
-        return NextResponse.json({
-          shippingMode: "factory",
-          shippingCost: own.areas[area],
         });
       }
     }
@@ -337,13 +306,11 @@ export async function POST(req: Request) {
     });
     
   } catch (error) {
-    // ✅ LOGGING COMPLETO DEL ERROR
     logShippingError(error, {
       ...requestContext,
       step: "unexpected_error",
     });
 
-    // ✅ RESPUESTA SEGURA PARA EL CLIENTE
     return NextResponse.json(
       {
         shippingMode: "pickup",

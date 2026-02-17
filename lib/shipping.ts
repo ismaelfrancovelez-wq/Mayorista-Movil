@@ -2,6 +2,7 @@ import { env } from "./env";
 
 /**
  * Dirección base fija (centro logístico)
+ * Poeta Romildo Risso 3244, William Morris, Hurlingham
  */
 const BASE_ADDRESS =
   "Poeta Romildo Risso 3244, William Morris, Hurlingham, Buenos Aires, Argentina";
@@ -18,8 +19,8 @@ export type ShippingResult = {
 };
 
 /**
- * Calcula envío fraccionado
- * ⚠️ REQUIERE direcciones válidas (string)
+ * Calcula envío fraccionado usando Google Maps Distance Matrix API
+ * ⚠️ REQUIERE direcciones válidas (string de texto completo)
  */
 export async function calculateFraccionadoShipping(params: {
   factoryAddress: string;
@@ -27,11 +28,10 @@ export async function calculateFraccionadoShipping(params: {
 }): Promise<ShippingResult> {
   const { factoryAddress, retailerAddress } = params;
 
-  // ✅ Usa el validador seguro
   const apiKey = env.googleMaps.apiKey();
-  
+
   if (!apiKey) {
-    throw new Error("GOOGLE_MAPS_API_KEY no configurada");
+    throw new Error("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY no configurada");
   }
 
   const kmBaseToFactory = await getKm(
@@ -47,7 +47,7 @@ export async function calculateFraccionadoShipping(params: {
   );
 
   const kmTotal = kmBaseToFactory + kmFactoryToRetailer;
-  const kmCharged = kmTotal * 2;
+  const kmCharged = kmTotal * 2; // ida y vuelta
 
   const totalCost = Math.round(
     kmCharged * PRECIO_POR_KM + FIJO_CONDUCTOR
@@ -82,7 +82,9 @@ async function getKm(
     data.status !== "OK" ||
     data.rows[0].elements[0].status !== "OK"
   ) {
-    throw new Error("Error calculando distancia");
+    throw new Error(
+      `Error calculando distancia: ${data.status} / ${data.rows?.[0]?.elements?.[0]?.status}`
+    );
   }
 
   return data.rows[0].elements[0].distance.value / 1000;

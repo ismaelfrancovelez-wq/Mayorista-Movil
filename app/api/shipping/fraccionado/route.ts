@@ -1,50 +1,15 @@
 // app/api/shipping/fraccionado/route.ts
-// 🔧 VERSIÓN CORREGIDA - Busca en users Y retailers
+// ✅ VERSIÓN CORREGIDA - Usa Google Maps Distance Matrix API (distancias reales por calles)
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
-
-/* ===============================
-   🔍 DISTANCIA (HAVERSINE)
-=============================== */
-function distanceKmFrac(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-) {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
-
-/* ===============================
-   🔍 BASE PLATAFORMA (FIJA)
-=============================== */
-const PLATFORM_BASE = {
-  lat: -34.6059, // Poeta Romildo Rizzo 3244
-  lng: -58.6427, // William Morris, Hurlingham
-};
+import { calculateFraccionadoShipping } from "../../../../lib/shipping";
 
 /* ===============================
    💲 REGLAS DE COSTO
 =============================== */
-const PRICE_PER_KM = 85;
 const FIXED_COST = 3500;
-
-type AddressFrac = {
-  lat: number;
-  lng: number;
-};
 
 /* ===============================
    📊 FUNCIÓN DE LOGGING MEJORADA
@@ -187,19 +152,17 @@ export async function POST(req: Request) {
     }
 
     const factoryData = factorySnap.data();
-    const factoryAddress = factoryData?.address as AddressFrac;
 
-    if (
-      !factoryAddress ||
-      typeof factoryAddress.lat !== "number" ||
-      typeof factoryAddress.lng !== "number"
-    ) {
+    // ✅ CORREGIDO: usar formattedAddress (texto) para Google Maps Distance Matrix API
+    const factoryAddressText = factoryData?.address?.formattedAddress as string | undefined;
+
+    if (!factoryAddressText) {
       logFraccionadoError(
         new Error("Dirección de fábrica inválida"),
         {
           ...requestContext,
           factoryId: product.factoryId,
-          factoryAddress,
+          factoryAddress: factoryData?.address,
           step: "factory_address",
         }
       );
@@ -218,7 +181,7 @@ export async function POST(req: Request) {
        Busca primero en retailers, luego en users
     =============================== */
     let retailerData: any = null;
-    let retailerAddress: AddressFrac | null = null;
+    let retailerAddressText: string | null = null;
 
     // 1️⃣ Intentar en retailers
     const retailerSnap = await db
@@ -229,7 +192,7 @@ export async function POST(req: Request) {
     if (retailerSnap.exists) {
       console.log("✅ Retailer encontrado en colección 'retailers'");
       retailerData = retailerSnap.data();
-      retailerAddress = retailerData?.address;
+      retailerAddressText = retailerData?.address?.formattedAddress ?? null;
     } else {
       console.log("⚠️  Retailer NO encontrado en 'retailers', buscando en 'users'...");
       
@@ -243,10 +206,10 @@ export async function POST(req: Request) {
         console.log("✅ Usuario encontrado en colección 'users'");
         const userData = userSnap.data();
         retailerData = userData;
-        retailerAddress = userData?.address || null;
+        retailerAddressText = userData?.address?.formattedAddress ?? null;
         
         // Si el usuario no tiene dirección, asignar costo fijo
-        if (!retailerAddress) {
+        if (!retailerAddressText) {
           console.warn("⚠️  Usuario sin dirección configurada");
         }
       } else {
@@ -267,19 +230,15 @@ export async function POST(req: Request) {
     }
 
     // 3️⃣ Validar que tenga dirección válida
-    if (
-      !retailerAddress ||
-      typeof retailerAddress.lat !== "number" ||
-      typeof retailerAddress.lng !== "number"
-    ) {
-      console.warn("⚠️  Dirección inválida o faltante:", retailerAddress);
+    if (!retailerAddressText) {
+      console.warn("⚠️  Dirección inválida o faltante:", retailerData?.address);
       
       logFraccionadoError(
         new Error("Dirección de usuario inválida o faltante"),
         {
           ...requestContext,
           retailerId,
-          retailerAddress,
+          retailerAddress: retailerData?.address,
           step: "retailer_address_invalid",
         }
       );
@@ -295,41 +254,27 @@ export async function POST(req: Request) {
 
     /* ===============================
        🔍 DISTANCIAS
+       ✅ CORREGIDO: Google Maps Distance Matrix API en vez de Haversine
     =============================== */
-    const baseToFactory = distanceKmFrac(
-      PLATFORM_BASE.lat,
-      PLATFORM_BASE.lng,
-      factoryAddress.lat,
-      factoryAddress.lng
-    );
-
-    const factoryToRetailer = distanceKmFrac(
-      factoryAddress.lat,
-      factoryAddress.lng,
-      retailerAddress.lat,
-      retailerAddress.lng
-    );
-
-    // ida + vuelta
-    const totalKm = (baseToFactory + factoryToRetailer) * 2;
+    const result = await calculateFraccionadoShipping({
+      factoryAddress: factoryAddressText,
+      retailerAddress: retailerAddressText,
+    });
 
     /* ===============================
        💰 COSTO FINAL
     =============================== */
-    const shippingCost =
-      Math.round(totalKm * PRICE_PER_KM) + FIXED_COST;
-
     console.log("✅ Costo de envío calculado:", {
-      baseToFactory: Math.round(baseToFactory * 10) / 10,
-      factoryToRetailer: Math.round(factoryToRetailer * 10) / 10,
-      totalKm: Math.round(totalKm * 10) / 10,
-      shippingCost,
+      baseToFactory: Math.round(result.kmBaseToFactory * 10) / 10,
+      factoryToRetailer: Math.round(result.kmFactoryToRetailer * 10) / 10,
+      totalKm: Math.round(result.kmCharged * 10) / 10,
+      shippingCost: result.totalCost,
     });
 
     return NextResponse.json({
       shippingMode: "platform",
-      shippingCost,
-      km: Math.round(totalKm * 10) / 10,
+      shippingCost: result.totalCost,
+      km: Math.round(result.kmCharged * 10) / 10,
     });
     
   } catch (error) {

@@ -1,8 +1,8 @@
 import { distanceKm } from "./distance";
 
 const BASE_ADDRESS = {
-  lat: -34.591058,
-  lng: -58.632046,
+  lat: -34.588488,
+  lng: -58.664829,
 };
 
 export function calculateFraccionadoShipping({
