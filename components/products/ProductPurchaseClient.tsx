@@ -16,6 +16,7 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
   
   const [selectedShipping, setSelectedShipping] = useState<ShippingMode>("pickup");
   const [shippingCost, setShippingCost] = useState(0);
+  const [shippingKm, setShippingKm] = useState<number | null>(null); // ✅ NUEVO: kilómetros
   const [loadingShipping, setLoadingShipping] = useState(false);
   
   const [mpConnected, setMpConnected] = useState<boolean | null>(null);
@@ -70,10 +71,12 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
       const data = await res.json();
       setSelectedShipping("platform");
       setShippingCost(typeof data.shippingCost === "number" ? data.shippingCost : 0);
+      setShippingKm(typeof data.km === "number" ? data.km : null); // ✅ NUEVO: guardar km
     } catch (err) {
       console.error("Error envío plataforma:", err);
       setSelectedShipping("platform");
       setShippingCost(0);
+      setShippingKm(null);
     } finally {
       setLoadingShipping(false);
     }
@@ -99,14 +102,17 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
         if (data && typeof data.shippingCost === "number" && data.shippingMode) {
           setSelectedShipping(data.shippingMode);
           setShippingCost(data.shippingCost);
+          setShippingKm(typeof data.km === "number" ? data.km : null); // ✅ NUEVO: guardar km
         } else {
           setSelectedShipping("pickup");
           setShippingCost(0);
+          setShippingKm(null);
         }
       } catch (err) {
         console.error("Error envío directo:", err);
         setSelectedShipping("pickup");
         setShippingCost(0);
+        setShippingKm(null);
       } finally {
         setLoadingShipping(false);
       }
@@ -175,38 +181,36 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
           <div className="flex items-start gap-3">
             <div className="text-2xl">⚠️</div>
             <div>
-              <p className="font-semibold text-red-800 mb-1">
-                Producto no disponible temporalmente
+              <p className="font-semibold text-red-900 mb-1">
+                Producto no disponible para compra
               </p>
               <p className="text-sm text-red-700">
-                El fabricante aún no ha vinculado su cuenta de Mercado Pago para recibir pagos.
+                El fabricante aún no ha vinculado su cuenta de Mercado Pago. 
+                Por favor, intentá más tarde.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="mb-5">
-        <label className="block text-sm mb-1">Cantidad</label>
+      <div className="mb-4">
+        <label className="block text-sm font-medium mb-1">Cantidad</label>
         <input
           type="number"
-          min={1}
+          className="border rounded px-3 py-2 w-full"
           value={qty}
-          onChange={(e) => setQty(Number(e.target.value))}
-          className="border rounded px-3 py-2 w-32"
-          disabled={mpConnected === false}
+          onChange={(e) => setQty(Math.max(1, Number(e.target.value)))}
+          min={1}
         />
-        {isFraccionado && (
-          <p className="text-xs text-gray-500 mt-1">
-            Pedido fraccionado (mínimo {MF})
-          </p>
-        )}
+        <p className="text-xs text-gray-500 mt-1">
+          Mínimo de fábrica: {MF} unidades
+        </p>
       </div>
 
-      <div className="mb-5">
-        <p className="font-semibold mb-2">Forma de envío</p>
+      <div className="mb-4">
+        <p className="text-sm font-medium mb-2">Opciones de entrega:</p>
 
-        <label className="block">
+        <label className="block mb-1">
           <input
             type="radio"
             name="shipping"
@@ -214,6 +218,7 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
             onChange={() => {
               setSelectedShipping("pickup");
               setShippingCost(0);
+              setShippingKm(null); // ✅ NUEVO: limpiar km
             }}
             disabled={mpConnected === false}
           />
@@ -232,7 +237,17 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
             <span className="ml-2">
               {loadingShipping
                 ? "Calculando envío..."
-                : `Envío por plataforma: $ ${shippingCost}`}
+                : (
+                    <>
+                      Envío por plataforma: ${shippingCost.toLocaleString()}
+                      {/* ✅ NUEVO: Mostrar kilómetros */}
+                      {shippingKm !== null && (
+                        <span className="text-sm text-gray-600 ml-1">
+                          ({shippingKm} km)
+                        </span>
+                      )}
+                    </>
+                  )}
             </span>
           </label>
         )}
@@ -249,18 +264,28 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
             <span className="ml-2">
               {loadingShipping
                 ? "Calculando envío..."
-                : `Envío por fábrica: $ ${shippingCost}`}
+                : (
+                    <>
+                      Envío por fábrica: ${shippingCost.toLocaleString()}
+                      {/* ✅ NUEVO: Mostrar kilómetros */}
+                      {shippingKm !== null && (
+                        <span className="text-sm text-gray-600 ml-1">
+                          ({shippingKm} km)
+                        </span>
+                      )}
+                    </>
+                  )}
             </span>
           </label>
         )}
       </div>
 
       <div className="border rounded p-4 text-sm mb-6 bg-gray-50">
-        <p>Subtotal producto: $ {productSubtotal}</p>
-        {commission > 0 && <p>Comisión (12%): $ {commission}</p>}
-        <p>Envío: $ {shippingCost}</p>
+        <p>Subtotal producto: $ {productSubtotal.toLocaleString()}</p>
+        {commission > 0 && <p>Comisión (12%): $ {commission.toLocaleString()}</p>}
+        <p>Envío: $ {shippingCost.toLocaleString()}</p>
         <p className="font-semibold mt-2 text-base">
-          Total: $ {totalToCharge}
+          Total: $ {totalToCharge.toLocaleString()}
         </p>
       </div>
 

@@ -270,6 +270,8 @@ export async function POST(req: Request) {
         return NextResponse.json({
           shippingMode: "factory",
           shippingCost: Math.round(kmRoundTrip * own.pricePerKm),
+          km: Math.round(km * 10) / 10, // Distancia real (solo ida)
+          kmCharged: Math.round(kmRoundTrip * 10) / 10, // Distancia cobrada (ida y vuelta)
         });
       }
 
@@ -284,6 +286,8 @@ export async function POST(req: Request) {
         return NextResponse.json({
           shippingMode: "factory",
           shippingCost: own.zones[zone],
+          km: Math.round(km * 10) / 10,
+          zone: zone,
         });
       }
     }
