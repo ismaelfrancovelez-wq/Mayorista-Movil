@@ -57,7 +57,7 @@ export default function NuevoProductoPage() {
 
   // Precio por km
   const [pricePerKm, setPricePerKm] = useState<number | "">("");
-  const [roundTrip, setRoundTrip] = useState(true); // Por defecto: ida y vuelta
+  const [roundTrip, setRoundTrip] = useState(false); // ✅ Por defecto: SOLO IDA
   // ✅ 4 zonas (z1, z2, z3, z4)
   const [zones, setZones] = useState({
     z1: "",  // 0-15km
@@ -482,28 +482,44 @@ export default function NuevoProductoPage() {
               </label>
 
               {ownType === "per_km" && (
-  <div className="space-y-2">
-    <input
-      type="number"
-      placeholder="Precio por km (ej: 85)"
-      className="border rounded px-3 py-2 w-full"
-      value={pricePerKm}
-      onChange={(e) => setPricePerKm(Number(e.target.value))}
-      min={0}
-    />
-    
-    {/* ✅ NUEVO: Checkbox para ida y vuelta */}
-    <label className="flex items-center gap-2 ml-2">
+  <div className="space-y-3 ml-4 border-l-2 border-gray-200 pl-4">
+    {/* Input de precio */}
+    <div>
+      <label className="block text-sm mb-1">Precio por kilómetro</label>
       <input
-        type="checkbox"
-        checked={roundTrip}
-        onChange={(e) => setRoundTrip(e.target.checked)}
+        type="number"
+        placeholder="Ej: 85"
+        className="border rounded px-3 py-2 w-full"
+        value={pricePerKm}
+        onChange={(e) => setPricePerKm(Number(e.target.value))}
+        min={0}
       />
-      <span className="text-sm">Calcular ida y vuelta (×2)</span>
-      <span className="text-xs text-gray-500">
-        {roundTrip ? "(se cobrará el doble)" : "(solo ida)"}
-      </span>
-    </label>
+    </div>
+
+    {/* ✅ RADIO BUTTONS: Solo ida / Ida y vuelta */}
+    <div>
+      <label className="block text-sm mb-2 font-medium">Tipo de cálculo:</label>
+      
+      <label className="flex items-center gap-2 mb-2">
+        <input
+          type="radio"
+          checked={!roundTrip}
+          onChange={() => setRoundTrip(false)}
+        />
+        <span>Solo ida</span>
+        <span className="text-xs text-gray-500">(fábrica → revendedor)</span>
+      </label>
+
+      <label className="flex items-center gap-2">
+        <input
+          type="radio"
+          checked={roundTrip}
+          onChange={() => setRoundTrip(true)}
+        />
+        <span>Ida y vuelta (×2)</span>
+        <span className="text-xs text-gray-500">(fábrica → revendedor → fábrica)</span>
+      </label>
+    </div>
   </div>
 )}
 
