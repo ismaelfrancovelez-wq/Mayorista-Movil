@@ -74,6 +74,9 @@ async function getKm(
   url.searchParams.set("origins", origin);
   url.searchParams.set("destinations", destination);
   url.searchParams.set("key", apiKey);
+  url.searchParams.set("mode", "driving");
+  url.searchParams.set("language", "es");
+  url.searchParams.set("region", "ar");
 
   const res = await fetch(url.toString());
   const data = await res.json();

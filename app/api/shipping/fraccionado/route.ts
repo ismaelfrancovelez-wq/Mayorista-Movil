@@ -1,5 +1,5 @@
 // app/api/shipping/fraccionado/route.ts
-// ✅ ACTUALIZADO - OPCIÓN A: bloquear compra si falta dirección
+// ✅ OPCIÓN A: Envío solo en primera compra del lote
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -7,7 +7,7 @@ import { db } from "../../../../lib/firebase-admin";
 import { calculateFraccionadoShipping } from "../../../../lib/shipping";
 
 /* ===============================
-   📊 FUNCIÓN DE LOGGING MEJORADA
+   📊 FUNCIÓN DE LOGGING
 =============================== */
 function logFraccionadoError(error: unknown, context: Record<string, any>) {
   const errorDetails = {
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     }
 
     /* ===============================
-       📦 PRODUCTO → FACTORY
+       📦 PRODUCTO
     =============================== */
     const productSnap = await db
       .collection("products")
@@ -169,13 +169,11 @@ export async function POST(req: Request) {
     }
 
     /* ===============================
-       🛒 RETAILER - BÚSQUEDA MEJORADA
-       Busca primero en retailers, luego en users
+       🛒 RETAILER
     =============================== */
     let retailerData: any = null;
     let retailerAddressText: string | null = null;
 
-    // 1️⃣ Intentar en retailers
     const retailerSnap = await db
       .collection("retailers")
       .doc(retailerId)
@@ -188,7 +186,6 @@ export async function POST(req: Request) {
     } else {
       console.log("⚠️  Retailer NO encontrado en 'retailers', buscando en 'users'...");
       
-      // 2️⃣ Si no existe en retailers, buscar en users
       const userSnap = await db
         .collection("users")
         .doc(retailerId)
@@ -200,7 +197,6 @@ export async function POST(req: Request) {
         retailerData = userData;
         retailerAddressText = userData?.address?.formattedAddress ?? null;
       } else {
-        // No existe ni en retailers ni en users
         logFraccionadoError(
           new Error("Usuario no encontrado en ninguna colección"),
           { ...requestContext, retailerId, step: "user_not_found_anywhere" }
@@ -215,7 +211,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3️⃣ OPCIÓN A: BLOQUEAR si falta dirección de revendedor
+    // ✅ OPCIÓN A: BLOQUEAR si falta dirección de revendedor
     if (!retailerAddressText) {
       console.warn("⚠️  Dirección inválida o faltante:", retailerData?.address);
       
@@ -241,8 +237,42 @@ export async function POST(req: Request) {
     }
 
     /* ===============================
-       🔍 DISTANCIAS
-       ✅ Google Maps Distance Matrix API
+       🔍 VERIFICAR SI ES PRIMERA COMPRA DEL LOTE
+    =============================== */
+    
+    // Buscar lote activo para este producto
+    const lotsSnap = await db
+      .collection("lots")
+      .where("productId", "==", productId)
+      .where("status", "==", "accumulating")
+      .limit(1)
+      .get();
+
+    let isFirstPurchase = true;
+
+    if (!lotsSnap.empty) {
+      const lotDoc = lotsSnap.docs[0];
+      const lotId = lotDoc.id;
+
+      // Verificar si hay payments previos en este lote
+      const paymentsSnap = await db
+        .collection("payments")
+        .where("lotId", "==", lotId)
+        .limit(1)
+        .get();
+
+      if (!paymentsSnap.empty) {
+        isFirstPurchase = false;
+        console.log("⚠️  Lote ya tiene compras previas, envío = $0");
+      } else {
+        console.log("✅ Primera compra del lote, se cobrará envío completo");
+      }
+    } else {
+      console.log("✅ Lote nuevo, se cobrará envío completo");
+    }
+
+    /* ===============================
+       🔍 CALCULAR DISTANCIA
     =============================== */
     const result = await calculateFraccionadoShipping({
       factoryAddress: factoryAddressText,
@@ -251,17 +281,22 @@ export async function POST(req: Request) {
 
     /* ===============================
        💰 COSTO FINAL
+       ✅ OPCIÓN A: $0 si no es primera compra
     =============================== */
+    const shippingCost = isFirstPurchase ? result.totalCost : 0;
+
     console.log("✅ Costo de envío calculado:", {
       baseToFactory: Math.round(result.kmBaseToFactory * 10) / 10,
       factoryToRetailer: Math.round(result.kmFactoryToRetailer * 10) / 10,
       totalKm: Math.round(result.kmCharged * 10) / 10,
-      shippingCost: result.totalCost,
+      isFirstPurchase: isFirstPurchase,
+      shippingCost: shippingCost,
     });
 
     return NextResponse.json({
       shippingMode: "platform",
-      shippingCost: result.totalCost,
+      shippingCost: shippingCost,
+      isFirstPurchase: isFirstPurchase, // ✅ Info para el usuario
       km: Math.round(result.kmCharged * 10) / 10,
     });
     

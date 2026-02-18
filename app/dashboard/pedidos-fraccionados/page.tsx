@@ -1,4 +1,5 @@
 // app/dashboard/pedidos-fraccionados/page.tsx - CORREGIDO Y MEJORADO
+// ✅ ERROR 2 CORREGIDO: Contador de pedidos totales agrupa por lotId
 import { db } from "../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import ActiveRoleBadge from "../../../components/ActiveRoleBadge";
@@ -45,25 +46,35 @@ async function DashboardRevendedorContent() {
   const orders = ordersSnap.docs.map(doc => doc.data());
 
   /* ===============================
-     📊 MÉTRICAS
+     📊 MÉTRICAS - ✅ ERROR 2 CORREGIDO
   =============================== */
 
-  // ✅ PEDIDOS CERRADOS (directos + fraccionados cerrados)
-  const pedidosTotales = orders.filter(o =>
-    o.orderType === "directa" ||
-    (o.orderType === "fraccionado" && o.lotStatus === "closed")
-  );
+  // ✅ PEDIDOS DIRECTOS
+  const directOrders = orders.filter(o => o.orderType === "directa");
+
+  // ✅ LOTES FRACCIONADOS CERRADOS (agrupar por lotId para no duplicar)
+  const closedLotIds = new Set<string>();
+  orders.forEach(o => {
+    if (o.orderType === "fraccionado" && o.lotStatus === "closed" && o.lotId) {
+      closedLotIds.add(o.lotId);
+    }
+  });
+
+  // ✅ TOTAL DE PEDIDOS = Directos + Lotes únicos cerrados
+  const pedidosTotalesCount = directOrders.length + closedLotIds.size;
 
   // ⏳ PEDIDOS FRACCIONADOS EN PROCESO
   const pedidosEnProceso = orders.filter(o =>
     o.orderType === "fraccionado" && o.lotStatus !== "closed"
   );
 
-  // 💰 TOTAL INVERTIDO (solo pedidos cerrados)
-  const totalInvertido = pedidosTotales.reduce(
-    (acc, o) => acc + (o.total || 0),
-    0
-  );
+  // 💰 TOTAL INVERTIDO - CORREGIDO (sumar todos los payments cerrados)
+  const totalInvertido = orders
+    .filter(o => 
+      o.orderType === "directa" || 
+      (o.orderType === "fraccionado" && o.lotStatus === "closed")
+    )
+    .reduce((acc, o) => acc + (o.total || 0), 0);
 
   /* ===============================
      ✅ LOTES ACTIVOS - VERSIÓN MEJORADA
@@ -195,11 +206,11 @@ async function DashboardRevendedorContent() {
         {/* KPIs */}
         <div className="grid md:grid-cols-3 gap-6 mb-12">
 
-          {/* ✅ PEDIDOS TOTALES */}
+          {/* ✅ PEDIDOS TOTALES - ERROR 2 CORREGIDO */}
           <div className="bg-white p-6 rounded-xl shadow">
             <p className="text-sm text-gray-500">Pedidos totales</p>
             <p className="text-3xl font-semibold mt-2">
-              {pedidosTotales.length}
+              {pedidosTotalesCount}
             </p>
           </div>
 

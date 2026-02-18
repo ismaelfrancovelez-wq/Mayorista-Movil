@@ -192,10 +192,10 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          error: "La fábrica no configuró su dirección. Solo podés elegir retiro en fábrica.",
+          error: "La fábrica no configuró su dirección. No se puede calcular envío ni realizar compra.",
           missingAddress: true,
           missingAddressType: "factory",
-          availableModes: shippingConfig.methods.includes("factory_pickup") ? ["pickup"] : [],
+          availableModes: [], // ✅ No permite NADA sin dirección
         },
         { status: 200 }
       );
@@ -235,10 +235,10 @@ export async function POST(req: Request) {
 
       return NextResponse.json(
         {
-          error: "Configurá tu dirección en tu perfil para ver opciones de envío",
+          error: "Configurá tu dirección en tu perfil para poder realizar compras",
           missingAddress: true,
           missingAddressType: "retailer",
-          availableModes: shippingConfig.methods.includes("factory_pickup") ? ["pickup"] : [],
+          availableModes: [], // ✅ No permite NADA sin dirección
         },
         { status: 200 }
       );
