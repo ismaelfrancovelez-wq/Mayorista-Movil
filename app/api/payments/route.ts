@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     const preference = new Preference(client);
 
     // ✅ FIX: usar variable de entorno en lugar de ngrok/localhost hardcodeado
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mayoristamovil.vercel.app";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mayoristamovil.com";
 
     const result = await preference.create({
       body: {

@@ -42,7 +42,7 @@ export async function createPreference({
   const preference = new Preference(client);
 
   // ✅ FIX: notification_url para que MP llame al webhook cuando se aprueba el pago
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mayoristamovil.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mayoristamovil.com";
   const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
 
   const response = await preference.create({

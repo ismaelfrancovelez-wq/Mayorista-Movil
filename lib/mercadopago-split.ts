@@ -67,7 +67,7 @@ export async function createSplitPreference(params: SplitPaymentParams) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
     (process.env.NODE_ENV === 'development' 
       ? 'http://localhost:3000' 
-      : 'https://mayoristamovil.vercel.app');
+      : 'https://mayoristamovil.com');
   
   const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
   console.log('🔔 Notification URL:', notificationUrl);
