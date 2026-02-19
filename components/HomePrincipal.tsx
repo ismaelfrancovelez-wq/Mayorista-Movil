@@ -951,7 +951,7 @@ export default function HomePrincipal() {
         💬
       </button>
 
-      <style jsx>{`
+      <style>{`
         @keyframes fade-in-up {
           from {
             opacity: 0;
