@@ -724,6 +724,112 @@ export async function POST(req: NextRequest) {
     } else if (orderType === "directa") {
       console.log("🚀 Procesando pedido DIRECTO...");
 
+      // ✅ NUEVO: ENVIAR EMAIL AL REVENDEDOR (PEDIDO DIRECTO)
+      if (buyerEmail) {
+        try {
+          console.log("📧 Enviando email al revendedor (pedido directo)...");
+          
+          const isPickup = shippingMode === "pickup";
+          
+          const directOrderRetailerHtml = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    .container { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .header { text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+    .header h1 { color: #2563eb; margin: 0; font-size: 24px; }
+    .section { margin: 25px 0; padding: 20px; background: #f9fafb; border-radius: 6px; border-left: 4px solid #2563eb; }
+    .info-row { margin: 10px 0; }
+    .label { font-weight: 600; color: #6b7280; }
+    .value { font-weight: 600; color: #111827; }
+    .success-box { background: #d1fae5; border: 2px solid #10b981; border-radius: 6px; padding: 15px; margin: 20px 0; text-align: center; }
+    .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>✅ Pedido Confirmado</h1>
+    </div>
+    
+    <div class="success-box">
+      <h2 style="color: #10b981; margin: 0;">¡Tu pedido fue confirmado!</h2>
+    </div>
+    
+    <p>¡Hola ${buyerName}!</p>
+    <p>Tu pedido directo fue confirmado y el pago procesado exitosamente.</p>
+    
+    <div class="section">
+      <h3 style="margin-top: 0;">📦 Tu Pedido</h3>
+      <div class="info-row"><span class="label">Producto:</span> <span class="value">${productName}</span></div>
+      <div class="info-row"><span class="label">Cantidad:</span> <span class="value">${originalQty} unidades</span></div>
+      <div class="info-row"><span class="label">Monto Total:</span> <span class="value">$ ${payment.transaction_amount}</span></div>
+      <div class="info-row"><span class="label">Tipo:</span> <span class="value">Compra directa</span></div>
+    </div>
+    
+    <div class="section">
+      <h3 style="margin-top: 0;">🏭 Fabricante</h3>
+      <div class="info-row"><span class="label">Nombre:</span> <span class="value">${factoryName}</span></div>
+      <div class="info-row"><span class="label">Dirección:</span> <span class="value">${factoryAddress}</span></div>
+    </div>
+    
+    <div class="section">
+      <h3 style="margin-top: 0;">🚚 Entrega</h3>
+      <p><strong>Modalidad:</strong> ${isPickup ? '🏭 Retiro en fábrica' : '📦 Envío a tu dirección'}</p>
+      ${isPickup ? `
+        <div class="info-row"><span class="label">Dirección de retiro:</span> <span class="value">${factoryAddress}</span></div>
+        <p style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b;">
+          <strong>⏰ Importante:</strong> Tenés 48hs hábiles para retirar tu pedido en los horarios de atención de la fábrica.
+          ${factorySchedule ? `<br><br><strong>Horarios:</strong> ${JSON.stringify(factorySchedule)}` : ''}
+        </p>
+      ` : `
+        <div class="info-row"><span class="label">Se enviará a:</span> <span class="value">${buyerAddress}</span></div>
+        <p style="background: #dbeafe; padding: 15px; border-radius: 6px; border-left: 4px solid #2563eb;">
+          El fabricante coordinará la entrega contigo próximamente.
+        </p>
+      `}
+    </div>
+    
+    <div class="section">
+      <h3 style="margin-top: 0;">⏰ Próximos Pasos</h3>
+      <ol style="margin: 15px 0; padding-left: 20px;">
+        <li>${isPickup ? 'Coordiná el retiro con la fábrica' : 'Esperá que el fabricante se contacte para coordinar la entrega'}</li>
+        <li>Revisá la mercadería al recibirla</li>
+        <li>¡Disfrutá de tu compra mayorista!</li>
+      </ol>
+    </div>
+    
+    <div class="footer">
+      <p><strong>Mayorista Móvil</strong></p>
+      <p>Tu plataforma mayorista de confianza</p>
+      <p style="font-size: 12px; color: #9ca3af; margin-top: 10px;">
+        ID de pedido: ${orderRef.id}
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+          `;
+
+          const emailResult = await sendEmail({
+            to: buyerEmail,
+            subject: `✅ Pedido Confirmado - ${productName}`,
+            html: directOrderRetailerHtml,
+          });
+
+          if (emailResult.success) {
+            console.log("✅ Email enviado al revendedor:", buyerEmail);
+          } else {
+            console.error("❌ Error enviando email al revendedor:", emailResult.error);
+          }
+        } catch (emailError) {
+          console.error("❌ Error enviando email al revendedor:", emailError);
+        }
+      }
+      
       // ENVIAR EMAIL AL FABRICANTE (PEDIDO DIRECTO)
       if (factoryEmail) {
         try {
