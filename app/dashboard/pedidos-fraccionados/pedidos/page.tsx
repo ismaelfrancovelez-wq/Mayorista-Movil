@@ -1,16 +1,19 @@
 // app/dashboard/pedidos-fraccionados/pedidos/page.tsx
 //
-// ✅ MODIFICACIÓN: Ahora lee tanto de "payments" (compras ya pagadas)
-//    como de "reservations" (reservas sin pagar aún).
+// ESTADOS DE RESERVA Y LO QUE MUESTRA EL USUARIO:
 //
-// REGLAS DE VISUALIZACIÓN:
-//   - Reserva con status "pending_lot" o "notified" → badge "Reserva" (naranja),
-//     estado "En proceso" (amarillo), barra de progreso del lote
-//   - Reserva con status "paid" → badge "Compra fraccionada" (morado),
-//     estado "Completado" (verde)
-//   - Pagos normales → comportamiento idéntico al original
+//   "pending_lot"  → badge "Reserva" naranja + estado "En proceso" amarillo
+//                    + barra de progreso del lote
 //
-// NO SE MODIFICÓ nada del flujo de pagos normales.
+//   "lot_closed"   → badge "Reserva" naranja + estado "A la espera de pagos" azul
+//                    + lista de quién pagó y quién no
+//                    + link "Pagar ahora" (el link que llegó por email)
+//
+//   "paid"         → badge "Compra fraccionada" morado + estado "Completado" verde
+//                    (pero SOLO si TODOS los del lote pagaron, sino sigue "A la espera")
+//
+// Para saber si "todos pagaron", consultamos cuántas reservas del mismo
+// lote siguen en "lot_closed" (sin pagar). Si hay 0 → todos pagaron.
 
 import { db } from "../../../../lib/firebase-admin";
 import { cookies } from "next/headers";
@@ -19,9 +22,8 @@ import { formatCurrency } from "../../../../lib/utils";
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
 
-/* ====================================================
-   TIPOS
-==================================================== */
+type ReservationStatus = "pending_lot" | "lot_closed" | "paid" | "cancelled";
+
 type Pedido = {
   id: string;
   productId: string;
@@ -31,15 +33,21 @@ type Pedido = {
   orderType: "directa" | "fraccionado";
   lotType?: string;
   lotId?: string;
-  // ✅ NUEVO: distinguir reservas de compras pagadas
   isReservation?: boolean;
-  reservationStatus?: "pending_lot" | "notified" | "paid" | "cancelled";
-  status: "accumulating" | "closed" | "completed";
+  reservationStatus?: ReservationStatus;
+  // Para "lot_closed": otros compradores del mismo lote
+  lotMates?: {
+    name: string;
+    paid: boolean;
+  }[];
+  // Link de pago (cuando ya cerró el lote)
+  paymentLink?: string;
+  totalFinal?: number;
+  status: "accumulating" | "lot_closed" | "all_paid" | "completed";
   amount: number;
   shippingCost: number;
-  total: number;
-  // ✅ Para reservas: mostrar el estimado, no el total pagado
   shippingCostEstimated?: number;
+  total: number;
   createdAt: string;
   createdAtTimestamp: number;
   purchaseCount?: number;
@@ -51,140 +59,120 @@ type Pedido = {
   };
 };
 
-/* ====================================================
-   OBTENER PEDIDOS + RESERVAS
-==================================================== */
 async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
-  // ── Consultar payments y reservations en paralelo ──
-  const [paymentsSnap, reservationsSnap] = await Promise.all([
-    db
-      .collection("payments")
+
+  const [paymentsSnap, myReservationsSnap] = await Promise.all([
+    db.collection("payments").where("retailerId", "==", retailerId).limit(50).get(),
+    db.collection("reservations")
       .where("retailerId", "==", retailerId)
-      .limit(50)
-      .get(),
-    db
-      .collection("reservations")
-      .where("retailerId", "==", retailerId)
-      .where("status", "in", ["pending_lot", "notified", "paid"])
+      .where("status", "in", ["pending_lot", "lot_closed", "paid"])
       .limit(50)
       .get(),
   ]);
 
-  // ── Juntar todos los lotIds que necesitamos consultar ──
+  // Juntar todos los lotIds
   const lotIds = new Set<string>();
+  paymentsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
+  myReservationsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
 
-  paymentsSnap.docs.forEach((doc) => {
-    const p = doc.data();
-    if (p.lotId) lotIds.add(p.lotId);
-  });
-  reservationsSnap.docs.forEach((doc) => {
-    const r = doc.data();
-    if (r.lotId) lotIds.add(r.lotId);
-  });
-
-  // ── Batch query para todos los lotes ──
-  const lotsMap = new Map<
-    string,
-    { status: string; accumulatedQty: number; minimumOrder: number }
-  >();
-
+  // Batch query de lotes
+  const lotsMap = new Map<string, { status: string; accumulatedQty: number; minimumOrder: number }>();
   if (lotIds.size > 0) {
-    const lotIdsArray = Array.from(lotIds);
-    for (let i = 0; i < lotIdsArray.length; i += 10) {
-      const batch = lotIdsArray.slice(i, i + 10);
-      const lotsSnap = await db
-        .collection("lots")
-        .where("__name__", "in", batch)
-        .get();
-      lotsSnap.docs.forEach((doc) => {
-        const data = doc.data();
-        lotsMap.set(doc.id, {
-          status: data.status,
-          accumulatedQty: data.accumulatedQty || 0,
-          minimumOrder: data.minimumOrder || data.minimumQty || 0,
+    const arr = Array.from(lotIds);
+    for (let i = 0; i < arr.length; i += 10) {
+      const snap = await db.collection("lots").where("__name__", "in", arr.slice(i, i + 10)).get();
+      snap.docs.forEach((d) => {
+        lotsMap.set(d.id, {
+          status: d.data().status,
+          accumulatedQty: d.data().accumulatedQty || 0,
+          minimumOrder: d.data().minimumOrder || d.data().minimumQty || 0,
         });
       });
     }
   }
 
-  /* ── HELPER: construir lotProgress ── */
-  function buildLotProgress(lotId: string | undefined) {
+  // Para reservas "lot_closed" o "paid", necesitamos saber
+  // quiénes más reservaron en el mismo lote y si pagaron
+  const lotIdsWithClosedReservations = new Set<string>();
+  myReservationsSnap.docs.forEach((d) => {
+    const r = d.data();
+    if ((r.status === "lot_closed" || r.status === "paid") && r.lotId) {
+      lotIdsWithClosedReservations.add(r.lotId);
+    }
+  });
+
+  // Para cada lote con cierre, obtener TODAS las reservas (no solo las mías)
+  const lotMatesMap = new Map<string, { name: string; paid: boolean }[]>();
+  if (lotIdsWithClosedReservations.size > 0) {
+    for (const lotId of Array.from(lotIdsWithClosedReservations)) {
+      const allResSnap = await db
+        .collection("reservations")
+        .where("lotId", "==", lotId)
+        .where("status", "in", ["lot_closed", "paid"])
+        .get();
+
+      const mates = allResSnap.docs.map((d) => ({
+        name: d.data().retailerName || "Comprador",
+        paid: d.data().status === "paid",
+      }));
+      lotMatesMap.set(lotId, mates);
+    }
+  }
+
+  // Helper: lotProgress
+  function buildLotProgress(lotId?: string) {
     if (!lotId) return undefined;
-    const lotData = lotsMap.get(lotId);
-    if (!lotData || !lotData.minimumOrder) return undefined;
-    const currentQty = lotData.accumulatedQty;
-    const targetQty = lotData.minimumOrder;
+    const lot = lotsMap.get(lotId);
+    if (!lot || !lot.minimumOrder) return undefined;
     return {
-      currentQty,
-      targetQty,
-      percentage: Math.min((currentQty / targetQty) * 100, 100),
-      remaining: Math.max(targetQty - currentQty, 0),
+      currentQty: lot.accumulatedQty,
+      targetQty: lot.minimumOrder,
+      percentage: Math.min((lot.accumulatedQty / lot.minimumOrder) * 100, 100),
+      remaining: Math.max(lot.minimumOrder - lot.accumulatedQty, 0),
     };
   }
 
-  /* ================================================================
-     PROCESAR PAYMENTS (lógica original — sin tocar)
-  ================================================================ */
-  const fractionalGrouped = new Map<
-    string,
-    {
-      payments: any[];
-      totalQty: number;
-      totalAmount: number;
-      totalShipping: number;
-      totalTotal: number;
-      oldestDate: number;
-      latestDate: number;
-    }
-  >();
-
+  /* ── PAYMENTS normales (lógica original sin cambios) ── */
+  const fractionalGrouped = new Map<string, { payments: any[]; totalQty: number; totalAmount: number; totalShipping: number; totalTotal: number; oldestDate: number; latestDate: number }>();
   const directOrders: Pedido[] = [];
 
   for (const paymentDoc of paymentsSnap.docs) {
-    const payment = paymentDoc.data();
-
-    if (payment.orderType === "directa") {
+    const p = paymentDoc.data();
+    if (p.orderType === "directa") {
       directOrders.push({
         id: paymentDoc.id,
-        productId: payment.productId,
-        productName: payment.productName || "Producto",
-        factoryName: payment.factoryName || "Fabricante",
-        qty: payment.qty || 0,
+        productId: p.productId,
+        productName: p.productName || "Producto",
+        factoryName: p.factoryName || "Fabricante",
+        qty: p.qty || 0,
         orderType: "directa",
         status: "completed",
-        amount: payment.amount || 0,
-        shippingCost: payment.shippingCost || 0,
-        total: payment.total || 0,
-        createdAt:
-          payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
-        createdAtTimestamp: payment.createdAt?.toMillis() || 0,
+        amount: p.amount || 0,
+        shippingCost: p.shippingCost || 0,
+        total: p.total || 0,
+        createdAt: p.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+        createdAtTimestamp: p.createdAt?.toMillis() || 0,
       });
-    } else if (payment.orderType === "fraccionado" && payment.lotId) {
-      const lotId = payment.lotId;
+    } else if (p.orderType === "fraccionado" && p.lotId) {
+      const lotId = p.lotId;
       if (fractionalGrouped.has(lotId)) {
-        const group = fractionalGrouped.get(lotId)!;
-        group.payments.push(payment);
-        group.totalQty += payment.qty || 0;
-        group.totalAmount += payment.amount || 0;
-        group.totalShipping += payment.shippingCost || 0;
-        group.totalTotal += payment.total || 0;
-        group.latestDate = Math.max(
-          group.latestDate,
-          payment.createdAt?.toMillis() || 0
-        );
-        group.oldestDate = Math.min(
-          group.oldestDate,
-          payment.createdAt?.toMillis() || 0
-        );
+        const g = fractionalGrouped.get(lotId)!;
+        g.payments.push(p);
+        g.totalQty += p.qty || 0;
+        g.totalAmount += p.amount || 0;
+        g.totalShipping += p.shippingCost || 0;
+        g.totalTotal += p.total || 0;
+        g.latestDate = Math.max(g.latestDate, p.createdAt?.toMillis() || 0);
+        g.oldestDate = Math.min(g.oldestDate, p.createdAt?.toMillis() || 0);
       } else {
         fractionalGrouped.set(lotId, {
-          payments: [payment],
-          totalQty: payment.qty || 0,
-          totalAmount: payment.amount || 0,
-          totalShipping: payment.shippingCost || 0,
-          totalTotal: payment.total || 0,
-          oldestDate: payment.createdAt?.toMillis() || 0,
-          latestDate: payment.createdAt?.toMillis() || 0,
+          payments: [p],
+          totalQty: p.qty || 0,
+          totalAmount: p.amount || 0,
+          totalShipping: p.shippingCost || 0,
+          totalTotal: p.total || 0,
+          oldestDate: p.createdAt?.toMillis() || 0,
+          latestDate: p.createdAt?.toMillis() || 0,
         });
       }
     }
@@ -192,20 +180,17 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
 
   const fraccionadoOrders: Pedido[] = [];
   for (const [lotId, group] of fractionalGrouped.entries()) {
-    const firstPayment = group.payments[0];
+    const fp = group.payments[0];
     const lotData = lotsMap.get(lotId);
-    let status: Pedido["status"] = "completed";
-    if (lotData) {
-      status = lotData.status === "closed" ? "closed" : "accumulating";
-    }
+    const status: Pedido["status"] = lotData?.status === "closed" ? "all_paid" : "accumulating";
     fraccionadoOrders.push({
       id: lotId,
-      productId: firstPayment.productId,
-      productName: firstPayment.productName || "Producto",
-      factoryName: firstPayment.factoryName || "Fabricante",
+      productId: fp.productId,
+      productName: fp.productName || "Producto",
+      factoryName: fp.factoryName || "Fabricante",
       qty: group.totalQty,
       orderType: "fraccionado",
-      lotType: firstPayment.lotType,
+      lotType: fp.lotType,
       lotId,
       status,
       amount: group.totalAmount,
@@ -218,95 +203,59 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     });
   }
 
-  /* ================================================================
-     PROCESAR RESERVATIONS
-     ✅ NUEVO — reservas sin pagar o ya pagadas
-  ================================================================ */
+  /* ── RESERVAS ── */
   const reservationOrders: Pedido[] = [];
+  const processedLotIds = new Set(fractionalGrouped.keys());
 
-  // Agrupar por lotId (igual que los pagos fraccionados)
-  const reservationByLot = new Map<string, typeof reservationsSnap.docs>();
-
-  for (const resDoc of reservationsSnap.docs) {
+  for (const resDoc of myReservationsSnap.docs) {
     const r = resDoc.data();
-    // Reservas canceladas o sin lote → ignorar
-    if (r.status === "cancelled" || !r.lotId) continue;
+    if (!r.lotId || r.status === "cancelled") continue;
+    // No duplicar si ya hay un payment normal para el mismo lote
+    if (processedLotIds.has(r.lotId)) continue;
 
-    const lotId = r.lotId;
-    if (!reservationByLot.has(lotId)) {
-      reservationByLot.set(lotId, []);
-    }
-    reservationByLot.get(lotId)!.push(resDoc);
-  }
+    const resStatus = r.status as ReservationStatus;
+    const mates = lotMatesMap.get(r.lotId) || [];
+    const unpaidCount = mates.filter((m) => !m.paid).length;
+    const allPaid = mates.length > 0 && unpaidCount === 0;
 
-  for (const [lotId, docs] of reservationByLot.entries()) {
-    const firstRes = docs[0].data();
-    const lotData = lotsMap.get(lotId);
+    // Estado del pedido:
+    // - pending_lot → "accumulating" (esperando que cierre el lote)
+    // - lot_closed → "lot_closed" (lote cerró, esperando pagos)
+    // - paid + todos pagaron → "all_paid" (mostrar como completado)
+    // - paid + quedan sin pagar → "lot_closed" (todavía esperando otros)
+    let pedidoStatus: Pedido["status"] = "accumulating";
+    if (resStatus === "lot_closed") pedidoStatus = "lot_closed";
+    else if (resStatus === "paid") pedidoStatus = allPaid ? "all_paid" : "lot_closed";
 
-    // Si hay un pago fraccionado normal para el mismo lote,
-    // no duplicar (el pago ya cubre esta reserva)
-    if (fractionalGrouped.has(lotId)) continue;
-
-    // Estado de la reserva
-    const resStatus = firstRes.status as
-      | "pending_lot"
-      | "notified"
-      | "paid"
-      | "cancelled";
-    const isPaid = resStatus === "paid";
-
-    // Si está pagada, la mostramos como "compra fraccionada completada"
-    // Si no, la mostramos como "reserva en proceso"
-    let status: Pedido["status"] = isPaid ? "closed" : "accumulating";
-    if (lotData?.status === "closed" && !isPaid) {
-      // El lote cerró pero aún no pagó → sigue en proceso (esperando pago)
-      status = "accumulating";
-    }
-
-    const totalQty = docs.reduce((acc, d) => acc + (d.data().qty || 0), 0);
-    const totalAmount = docs.reduce(
-      (acc, d) => acc + (d.data().productSubtotal || 0),
-      0
-    );
-    const shippingEstimated = firstRes.shippingCostEstimated || 0;
-    const shippingFinal = firstRes.shippingCostFinal || shippingEstimated;
+    const shippingFinal = r.shippingCostFinal ?? r.shippingCostEstimated ?? 0;
 
     reservationOrders.push({
-      id: `reservation-${lotId}`,
-      productId: firstRes.productId,
-      productName: firstRes.productName || "Producto",
-      factoryName: firstRes.factoryName || "Fabricante",
-      qty: totalQty,
+      id: `reservation-${resDoc.id}`,
+      productId: r.productId,
+      productName: r.productName || "Producto",
+      factoryName: r.factoryName || "Fabricante",
+      qty: r.qty || 0,
       orderType: "fraccionado",
-      lotType:
-        firstRes.shippingMode === "pickup"
-          ? "fraccionado_retiro"
-          : "fraccionado_envio",
-      lotId,
+      lotType: r.shippingMode === "pickup" ? "fraccionado_retiro" : "fraccionado_envio",
+      lotId: r.lotId,
       isReservation: true,
       reservationStatus: resStatus,
-      status,
-      amount: totalAmount,
-      shippingCost: isPaid ? shippingFinal : 0, // antes de pagar no mostrar envío como "pagado"
-      shippingCostEstimated: shippingEstimated,
-      total: isPaid
-        ? (firstRes.totalFinal || totalAmount + shippingFinal)
-        : 0,
-      createdAt:
-        firstRes.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
-      createdAtTimestamp: firstRes.createdAt?.toMillis() || 0,
-      lotProgress: buildLotProgress(lotId),
+      lotMates: mates,
+      paymentLink: r.paymentLink || null,
+      totalFinal: r.totalFinal || null,
+      status: pedidoStatus,
+      amount: r.productSubtotal || 0,
+      shippingCost: resStatus === "paid" ? shippingFinal : 0,
+      shippingCostEstimated: r.shippingCostEstimated || 0,
+      total: resStatus === "paid" ? (r.totalFinal || 0) : 0,
+      createdAt: r.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+      createdAtTimestamp: r.createdAt?.toMillis() || 0,
+      lotProgress: resStatus === "pending_lot" ? buildLotProgress(r.lotId) : undefined,
     });
   }
 
-  /* ── Combinar todo y ordenar ── */
-  const allOrders = [
-    ...fraccionadoOrders,
-    ...reservationOrders,
-    ...directOrders,
-  ];
+  const allOrders = [...fraccionadoOrders, ...reservationOrders, ...directOrders];
   allOrders.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
-
   return allOrders;
 }
 
@@ -322,9 +271,7 @@ export default async function PedidosPage() {
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold mb-4">No autorizado</h1>
-          <p className="text-red-600">
-            Debes tener rol de revendedor para acceder a esta página
-          </p>
+          <p className="text-red-600">Debes tener rol de revendedor para acceder a esta página</p>
         </div>
       </div>
     );
@@ -337,26 +284,14 @@ export default async function PedidosPage() {
       <div className="max-w-6xl mx-auto p-8">
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Mis Pedidos
-          </h1>
-          <p className="text-gray-600">
-            Últimos 50 pedidos (actualizado cada 10 segundos)
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Mis Pedidos</h1>
+          <p className="text-gray-600">Últimos 50 pedidos (actualizado cada 10 segundos)</p>
         </div>
 
         {orders.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <p className="text-gray-500 text-lg mb-4">
-              No tienes pedidos todavía
-            </p>
-            <p className="text-gray-400 mb-6">
-              Empieza a comprar productos al por mayor
-            </p>
-            <a
-              href="/explorar"
-              className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-            >
+            <p className="text-gray-500 text-lg mb-4">No tienes pedidos todavía</p>
+            <a href="/explorar" className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
               Explorar productos
             </a>
           </div>
@@ -365,189 +300,170 @@ export default async function PedidosPage() {
             {orders.map((order) => {
               const isFraccionado = order.orderType === "fraccionado";
 
-              // ── Es una reserva aún no pagada ──
-              const isReservaActiva =
-                order.isReservation &&
-                (order.reservationStatus === "pending_lot" ||
-                  order.reservationStatus === "notified");
-
-              // ── Es una reserva ya pagada (se muestra como compra completada) ──
-              const isReservaPagada =
-                order.isReservation && order.reservationStatus === "paid";
-
-              // ── Fraccionado normal en proceso (sin reserva) ──
-              const isFraccionadoEnProceso =
-                isFraccionado && !order.isReservation && order.status === "accumulating";
-
-              // ── En proceso = reserva activa O fraccionado acumulando ──
-              const isEnProceso = isReservaActiva || isFraccionadoEnProceso;
-
-              // ── Badge del tipo de pedido ──
-              const badgeLabel = isReservaActiva
-                ? "Reserva"
-                : isFraccionado
-                ? "Compra fraccionada"
-                : "Compra directa";
-
+              // ── Qué badge de tipo mostrar ──
+              const isReservaActiva = order.isReservation && order.status !== "all_paid";
+              const badgeLabel = isReservaActiva ? "Reserva" : isFraccionado ? "Compra fraccionada" : "Compra directa";
               const badgeColor = isReservaActiva
                 ? "bg-orange-100 text-orange-800"
                 : isFraccionado
                 ? "bg-purple-100 text-purple-800"
                 : "bg-blue-100 text-blue-800";
 
-              // ── Badge de estado ──
-              const estadoLabel = isEnProceso ? "En proceso" : "Completado";
-              const estadoColor = isEnProceso
-                ? "bg-yellow-100 text-yellow-800"
-                : "bg-green-100 text-green-800";
+              // ── Qué badge de estado mostrar ──
+              let estadoLabel = "Completado";
+              let estadoColor = "bg-green-100 text-green-800";
+              if (order.status === "accumulating") {
+                estadoLabel = "En proceso";
+                estadoColor = "bg-yellow-100 text-yellow-800";
+              } else if (order.status === "lot_closed") {
+                estadoLabel = "A la espera de pagos";
+                estadoColor = "bg-blue-100 text-blue-800";
+              }
 
               return (
-                <div
-                  key={order.id}
-                  className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
-                >
+                <div key={order.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold text-gray-900">
-                          {order.productName}
-                        </h3>
-                        <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${badgeColor}`}
-                        >
+                        <h3 className="text-xl font-semibold text-gray-900">{order.productName}</h3>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${badgeColor}`}>
                           {badgeLabel}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 mb-1">
-                        {order.createdAt}
-                      </p>
+                      <p className="text-sm text-gray-500 mb-1">{order.createdAt}</p>
                       <p className="text-sm text-gray-600">
-                        <span className="font-medium">Fabricante:</span>{" "}
-                        {order.factoryName}
+                        <span className="font-medium">Fabricante:</span> {order.factoryName}
                       </p>
                     </div>
-
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${estadoColor}`}
-                    >
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${estadoColor}`}>
                       {estadoLabel}
                     </span>
                   </div>
 
+                  {/* Info del pedido */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
                     <div>
                       <p className="text-gray-500">Cantidad</p>
                       <p className="font-semibold text-gray-900">
                         {order.qty} unidades
                         {order.purchaseCount && order.purchaseCount > 1 && (
-                          <span className="text-xs text-gray-500 block">
-                            ({order.purchaseCount} compras)
-                          </span>
+                          <span className="text-xs text-gray-500 block">({order.purchaseCount} compras)</span>
                         )}
                       </p>
                     </div>
-
                     <div>
                       <p className="text-gray-500">Modalidad</p>
                       <p className="font-semibold text-gray-900">
                         {isFraccionado
-                          ? order.lotType === "fractional_shipping" ||
-                            order.lotType === "fraccionado_envio"
+                          ? order.lotType === "fractional_shipping" || order.lotType === "fraccionado_envio"
                             ? "Fraccionado envío"
                             : "Fraccionado retiro"
                           : "Directa"}
                       </p>
                     </div>
-
                     <div>
                       <p className="text-gray-500">Producto</p>
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(order.amount)}
-                      </p>
+                      <p className="font-semibold text-gray-900">{formatCurrency(order.amount)}</p>
                     </div>
-
-                    {/* Envío: para reservas activas mostrar estimado con aviso */}
-                    {isReservaActiva && (order.shippingCostEstimated ?? 0) > 0 && (
+                    {/* Envío */}
+                    {order.status === "accumulating" && (order.shippingCostEstimated ?? 0) > 0 && (
                       <div>
                         <p className="text-gray-500">Envío estimado</p>
                         <p className="font-semibold text-gray-900">
                           {formatCurrency(order.shippingCostEstimated ?? 0)}
-                          <span className="text-xs text-gray-400 block font-normal">
-                            (puede bajar)
-                          </span>
+                          <span className="text-xs text-gray-400 block font-normal">(puede bajar)</span>
                         </p>
                       </div>
                     )}
-
-                    {/* Envío: para pagos normales o reservas pagadas */}
-                    {!isReservaActiva && order.shippingCost > 0 && (
+                    {order.status !== "accumulating" && order.shippingCost > 0 && (
                       <div>
                         <p className="text-gray-500">Envío</p>
-                        <p className="font-semibold text-gray-900">
-                          {formatCurrency(order.shippingCost)}
-                        </p>
+                        <p className="font-semibold text-gray-900">{formatCurrency(order.shippingCost)}</p>
                       </div>
                     )}
                   </div>
 
-                  {/* ── BARRA DE PROGRESO DEL LOTE ── */}
-                  {/* Aparece para reservas activas Y fraccionados normales en proceso */}
-                  {isEnProceso && order.lotProgress && (
+                  {/* ── BARRA DE PROGRESO (solo mientras acumula) ── */}
+                  {order.status === "accumulating" && order.lotProgress && (
                     <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="font-medium text-purple-900">
-                          Progreso del lote
-                        </span>
+                        <span className="font-medium text-purple-900">Progreso del lote</span>
                         <span className="text-purple-700">
-                          {order.lotProgress.currentQty} /{" "}
-                          {order.lotProgress.targetQty} unidades
+                          {order.lotProgress.currentQty} / {order.lotProgress.targetQty} unidades
                         </span>
                       </div>
                       <div className="w-full bg-purple-200 rounded-full h-3 mb-2">
                         <div
                           className="bg-purple-600 h-3 rounded-full transition-all"
-                          style={{
-                            width: `${Math.min(
-                              order.lotProgress.percentage,
-                              100
-                            )}%`,
-                          }}
+                          style={{ width: `${Math.min(order.lotProgress.percentage, 100)}%` }}
                         />
                       </div>
                       <div className="flex justify-between text-xs text-purple-700">
-                        <span>
-                          {Math.round(order.lotProgress.percentage)}% completado
-                        </span>
-                        <span>
-                          Faltan {order.lotProgress.remaining} unidades
-                        </span>
+                        <span>{Math.round(order.lotProgress.percentage)}% completado</span>
+                        <span>Faltan {order.lotProgress.remaining} unidades</span>
                       </div>
                     </div>
                   )}
 
+                  {/* ── ESTADO DE PAGOS DEL LOTE (cuando cerró) ── */}
+                  {order.status === "lot_closed" && order.lotMates && order.lotMates.length > 0 && (
+                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="font-medium text-blue-900 text-sm mb-3">
+                        👥 Estado de pagos del lote
+                      </p>
+                      <div className="space-y-2">
+                        {order.lotMates.map((mate, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm">
+                            <span className="text-gray-700">{mate.name}</span>
+                            {mate.paid ? (
+                              <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+                                <span>✅</span> Pagó
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-orange-600 font-medium">
+                                <span>⏳</span> Pendiente
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── BOTÓN PAGAR (si el lote cerró y el usuario no pagó todavía) ── */}
+                  {order.status === "lot_closed" &&
+                    order.reservationStatus === "lot_closed" &&
+                    order.paymentLink && (
+                    <a
+                      href={order.paymentLink}
+                      className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg mb-4 transition"
+                    >
+                      💳 Pagar ahora — {formatCurrency(order.totalFinal ?? order.amount)}
+                    </a>
+                  )}
+
+                  {/* ── TOTAL ── */}
                   <div className="pt-4 border-t border-gray-200">
                     <div className="flex justify-between items-center">
                       <div>
-                        {isReservaActiva ? (
+                        {order.status === "accumulating" ? (
                           <>
-                            <p className="text-sm text-gray-500">
-                              Total estimado
-                            </p>
+                            <p className="text-sm text-gray-500">Total estimado</p>
                             <p className="text-lg font-bold text-gray-900">
-                              {formatCurrency(
-                                order.amount +
-                                  (order.shippingCostEstimated ?? 0)
-                              )}
-                              <span className="text-xs text-gray-400 font-normal ml-1">
-                                aprox.
-                              </span>
+                              {formatCurrency(order.amount + (order.shippingCostEstimated ?? 0))}
+                              <span className="text-xs text-gray-400 font-normal ml-1">aprox.</span>
+                            </p>
+                          </>
+                        ) : order.status === "lot_closed" ? (
+                          <>
+                            <p className="text-sm text-gray-500">Total a pagar</p>
+                            <p className="text-lg font-bold text-gray-900">
+                              {formatCurrency(order.totalFinal ?? order.amount)}
                             </p>
                           </>
                         ) : (
                           <>
-                            <p className="text-sm text-gray-500">
-                              Total pagado
-                            </p>
+                            <p className="text-sm text-gray-500">Total pagado</p>
                             <p className="text-lg font-bold text-gray-900">
                               {formatCurrency(order.total)}
                             </p>
@@ -556,41 +472,31 @@ export default async function PedidosPage() {
                       </div>
                     </div>
 
-                    {/* Mensajes de estado abajo */}
-                    {isReservaActiva && (
+                    {/* Mensajes de estado */}
+                    {order.status === "accumulating" && order.isReservation && (
                       <p className="text-xs text-orange-600 mt-3 flex items-center gap-1">
                         <span>🔖</span>
-                        <span>
-                          Reserva activa — cuando el lote se complete, te
-                          mandamos el link de pago por email
-                        </span>
+                        <span>Reserva activa — cuando el lote se complete, te mandamos el link de pago por email</span>
                       </p>
                     )}
-                    {isReservaPagada && (
-                      <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
-                        <span>✅</span>
-                        <span>
-                          Lote completado — El fabricante procesará tu pedido
-                        </span>
-                      </p>
-                    )}
-                    {isFraccionadoEnProceso && (
+                    {order.status === "accumulating" && !order.isReservation && (
                       <p className="text-xs text-purple-600 mt-3 flex items-center gap-1">
                         <span>⏳</span>
                         <span>Esperando a que el lote se complete</span>
                       </p>
                     )}
-                    {isFraccionado &&
-                      !isReservaActiva &&
-                      !isReservaPagada &&
-                      !isFraccionadoEnProceso && (
-                        <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
-                          <span>✅</span>
-                          <span>
-                            Lote completado — El fabricante procesará tu pedido
-                          </span>
-                        </p>
-                      )}
+                    {order.status === "lot_closed" && (
+                      <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
+                        <span>💳</span>
+                        <span>El lote se completó — esperando que todos los compradores paguen</span>
+                      </p>
+                    )}
+                    {order.status === "all_paid" && (
+                      <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
+                        <span>✅</span>
+                        <span>Lote completado — El fabricante procesará tu pedido</span>
+                      </p>
+                    )}
                     {!isFraccionado && (
                       <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
                         <span>📦</span>
