@@ -1,11 +1,27 @@
-// app/dashboard/pedidos-fraccionados/pedidos/page.tsx - CON AGRUPACIÓN
+// app/dashboard/pedidos-fraccionados/pedidos/page.tsx
+//
+// ✅ MODIFICACIÓN: Ahora lee tanto de "payments" (compras ya pagadas)
+//    como de "reservations" (reservas sin pagar aún).
+//
+// REGLAS DE VISUALIZACIÓN:
+//   - Reserva con status "pending_lot" o "notified" → badge "Reserva" (naranja),
+//     estado "En proceso" (amarillo), barra de progreso del lote
+//   - Reserva con status "paid" → badge "Compra fraccionada" (morado),
+//     estado "Completado" (verde)
+//   - Pagos normales → comportamiento idéntico al original
+//
+// NO SE MODIFICÓ nada del flujo de pagos normales.
+
 import { db } from "../../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import { formatCurrency } from "../../../../lib/utils";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 export const revalidate = 10;
 
+/* ====================================================
+   TIPOS
+==================================================== */
 type Pedido = {
   id: string;
   productId: string;
@@ -14,14 +30,19 @@ type Pedido = {
   qty: number;
   orderType: "directa" | "fraccionado";
   lotType?: string;
-  lotId?: string; // ✅ NUEVO
+  lotId?: string;
+  // ✅ NUEVO: distinguir reservas de compras pagadas
+  isReservation?: boolean;
+  reservationStatus?: "pending_lot" | "notified" | "paid" | "cancelled";
   status: "accumulating" | "closed" | "completed";
   amount: number;
   shippingCost: number;
   total: number;
+  // ✅ Para reservas: mostrar el estimado, no el total pagado
+  shippingCostEstimated?: number;
   createdAt: string;
   createdAtTimestamp: number;
-  purchaseCount?: number; // ✅ NUEVO: Número de compras agrupadas
+  purchaseCount?: number;
   lotProgress?: {
     currentQty: number;
     targetQty: number;
@@ -30,30 +51,43 @@ type Pedido = {
   };
 };
 
+/* ====================================================
+   OBTENER PEDIDOS + RESERVAS
+==================================================== */
 async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
-  // Query sin orderBy (se ordena en JavaScript después)
-  const paymentsSnap = await db
-    .collection("payments")
-    .where("retailerId", "==", retailerId)
-    .limit(50)
-    .get();
+  // ── Consultar payments y reservations en paralelo ──
+  const [paymentsSnap, reservationsSnap] = await Promise.all([
+    db
+      .collection("payments")
+      .where("retailerId", "==", retailerId)
+      .limit(50)
+      .get(),
+    db
+      .collection("reservations")
+      .where("retailerId", "==", retailerId)
+      .where("status", "in", ["pending_lot", "notified", "paid"])
+      .limit(50)
+      .get(),
+  ]);
 
-  if (paymentsSnap.empty) {
-    return [];
-  }
-
-  const orders: Pedido[] = [];
-
-  // ✅ Obtener IDs únicos de lotes
+  // ── Juntar todos los lotIds que necesitamos consultar ──
   const lotIds = new Set<string>();
 
-  paymentsSnap.docs.forEach(doc => {
-    const payment = doc.data();
-    if (payment.lotId) lotIds.add(payment.lotId);
+  paymentsSnap.docs.forEach((doc) => {
+    const p = doc.data();
+    if (p.lotId) lotIds.add(p.lotId);
+  });
+  reservationsSnap.docs.forEach((doc) => {
+    const r = doc.data();
+    if (r.lotId) lotIds.add(r.lotId);
   });
 
-  // ✅ Batch query para lotes (solo los campos necesarios)
-  const lotsMap = new Map();
+  // ── Batch query para todos los lotes ──
+  const lotsMap = new Map<
+    string,
+    { status: string; accumulatedQty: number; minimumOrder: number }
+  >();
+
   if (lotIds.size > 0) {
     const lotIdsArray = Array.from(lotIds);
     for (let i = 0; i < lotIdsArray.length; i += 10) {
@@ -62,57 +96,71 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
         .collection("lots")
         .where("__name__", "in", batch)
         .get();
-      lotsSnap.docs.forEach(doc => {
+      lotsSnap.docs.forEach((doc) => {
         const data = doc.data();
         lotsMap.set(doc.id, {
           status: data.status,
-          accumulatedQty: data.accumulatedQty,
-          minimumOrder: data.minimumOrder || data.minimumQty,
+          accumulatedQty: data.accumulatedQty || 0,
+          minimumOrder: data.minimumOrder || data.minimumQty || 0,
         });
       });
     }
   }
 
-  // ✅ AGRUPAR pedidos fraccionados por lotId
-  const fractionalGrouped = new Map<string, {
-    payments: any[];
-    totalQty: number;
-    totalAmount: number;
-    totalShipping: number;
-    totalTotal: number;
-    oldestDate: number;
-    latestDate: number;
-  }>();
+  /* ── HELPER: construir lotProgress ── */
+  function buildLotProgress(lotId: string | undefined) {
+    if (!lotId) return undefined;
+    const lotData = lotsMap.get(lotId);
+    if (!lotData || !lotData.minimumOrder) return undefined;
+    const currentQty = lotData.accumulatedQty;
+    const targetQty = lotData.minimumOrder;
+    return {
+      currentQty,
+      targetQty,
+      percentage: Math.min((currentQty / targetQty) * 100, 100),
+      remaining: Math.max(targetQty - currentQty, 0),
+    };
+  }
+
+  /* ================================================================
+     PROCESAR PAYMENTS (lógica original — sin tocar)
+  ================================================================ */
+  const fractionalGrouped = new Map<
+    string,
+    {
+      payments: any[];
+      totalQty: number;
+      totalAmount: number;
+      totalShipping: number;
+      totalTotal: number;
+      oldestDate: number;
+      latestDate: number;
+    }
+  >();
 
   const directOrders: Pedido[] = [];
 
   for (const paymentDoc of paymentsSnap.docs) {
     const payment = paymentDoc.data();
 
-    // ✅ Pedidos DIRECTOS - No agrupar
     if (payment.orderType === "directa") {
-      const productName = payment.productName || "Producto";
-      const factoryName = payment.factoryName || "Fabricante";
-
       directOrders.push({
         id: paymentDoc.id,
         productId: payment.productId,
-        productName,
-        factoryName,
+        productName: payment.productName || "Producto",
+        factoryName: payment.factoryName || "Fabricante",
         qty: payment.qty || 0,
         orderType: "directa",
         status: "completed",
         amount: payment.amount || 0,
         shippingCost: payment.shippingCost || 0,
         total: payment.total || 0,
-        createdAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+        createdAt:
+          payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
         createdAtTimestamp: payment.createdAt?.toMillis() || 0,
       });
-    }
-    // ✅ Pedidos FRACCIONADOS - Agrupar por lotId
-    else if (payment.orderType === "fraccionado" && payment.lotId) {
+    } else if (payment.orderType === "fraccionado" && payment.lotId) {
       const lotId = payment.lotId;
-
       if (fractionalGrouped.has(lotId)) {
         const group = fractionalGrouped.get(lotId)!;
         group.payments.push(payment);
@@ -120,8 +168,14 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
         group.totalAmount += payment.amount || 0;
         group.totalShipping += payment.shippingCost || 0;
         group.totalTotal += payment.total || 0;
-        group.latestDate = Math.max(group.latestDate, payment.createdAt?.toMillis() || 0);
-        group.oldestDate = Math.min(group.oldestDate, payment.createdAt?.toMillis() || 0);
+        group.latestDate = Math.max(
+          group.latestDate,
+          payment.createdAt?.toMillis() || 0
+        );
+        group.oldestDate = Math.min(
+          group.oldestDate,
+          payment.createdAt?.toMillis() || 0
+        );
       } else {
         fractionalGrouped.set(lotId, {
           payments: [payment],
@@ -136,59 +190,129 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     }
   }
 
-  // ✅ Convertir grupos fraccionados a pedidos
+  const fraccionadoOrders: Pedido[] = [];
   for (const [lotId, group] of fractionalGrouped.entries()) {
     const firstPayment = group.payments[0];
     const lotData = lotsMap.get(lotId);
-
-    let status: "accumulating" | "closed" | "completed" = "completed";
-    let lotProgress: Pedido["lotProgress"] | undefined;
-
+    let status: Pedido["status"] = "completed";
     if (lotData) {
       status = lotData.status === "closed" ? "closed" : "accumulating";
-
-      const currentQty = lotData.accumulatedQty || 0;
-      const targetQty = lotData.minimumOrder || 0;
-
-      if (targetQty > 0) {
-        lotProgress = {
-          currentQty,
-          targetQty,
-          percentage: Math.min((currentQty / targetQty) * 100, 100),
-          remaining: Math.max(targetQty - currentQty, 0),
-        };
-      }
     }
-
-    orders.push({
-      id: lotId, // Usar lotId como id del pedido agrupado
+    fraccionadoOrders.push({
+      id: lotId,
       productId: firstPayment.productId,
       productName: firstPayment.productName || "Producto",
       factoryName: firstPayment.factoryName || "Fabricante",
-      qty: group.totalQty, // ✅ SUMA de todas las compras
+      qty: group.totalQty,
       orderType: "fraccionado",
       lotType: firstPayment.lotType,
-      lotId: lotId,
+      lotId,
       status,
-      amount: group.totalAmount, // ✅ SUMA
-      shippingCost: group.totalShipping, // ✅ SUMA
-      total: group.totalTotal, // ✅ SUMA
-      purchaseCount: group.payments.length, // ✅ Número de compras
+      amount: group.totalAmount,
+      shippingCost: group.totalShipping,
+      total: group.totalTotal,
+      purchaseCount: group.payments.length,
       createdAt: new Date(group.oldestDate).toLocaleDateString("es-AR"),
-      createdAtTimestamp: group.latestDate, // Usar fecha más reciente para ordenar
-      lotProgress,
+      createdAtTimestamp: group.latestDate,
+      lotProgress: buildLotProgress(lotId),
     });
   }
 
-  // ✅ Combinar directos y fraccionados
-  const allOrders = [...orders, ...directOrders];
+  /* ================================================================
+     PROCESAR RESERVATIONS
+     ✅ NUEVO — reservas sin pagar o ya pagadas
+  ================================================================ */
+  const reservationOrders: Pedido[] = [];
 
-  // ✅ Ordenar por fecha (más reciente primero)
+  // Agrupar por lotId (igual que los pagos fraccionados)
+  const reservationByLot = new Map<string, typeof reservationsSnap.docs>();
+
+  for (const resDoc of reservationsSnap.docs) {
+    const r = resDoc.data();
+    // Reservas canceladas o sin lote → ignorar
+    if (r.status === "cancelled" || !r.lotId) continue;
+
+    const lotId = r.lotId;
+    if (!reservationByLot.has(lotId)) {
+      reservationByLot.set(lotId, []);
+    }
+    reservationByLot.get(lotId)!.push(resDoc);
+  }
+
+  for (const [lotId, docs] of reservationByLot.entries()) {
+    const firstRes = docs[0].data();
+    const lotData = lotsMap.get(lotId);
+
+    // Si hay un pago fraccionado normal para el mismo lote,
+    // no duplicar (el pago ya cubre esta reserva)
+    if (fractionalGrouped.has(lotId)) continue;
+
+    // Estado de la reserva
+    const resStatus = firstRes.status as
+      | "pending_lot"
+      | "notified"
+      | "paid"
+      | "cancelled";
+    const isPaid = resStatus === "paid";
+
+    // Si está pagada, la mostramos como "compra fraccionada completada"
+    // Si no, la mostramos como "reserva en proceso"
+    let status: Pedido["status"] = isPaid ? "closed" : "accumulating";
+    if (lotData?.status === "closed" && !isPaid) {
+      // El lote cerró pero aún no pagó → sigue en proceso (esperando pago)
+      status = "accumulating";
+    }
+
+    const totalQty = docs.reduce((acc, d) => acc + (d.data().qty || 0), 0);
+    const totalAmount = docs.reduce(
+      (acc, d) => acc + (d.data().productSubtotal || 0),
+      0
+    );
+    const shippingEstimated = firstRes.shippingCostEstimated || 0;
+    const shippingFinal = firstRes.shippingCostFinal || shippingEstimated;
+
+    reservationOrders.push({
+      id: `reservation-${lotId}`,
+      productId: firstRes.productId,
+      productName: firstRes.productName || "Producto",
+      factoryName: firstRes.factoryName || "Fabricante",
+      qty: totalQty,
+      orderType: "fraccionado",
+      lotType:
+        firstRes.shippingMode === "pickup"
+          ? "fraccionado_retiro"
+          : "fraccionado_envio",
+      lotId,
+      isReservation: true,
+      reservationStatus: resStatus,
+      status,
+      amount: totalAmount,
+      shippingCost: isPaid ? shippingFinal : 0, // antes de pagar no mostrar envío como "pagado"
+      shippingCostEstimated: shippingEstimated,
+      total: isPaid
+        ? (firstRes.totalFinal || totalAmount + shippingFinal)
+        : 0,
+      createdAt:
+        firstRes.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+      createdAtTimestamp: firstRes.createdAt?.toMillis() || 0,
+      lotProgress: buildLotProgress(lotId),
+    });
+  }
+
+  /* ── Combinar todo y ordenar ── */
+  const allOrders = [
+    ...fraccionadoOrders,
+    ...reservationOrders,
+    ...directOrders,
+  ];
   allOrders.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
 
   return allOrders;
 }
 
+/* ====================================================
+   PAGE
+==================================================== */
 export default async function PedidosPage() {
   const userId = cookies().get("userId")?.value;
   const role = cookies().get("activeRole")?.value;
@@ -211,7 +335,7 @@ export default async function PedidosPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto p-8">
-        
+
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Mis Pedidos
@@ -240,8 +364,43 @@ export default async function PedidosPage() {
           <div className="space-y-4">
             {orders.map((order) => {
               const isFraccionado = order.orderType === "fraccionado";
-              const isEnProceso = isFraccionado && order.status === "accumulating";
-              
+
+              // ── Es una reserva aún no pagada ──
+              const isReservaActiva =
+                order.isReservation &&
+                (order.reservationStatus === "pending_lot" ||
+                  order.reservationStatus === "notified");
+
+              // ── Es una reserva ya pagada (se muestra como compra completada) ──
+              const isReservaPagada =
+                order.isReservation && order.reservationStatus === "paid";
+
+              // ── Fraccionado normal en proceso (sin reserva) ──
+              const isFraccionadoEnProceso =
+                isFraccionado && !order.isReservation && order.status === "accumulating";
+
+              // ── En proceso = reserva activa O fraccionado acumulando ──
+              const isEnProceso = isReservaActiva || isFraccionadoEnProceso;
+
+              // ── Badge del tipo de pedido ──
+              const badgeLabel = isReservaActiva
+                ? "Reserva"
+                : isFraccionado
+                ? "Compra fraccionada"
+                : "Compra directa";
+
+              const badgeColor = isReservaActiva
+                ? "bg-orange-100 text-orange-800"
+                : isFraccionado
+                ? "bg-purple-100 text-purple-800"
+                : "bg-blue-100 text-blue-800";
+
+              // ── Badge de estado ──
+              const estadoLabel = isEnProceso ? "En proceso" : "Completado";
+              const estadoColor = isEnProceso
+                ? "bg-yellow-100 text-yellow-800"
+                : "bg-green-100 text-green-800";
+
               return (
                 <div
                   key={order.id}
@@ -254,29 +413,24 @@ export default async function PedidosPage() {
                           {order.productName}
                         </h3>
                         <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${
-                            isFraccionado
-                              ? "bg-purple-100 text-purple-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
+                          className={`px-2 py-1 rounded text-xs font-medium ${badgeColor}`}
                         >
-                          {isFraccionado ? "Compra fraccionada" : "Compra directa"}
+                          {badgeLabel}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 mb-1">{order.createdAt}</p>
+                      <p className="text-sm text-gray-500 mb-1">
+                        {order.createdAt}
+                      </p>
                       <p className="text-sm text-gray-600">
-                        <span className="font-medium">Fabricante:</span> {order.factoryName}
+                        <span className="font-medium">Fabricante:</span>{" "}
+                        {order.factoryName}
                       </p>
                     </div>
-                    
+
                     <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        isEnProceso
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-green-100 text-green-800"
-                      }`}
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${estadoColor}`}
                     >
-                      {isEnProceso ? "En progreso" : "Completado"}
+                      {estadoLabel}
                     </span>
                   </div>
 
@@ -297,7 +451,8 @@ export default async function PedidosPage() {
                       <p className="text-gray-500">Modalidad</p>
                       <p className="font-semibold text-gray-900">
                         {isFraccionado
-                          ? order.lotType === "fractional_shipping"
+                          ? order.lotType === "fractional_shipping" ||
+                            order.lotType === "fraccionado_envio"
                             ? "Fraccionado envío"
                             : "Fraccionado retiro"
                           : "Directa"}
@@ -311,7 +466,21 @@ export default async function PedidosPage() {
                       </p>
                     </div>
 
-                    {order.shippingCost > 0 && (
+                    {/* Envío: para reservas activas mostrar estimado con aviso */}
+                    {isReservaActiva && (order.shippingCostEstimated ?? 0) > 0 && (
+                      <div>
+                        <p className="text-gray-500">Envío estimado</p>
+                        <p className="font-semibold text-gray-900">
+                          {formatCurrency(order.shippingCostEstimated ?? 0)}
+                          <span className="text-xs text-gray-400 block font-normal">
+                            (puede bajar)
+                          </span>
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Envío: para pagos normales o reservas pagadas */}
+                    {!isReservaActiva && order.shippingCost > 0 && (
                       <div>
                         <p className="text-gray-500">Envío</p>
                         <p className="font-semibold text-gray-900">
@@ -321,23 +490,37 @@ export default async function PedidosPage() {
                     )}
                   </div>
 
-                  {isFraccionado && isEnProceso && order.lotProgress && (
+                  {/* ── BARRA DE PROGRESO DEL LOTE ── */}
+                  {/* Aparece para reservas activas Y fraccionados normales en proceso */}
+                  {isEnProceso && order.lotProgress && (
                     <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="font-medium text-purple-900">Progreso del lote</span>
+                        <span className="font-medium text-purple-900">
+                          Progreso del lote
+                        </span>
                         <span className="text-purple-700">
-                          {order.lotProgress.currentQty} / {order.lotProgress.targetQty} unidades
+                          {order.lotProgress.currentQty} /{" "}
+                          {order.lotProgress.targetQty} unidades
                         </span>
                       </div>
                       <div className="w-full bg-purple-200 rounded-full h-3 mb-2">
                         <div
                           className="bg-purple-600 h-3 rounded-full transition-all"
-                          style={{ width: `${Math.min(order.lotProgress.percentage, 100)}%` }}
+                          style={{
+                            width: `${Math.min(
+                              order.lotProgress.percentage,
+                              100
+                            )}%`,
+                          }}
                         />
                       </div>
                       <div className="flex justify-between text-xs text-purple-700">
-                        <span>{Math.round(order.lotProgress.percentage)}% completado</span>
-                        <span>Faltan {order.lotProgress.remaining} unidades</span>
+                        <span>
+                          {Math.round(order.lotProgress.percentage)}% completado
+                        </span>
+                        <span>
+                          Faltan {order.lotProgress.remaining} unidades
+                        </span>
                       </div>
                     </div>
                   )}
@@ -345,25 +528,69 @@ export default async function PedidosPage() {
                   <div className="pt-4 border-t border-gray-200">
                     <div className="flex justify-between items-center">
                       <div>
-                        <p className="text-sm text-gray-500">Total pagado</p>
-                        <p className="text-lg font-bold text-gray-900">
-                          {formatCurrency(order.total)}
-                        </p>
+                        {isReservaActiva ? (
+                          <>
+                            <p className="text-sm text-gray-500">
+                              Total estimado
+                            </p>
+                            <p className="text-lg font-bold text-gray-900">
+                              {formatCurrency(
+                                order.amount +
+                                  (order.shippingCostEstimated ?? 0)
+                              )}
+                              <span className="text-xs text-gray-400 font-normal ml-1">
+                                aprox.
+                              </span>
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm text-gray-500">
+                              Total pagado
+                            </p>
+                            <p className="text-lg font-bold text-gray-900">
+                              {formatCurrency(order.total)}
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
-                    
-                    {isFraccionado && isEnProceso && (
+
+                    {/* Mensajes de estado abajo */}
+                    {isReservaActiva && (
+                      <p className="text-xs text-orange-600 mt-3 flex items-center gap-1">
+                        <span>🔖</span>
+                        <span>
+                          Reserva activa — cuando el lote se complete, te
+                          mandamos el link de pago por email
+                        </span>
+                      </p>
+                    )}
+                    {isReservaPagada && (
+                      <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
+                        <span>✅</span>
+                        <span>
+                          Lote completado — El fabricante procesará tu pedido
+                        </span>
+                      </p>
+                    )}
+                    {isFraccionadoEnProceso && (
                       <p className="text-xs text-purple-600 mt-3 flex items-center gap-1">
                         <span>⏳</span>
                         <span>Esperando a que el lote se complete</span>
                       </p>
                     )}
-                    {isFraccionado && !isEnProceso && (
-                      <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
-                        <span>✅</span>
-                        <span>Lote completado - El fabricante procesará tu pedido</span>
-                      </p>
-                    )}
+                    {isFraccionado &&
+                      !isReservaActiva &&
+                      !isReservaPagada &&
+                      !isFraccionadoEnProceso && (
+                        <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
+                          <span>✅</span>
+                          <span>
+                            Lote completado — El fabricante procesará tu pedido
+                          </span>
+                        </p>
+                      )}
                     {!isFraccionado && (
                       <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
                         <span>📦</span>
