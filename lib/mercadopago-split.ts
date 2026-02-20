@@ -25,6 +25,9 @@ type SplitPaymentParams = {
     shippingCost?: number;
     shippingMode?: string;
     commission?: number;
+    // ✅ NUEVO: para el flujo de reserva diferida (pago post-cierre de lote)
+    reservationId?: string;
+    lotId?: string;
   };
   back_urls: {
     success: string;
