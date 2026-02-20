@@ -1,4 +1,7 @@
 // app/explorar/[productId]/page.tsx - DISEÑO ORIGINAL + OPTIMIZADO
+// ✅ CAMBIO: Se agregó ShippingSimulatorSection debajo de la sección de compra
+//    NO se modificó ningún código existente, solo se agregó la importación
+//    y el componente nuevo.
 
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
@@ -6,6 +9,7 @@ import { db } from "../../../lib/firebase-admin";
 import type { Product } from "../../../lib/types/product";
 import ProductPurchaseClient from "../../../components/products/ProductPurchaseClient";
 import ManufacturerInfoCard from "../../../components/ManufacturerInfoCard.tsx";
+import ShippingSimulatorSection from "../../../components/ShippingSimulatorSection";
 import Link from "next/link";
 
 // ✅ OPTIMIZACIÓN: Caché de 30 segundos
@@ -295,6 +299,21 @@ export default async function ProductDetailPage({
 
           </div>
         </div>
+
+        {/* ✅ NUEVO: SIMULADOR DE AHORRO POR ZONA
+            Se muestra DEBAJO de la tarjeta del producto.
+            Solo aparece cuando el usuario está logueado.
+            El componente obtiene el costo de envío real por sí solo
+            llamando a /api/shipping/fraccionado (igual que ProductPurchaseClient).
+        */}
+        {userId && (
+          <div className="bg-white rounded-xl shadow-lg p-8 mt-6">
+            <ShippingSimulatorSection
+              productId={product.id}
+            />
+          </div>
+        )}
+
       </div>
     </div>
   );
