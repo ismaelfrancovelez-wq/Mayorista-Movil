@@ -403,7 +403,15 @@ export async function POST(req: NextRequest) {
           );
 
           if (allPaid) {
-            // Marcar el lote como fully_paid
+            // ── BUG 2+3 FIX: Verificar que el lote NO sea ya fully_paid ──
+            // Previene doble email al fabricante si:
+            //   a) Dos webhooks llegan al mismo tiempo (race condition)
+            //   b) MercadoPago reintenta el webhook
+            const lotCurrentSnap = await db.collection("lots").doc(reservation.lotId).get();
+            if (lotCurrentSnap.data()?.status === "fully_paid") {
+              console.log(`⚠️ Lote ${reservation.lotId} ya fue marcado fully_paid por otro proceso. Saltando email al fabricante.`);
+            } else {
+            // ── Marcar el lote como fully_paid ──
             await db.collection("lots").doc(reservation.lotId).update({
               status: "fully_paid",
               fullyPaidAt: FieldValue.serverTimestamp(),
@@ -411,16 +419,30 @@ export async function POST(req: NextRequest) {
             });
             console.log(`✅ Lote ${reservation.lotId} marcado como fully_paid`);
 
-            // Obtener datos del fabricante para notificarle
+            // ── BUG 1 FIX: Obtener email del fabricante via userId (igual que el flujo original) ──
+            // El campo manufacturers.email suele estar vacío. El email real
+            // está en users/{factoryData.userId}.email — igual que en el flujo original (línea 610-619).
             const factorySnap = await db
               .collection("manufacturers")
               .doc(reservation.factoryId)
               .get();
             const factoryData = factorySnap.data();
-            const factoryEmail = factoryData?.email || "";
             const factoryName = factoryData?.businessName || factoryData?.name || "Fabricante";
             const factoryAddress = factoryData?.address?.formattedAddress || "";
-            const isPickupLot = reservation.shippingMode === "pickup";
+
+            let factoryEmail = factoryData?.email || "";
+            // Si no hay email directo, buscarlo via userId (como hace el flujo original)
+            if (!factoryEmail && factoryData?.userId) {
+              const factoryUserSnap = await db.collection("users").doc(factoryData.userId).get();
+              factoryEmail = factoryUserSnap.data()?.email || "";
+            }
+            console.log(`📧 Email fabricante resuelto: ${factoryEmail || "NO ENCONTRADO"}`);
+
+            // ── BUG 7 FIX: Determinar modalidad desde el tipo del lote, no de una reserva ──
+            // Un lote puede tener compradores pickup Y platform.
+            // El tipo del lote es la fuente de verdad.
+            const lotType = lotCurrentSnap.data()?.type || "";
+            const isPickupLot = lotType.includes("pickup") || lotType.includes("retiro");
 
             // Obtener TODAS las reservas pagadas del lote para armar el resumen
             const allPaidSnap = await db
@@ -513,6 +535,7 @@ export async function POST(req: NextRequest) {
               });
               console.log("✅ Email al fabricante enviado:", factoryEmail);
             }
+            } // cierre del else (lote no era ya fully_paid)
           }
         } catch (allPaidErr) {
           console.error("❌ Error verificando/notificando todos-pagaron:", allPaidErr);

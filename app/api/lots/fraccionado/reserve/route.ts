@@ -22,6 +22,11 @@ import { createSplitPreference } from "../../../../../lib/mercadopago-split";
 import rateLimit from "../../../../../lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+// ✅ BUG 4 FIX: maxDuration para lotes grandes.
+// processLotClosure tarda ~1500ms por comprador (MP preference + Firestore + email + delay 600ms).
+// Con 7+ compradores supera el default de 10s de Vercel y el request se corta.
+// 60 segundos cubre hasta ~40 compradores con margen de sobra.
+export const maxDuration = 60;
 
 const limiter = rateLimit({
   interval: 60 * 1000,
@@ -304,6 +309,15 @@ export async function POST(req: Request) {
     const productData = productSnap.data()!;
     const factoryId = productData.factoryId;
     const minimumOrder = productData.minimumOrder || 0;
+
+    // ✅ BUG 6 FIX: Si minimumOrder es 0, cualquier reserva cierra el lote al instante.
+    // Esto indica un producto mal configurado — rechazarlo con error claro.
+    if (!minimumOrder || minimumOrder <= 0) {
+      return NextResponse.json(
+        { error: "Este producto no tiene un mínimo de compra configurado. Contactá al administrador." },
+        { status: 400 }
+      );
+    }
     const productPrice = productData.price || 0;
     const productName = productData.name || "Producto";
     const productSubtotal = productPrice * Number(qty);
