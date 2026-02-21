@@ -1,6 +1,10 @@
+"use client";
+// app/components/CancelReservationButton.tsx
+//
+// Botón "Dar de baja" para reservas en estado pending_lot.
+// Llama a /api/reservations/cancel y recarga la página al confirmar.
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 interface Props {
   reservationId: string;
@@ -8,7 +12,6 @@ interface Props {
 }
 
 export default function CancelReservationButton({ reservationId, productName }: Props) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +36,7 @@ export default function CancelReservationButton({ reservationId, productName }: 
       }
 
       // Recargar la página para reflejar el cambio
-      router.refresh();
+      window.location.reload();
     } catch {
       setError("Error de conexión. Intentá de nuevo.");
       setLoading(false);

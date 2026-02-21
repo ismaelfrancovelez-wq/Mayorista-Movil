@@ -1,6 +1,11 @@
+"use client";
+// app/components/HideOrderButton.tsx
+//
+// Botón pequeño para ocultar un pedido de la lista del usuario.
+// NO borra datos — solo los esconde visualmente.
+// El dato queda en Firestore para historial y auditoría.
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 interface Props {
   itemId: string;
@@ -8,7 +13,6 @@ interface Props {
 }
 
 export default function HideOrderButton({ itemId, label = "Ocultar" }: Props) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -20,7 +24,8 @@ export default function HideOrderButton({ itemId, label = "Ocultar" }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ itemId }),
       });
-      router.refresh();
+      // Recargar la página para reflejar el cambio
+      window.location.reload();
     } catch {
       setLoading(false);
     }
