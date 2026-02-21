@@ -9,11 +9,16 @@
 //                    + lista de quién pagó y quién no
 //                    + link "Pagar ahora" (el link que llegó por email)
 //
-//   "paid"         → badge "Compra fraccionada" morado + estado "Completado" verde
-//                    (pero SOLO si TODOS los del lote pagaron, sino sigue "A la espera")
+//   "paid" + lote NO fully_paid → badge "Reserva" naranja + estado "A la espera de pagos" azul
+//                    + lista de quién pagó y quién no (el usuario ya pagó = ✅ en la lista)
+//                    SIN botón de pago (ya pagó)
 //
-// Para saber si "todos pagaron", consultamos cuántas reservas del mismo
-// lote siguen en "lot_closed" (sin pagar). Si hay 0 → todos pagaron.
+//   "paid" + lote fully_paid  → badge "Compra fraccionada" morado + estado "Completado" verde
+//
+// IMPORTANTE: cuando alguien paga su reserva, se crea un "payment" en Firestore
+// con isDeferredPayment:true. Ese payment NO se muestra como fila separada —
+// la reserva sigue siendo la fuente de verdad para mostrar el estado.
+// El payment solo existe para registrar el cobro y en el historial de pagos.
 
 import { db } from "../../../../lib/firebase-admin";
 import { cookies } from "next/headers";
@@ -35,12 +40,10 @@ type Pedido = {
   lotId?: string;
   isReservation?: boolean;
   reservationStatus?: ReservationStatus;
-  // Para "lot_closed": otros compradores del mismo lote
   lotMates?: {
     name: string;
     paid: boolean;
   }[];
-  // Link de pago (cuando ya cerró el lote)
   paymentLink?: string;
   totalFinal?: number;
   status: "accumulating" | "lot_closed" | "all_paid" | "completed";
@@ -61,6 +64,7 @@ type Pedido = {
 
 async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
 
+  // ── Traemos payments Y reservas en paralelo ──────────────────────────────
   const [paymentsSnap, myReservationsSnap] = await Promise.all([
     db.collection("payments").where("retailerId", "==", retailerId).limit(50).get(),
     db.collection("reservations")
@@ -70,12 +74,12 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
       .get(),
   ]);
 
-  // Juntar todos los lotIds
+  // ── Juntar todos los lotIds que necesitamos consultar ────────────────────
   const lotIds = new Set<string>();
   paymentsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
   myReservationsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
 
-  // Batch query de lotes
+  // ── Batch query: estado real de todos los lotes desde Firestore ──────────
   const lotsMap = new Map<string, { status: string; accumulatedQty: number; minimumOrder: number }>();
   if (lotIds.size > 0) {
     const arr = Array.from(lotIds);
@@ -91,20 +95,18 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     }
   }
 
-  // Para reservas "lot_closed" o "paid", necesitamos saber
-  // quiénes más reservaron en el mismo lote y si pagaron
-  const lotIdsWithClosedReservations = new Set<string>();
+  // ── Para lotes cerrados: obtener el estado de pago de TODOS los compradores ──
+  const lotIdsNeedingMates = new Set<string>();
   myReservationsSnap.docs.forEach((d) => {
     const r = d.data();
     if ((r.status === "lot_closed" || r.status === "paid") && r.lotId) {
-      lotIdsWithClosedReservations.add(r.lotId);
+      lotIdsNeedingMates.add(r.lotId);
     }
   });
 
-  // Para cada lote con cierre, obtener TODAS las reservas (no solo las mías)
   const lotMatesMap = new Map<string, { name: string; paid: boolean }[]>();
-  if (lotIdsWithClosedReservations.size > 0) {
-    for (const lotId of Array.from(lotIdsWithClosedReservations)) {
+  if (lotIdsNeedingMates.size > 0) {
+    for (const lotId of Array.from(lotIdsNeedingMates)) {
       const allResSnap = await db
         .collection("reservations")
         .where("lotId", "==", lotId)
@@ -119,7 +121,7 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     }
   }
 
-  // Helper: lotProgress
+  // Helper: barra de progreso del lote
   function buildLotProgress(lotId?: string) {
     if (!lotId) return undefined;
     const lot = lotsMap.get(lotId);
@@ -132,12 +134,75 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     };
   }
 
-  /* ── PAYMENTS normales (lógica original sin cambios) ── */
+  // ── PASO 1: RESERVAS (fuente de verdad para el flujo diferido) ───────────
+  //
+  // Procesamos primero las reservas. Guardamos los lotIds ya cubiertos
+  // para no mostrarlos de nuevo desde payments.
+  const reservationLotIds = new Set<string>();
+  const reservationOrders: Pedido[] = [];
+
+  for (const resDoc of myReservationsSnap.docs) {
+    const r = resDoc.data();
+    if (!r.lotId || r.status === "cancelled") continue;
+
+    // Marcar este lotId como "ya procesado por reserva"
+    reservationLotIds.add(r.lotId);
+
+    const resStatus = r.status as ReservationStatus;
+    const mates = lotMatesMap.get(r.lotId) || [];
+    const unpaidCount = mates.filter((m) => !m.paid).length;
+    const allPaid = mates.length > 0 && unpaidCount === 0;
+
+    // ── Estado visual ─────────────────────────────────────────────────────
+    // pending_lot              → accumulating  (esperando cierre del lote)
+    // lot_closed               → lot_closed    (lote cerró, usuario aún no pagó)
+    // paid + otros sin pagar   → lot_closed    (usuario ya pagó, otros no)
+    // paid + todos pagaron     → all_paid      (completado)
+    let pedidoStatus: Pedido["status"] = "accumulating";
+    if (resStatus === "lot_closed") {
+      pedidoStatus = "lot_closed";
+    } else if (resStatus === "paid") {
+      pedidoStatus = allPaid ? "all_paid" : "lot_closed";
+    }
+
+    const shippingFinal = r.shippingCostFinal ?? r.shippingCostEstimated ?? 0;
+
+    reservationOrders.push({
+      id: `reservation-${resDoc.id}`,
+      productId: r.productId,
+      productName: r.productName || "Producto",
+      factoryName: r.factoryName || "Fabricante",
+      qty: r.qty || 0,
+      orderType: "fraccionado",
+      lotType: r.shippingMode === "pickup" ? "fraccionado_retiro" : "fraccionado_envio",
+      lotId: r.lotId,
+      isReservation: true,
+      reservationStatus: resStatus,
+      lotMates: mates,
+      // Solo mostrar link de pago si el usuario TODAVÍA NO pagó (status = lot_closed)
+      paymentLink: resStatus === "lot_closed" ? (r.paymentLink || null) : null,
+      totalFinal: r.totalFinal || null,
+      status: pedidoStatus,
+      amount: r.productSubtotal || 0,
+      shippingCost: (resStatus === "paid" || resStatus === "lot_closed") ? shippingFinal : 0,
+      shippingCostEstimated: r.shippingCostEstimated || 0,
+      total: resStatus === "paid" ? (r.totalFinal || 0) : 0,
+      createdAt: r.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
+      createdAtTimestamp: r.createdAt?.toMillis() || 0,
+      lotProgress: resStatus === "pending_lot" ? buildLotProgress(r.lotId) : undefined,
+    });
+  }
+
+  // ── PASO 2: PAYMENTS normales (fraccionados sin reserva + directos) ──────
+  //
+  // Si un lotId ya está cubierto por una reserva → saltarlo completamente.
+  // Esto incluye los pagos isDeferredPayment (reservas diferidas ya pagadas).
   const fractionalGrouped = new Map<string, { payments: any[]; totalQty: number; totalAmount: number; totalShipping: number; totalTotal: number; oldestDate: number; latestDate: number }>();
   const directOrders: Pedido[] = [];
 
   for (const paymentDoc of paymentsSnap.docs) {
     const p = paymentDoc.data();
+
     if (p.orderType === "directa") {
       directOrders.push({
         id: paymentDoc.id,
@@ -153,7 +218,11 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
         createdAt: p.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
         createdAtTimestamp: p.createdAt?.toMillis() || 0,
       });
+
     } else if (p.orderType === "fraccionado" && p.lotId) {
+      // ✅ Si este lotId ya tiene una reserva → NO procesar el payment acá
+      if (reservationLotIds.has(p.lotId)) continue;
+
       const lotId = p.lotId;
       if (fractionalGrouped.has(lotId)) {
         const g = fractionalGrouped.get(lotId)!;
@@ -182,7 +251,8 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
   for (const [lotId, group] of fractionalGrouped.entries()) {
     const fp = group.payments[0];
     const lotData = lotsMap.get(lotId);
-    const status: Pedido["status"] = lotData?.status === "closed" ? "all_paid" : "accumulating";
+    const status: Pedido["status"] = lotData?.status === "fully_paid" ? "all_paid" : "accumulating";
+
     fraccionadoOrders.push({
       id: lotId,
       productId: fp.productId,
@@ -203,58 +273,7 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     });
   }
 
-  /* ── RESERVAS ── */
-  const reservationOrders: Pedido[] = [];
-  const processedLotIds = new Set(fractionalGrouped.keys());
-
-  for (const resDoc of myReservationsSnap.docs) {
-    const r = resDoc.data();
-    if (!r.lotId || r.status === "cancelled") continue;
-    // No duplicar si ya hay un payment normal para el mismo lote
-    if (processedLotIds.has(r.lotId)) continue;
-
-    const resStatus = r.status as ReservationStatus;
-    const mates = lotMatesMap.get(r.lotId) || [];
-    const unpaidCount = mates.filter((m) => !m.paid).length;
-    const allPaid = mates.length > 0 && unpaidCount === 0;
-
-    // Estado del pedido:
-    // - pending_lot → "accumulating" (esperando que cierre el lote)
-    // - lot_closed → "lot_closed" (lote cerró, esperando pagos)
-    // - paid + todos pagaron → "all_paid" (mostrar como completado)
-    // - paid + quedan sin pagar → "lot_closed" (todavía esperando otros)
-    let pedidoStatus: Pedido["status"] = "accumulating";
-    if (resStatus === "lot_closed") pedidoStatus = "lot_closed";
-    else if (resStatus === "paid") pedidoStatus = allPaid ? "all_paid" : "lot_closed";
-
-    const shippingFinal = r.shippingCostFinal ?? r.shippingCostEstimated ?? 0;
-
-    reservationOrders.push({
-      id: `reservation-${resDoc.id}`,
-      productId: r.productId,
-      productName: r.productName || "Producto",
-      factoryName: r.factoryName || "Fabricante",
-      qty: r.qty || 0,
-      orderType: "fraccionado",
-      lotType: r.shippingMode === "pickup" ? "fraccionado_retiro" : "fraccionado_envio",
-      lotId: r.lotId,
-      isReservation: true,
-      reservationStatus: resStatus,
-      lotMates: mates,
-      paymentLink: r.paymentLink || null,
-      totalFinal: r.totalFinal || null,
-      status: pedidoStatus,
-      amount: r.productSubtotal || 0,
-      shippingCost: resStatus === "paid" ? shippingFinal : 0,
-      shippingCostEstimated: r.shippingCostEstimated || 0,
-      total: resStatus === "paid" ? (r.totalFinal || 0) : 0,
-      createdAt: r.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
-      createdAtTimestamp: r.createdAt?.toMillis() || 0,
-      lotProgress: resStatus === "pending_lot" ? buildLotProgress(r.lotId) : undefined,
-    });
-  }
-
-  const allOrders = [...fraccionadoOrders, ...reservationOrders, ...directOrders];
+  const allOrders = [...reservationOrders, ...fraccionadoOrders, ...directOrders];
   allOrders.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp);
   return allOrders;
 }
@@ -300,16 +319,22 @@ export default async function PedidosPage() {
             {orders.map((order) => {
               const isFraccionado = order.orderType === "fraccionado";
 
-              // ── Qué badge de tipo mostrar ──
+              // Badge de TIPO:
+              // "Reserva" mientras no todos hayan pagado (aunque el usuario ya pagó)
+              // "Compra fraccionada" solo cuando TODOS pagaron
               const isReservaActiva = order.isReservation && order.status !== "all_paid";
-              const badgeLabel = isReservaActiva ? "Reserva" : isFraccionado ? "Compra fraccionada" : "Compra directa";
+              const badgeLabel = isReservaActiva
+                ? "Reserva"
+                : isFraccionado
+                ? "Compra fraccionada"
+                : "Compra directa";
               const badgeColor = isReservaActiva
                 ? "bg-orange-100 text-orange-800"
                 : isFraccionado
                 ? "bg-purple-100 text-purple-800"
                 : "bg-blue-100 text-blue-800";
 
-              // ── Qué badge de estado mostrar ──
+              // Badge de ESTADO:
               let estadoLabel = "Completado";
               let estadoColor = "bg-green-100 text-green-800";
               if (order.status === "accumulating") {
@@ -319,6 +344,12 @@ export default async function PedidosPage() {
                 estadoLabel = "A la espera de pagos";
                 estadoColor = "bg-blue-100 text-blue-800";
               }
+
+              // ¿El usuario ya pagó su reserva pero otros no pagaron aún?
+              const userAlreadyPaid =
+                order.isReservation &&
+                order.reservationStatus === "paid" &&
+                order.status === "lot_closed";
 
               return (
                 <div key={order.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
@@ -365,7 +396,6 @@ export default async function PedidosPage() {
                       <p className="text-gray-500">Producto</p>
                       <p className="font-semibold text-gray-900">{formatCurrency(order.amount)}</p>
                     </div>
-                    {/* Envío */}
                     {order.status === "accumulating" && (order.shippingCostEstimated ?? 0) > 0 && (
                       <div>
                         <p className="text-gray-500">Envío estimado</p>
@@ -405,7 +435,7 @@ export default async function PedidosPage() {
                     </div>
                   )}
 
-                  {/* ── ESTADO DE PAGOS DEL LOTE (cuando cerró) ── */}
+                  {/* ── ESTADO DE PAGOS DEL LOTE (cuando el lote cerró) ── */}
                   {order.status === "lot_closed" && order.lotMates && order.lotMates.length > 0 && (
                     <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <p className="font-medium text-blue-900 text-sm mb-3">
@@ -430,7 +460,7 @@ export default async function PedidosPage() {
                     </div>
                   )}
 
-                  {/* ── BOTÓN PAGAR (si el lote cerró y el usuario no pagó todavía) ── */}
+                  {/* ── BOTÓN PAGAR (solo si el usuario NO pagó todavía) ── */}
                   {order.status === "lot_closed" &&
                     order.reservationStatus === "lot_closed" &&
                     order.paymentLink && (
@@ -456,9 +486,15 @@ export default async function PedidosPage() {
                           </>
                         ) : order.status === "lot_closed" ? (
                           <>
-                            <p className="text-sm text-gray-500">Total a pagar</p>
+                            <p className="text-sm text-gray-500">
+                              {userAlreadyPaid ? "Total pagado" : "Total a pagar"}
+                            </p>
                             <p className="text-lg font-bold text-gray-900">
-                              {formatCurrency(order.totalFinal ?? order.amount)}
+                              {formatCurrency(
+                                userAlreadyPaid
+                                  ? (order.total || order.totalFinal || order.amount)
+                                  : (order.totalFinal ?? order.amount)
+                              )}
                             </p>
                           </>
                         ) : (
@@ -485,10 +521,16 @@ export default async function PedidosPage() {
                         <span>Esperando a que el lote se complete</span>
                       </p>
                     )}
-                    {order.status === "lot_closed" && (
+                    {order.status === "lot_closed" && !userAlreadyPaid && (
                       <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
                         <span>💳</span>
-                        <span>El lote se completó — esperando que todos los compradores paguen</span>
+                        <span>El lote se completó — usá el botón de arriba para confirmar tu compra</span>
+                      </p>
+                    )}
+                    {order.status === "lot_closed" && userAlreadyPaid && (
+                      <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
+                        <span>✅</span>
+                        <span>Tu pago está confirmado — esperando que los demás compradores paguen</span>
                       </p>
                     )}
                     {order.status === "all_paid" && (
