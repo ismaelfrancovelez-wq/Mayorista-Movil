@@ -1,16 +1,4 @@
 // app/dashboard/pedidos-fraccionados/page.tsx
-//
-// ✅ FIX CRÍTICO: Los KPIs y estados de lotes ya NO usan el campo
-// "lotStatus" guardado en los documentos de "payments" (ese valor
-// es estático y nunca se actualiza). Ahora se consulta el estado
-// real del lote desde Firestore ("lots" collection).
-//
-// ESTADOS REALES DEL LOTE en Firestore:
-//   "accumulating" → acumulando unidades
-//   "closed"       → alcanzó el mínimo, esperando que todos paguen
-//   "fully_paid"   → todos pagaron → se notifica al fabricante
-//
-// REGLA: "Compra fraccionada - Completado" solo cuando "fully_paid"
 
 import { db } from "../../../lib/firebase-admin";
 import { cookies } from "next/headers";
@@ -20,12 +8,15 @@ import Link from "next/link";
 import { formatCurrency } from "../../../lib/utils";
 import { Suspense } from "react";
 import { DashboardSkeleton } from "../../../components/DashboardSkeleton";
+import CancelReservationButton from "../../../components/CancelReservationButton";
+import HideOrderButton from "../../../components/HideOrderButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
 
 type ActiveLot = {
-  id: string;
+  id: string;               // id para la lista (y para el botón hide)
+  reservationDocId?: string; // id real del doc reserva (para cancel)
   productId: string;
   productName: string;
   type: string;
@@ -35,8 +26,8 @@ type ActiveLot = {
   progress: number;
   userPayments: number;
   isReservation: boolean;
-  // true = lote cerró o está esperando pagos (NO completado todavía)
-  lotClosed: boolean;
+  isPendingLot: boolean;    // true = pending_lot (puede dar de baja)
+  lotClosed: boolean;       // true = cerró y esperando pagos
   paymentLink?: string;
   totalFinal?: number;
 };
@@ -50,13 +41,14 @@ async function DashboardRevendedorContent() {
   }
 
   /* ── 1. CONSULTAS PARALELAS ── */
-  const [ordersSnap, reservationsSnap] = await Promise.all([
+  const [ordersSnap, reservationsSnap, userSnap] = await Promise.all([
     db.collection("payments").where("buyerId", "==", userId).limit(100).get(),
     db.collection("reservations")
       .where("retailerId", "==", userId)
       .where("status", "in", ["pending_lot", "lot_closed", "paid"])
       .limit(100)
       .get(),
+    db.collection("users").doc(userId).get(),
   ]);
 
   const orders = ordersSnap.docs.map((d) => d.data());
@@ -65,13 +57,14 @@ async function DashboardRevendedorContent() {
     ...d.data(),
   })) as any[];
 
-  /* ── 2. OBTENER ESTADO REAL DE TODOS LOS LOTES DESDE FIRESTORE ── */
-  // Juntamos todos los lotIds que necesitamos verificar
+  // IDs ocultos por el usuario
+  const hiddenIds: string[] = userSnap.data()?.hiddenOrders || [];
+
+  /* ── 2. ESTADO REAL DE LOTES DESDE FIRESTORE ── */
   const allLotIds = new Set<string>();
   orders.forEach((o) => { if (o.lotId) allLotIds.add(o.lotId); });
   reservations.forEach((r) => { if (r.lotId) allLotIds.add(r.lotId); });
 
-  // Mapa: lotId → estado real en Firestore
   const lotsRealStatus = new Map<string, {
     status: string;
     accumulatedQty: number;
@@ -100,39 +93,27 @@ async function DashboardRevendedorContent() {
   }
 
   /* ── 3. KPIs ── */
-
-  // Pedidos directos
   const directOrders = orders.filter((o) => o.orderType === "directa");
 
-  // ✅ BUG 8 FIX: Usar un Set unificado para no contar el mismo lotId dos veces.
-  // Un lote podría tener tanto un payment (isDeferredPayment) como una reserva del mismo usuario.
-  // Sin este fix, ese lote se contaba una vez desde payments y otra desde reservas.
   const fullyPaidLotIds = new Set<string>();
-
   orders.forEach((o) => {
     if (o.orderType === "fraccionado" && o.lotId) {
-      const realStatus = lotsRealStatus.get(o.lotId)?.status;
-      if (realStatus === "fully_paid") fullyPaidLotIds.add(o.lotId);
+      if (lotsRealStatus.get(o.lotId)?.status === "fully_paid") fullyPaidLotIds.add(o.lotId);
     }
   });
   reservations.forEach((r) => {
     if (r.status === "paid" && r.lotId) {
-      const realStatus = lotsRealStatus.get(r.lotId)?.status;
-      if (realStatus === "fully_paid") fullyPaidLotIds.add(r.lotId); // Set deduplica automáticamente
+      if (lotsRealStatus.get(r.lotId)?.status === "fully_paid") fullyPaidLotIds.add(r.lotId);
     }
   });
 
-  // Total = directas + lotes fraccionados fully_paid (el Set ya deduplicó)
   const pedidosTotalesCount = directOrders.length + fullyPaidLotIds.size;
 
-  // "En proceso" = lotes fraccionados NO fully_paid + reservas activas sin pagar
   const activeFractionalLots = new Set<string>();
   orders.forEach((o) => {
     if (o.orderType === "fraccionado" && o.lotId) {
       const realStatus = lotsRealStatus.get(o.lotId)?.status;
-      if (realStatus && realStatus !== "fully_paid") {
-        activeFractionalLots.add(o.lotId);
-      }
+      if (realStatus && realStatus !== "fully_paid") activeFractionalLots.add(o.lotId);
     }
   });
 
@@ -143,17 +124,14 @@ async function DashboardRevendedorContent() {
     }
   });
 
-  const pedidosEnProcesoCount =
-    activeFractionalLots.size + activeReservationLots.size;
+  const pedidosEnProcesoCount = activeFractionalLots.size + activeReservationLots.size;
 
-  // Total invertido = directas + lotes fully_paid + reservas pagadas (any status del lote)
   const totalInvertido =
     orders
       .filter((o) => {
         if (o.orderType === "directa") return true;
         if (o.orderType === "fraccionado" && o.lotId) {
-          const realStatus = lotsRealStatus.get(o.lotId)?.status;
-          return realStatus === "fully_paid";
+          return lotsRealStatus.get(o.lotId)?.status === "fully_paid";
         }
         return false;
       })
@@ -163,10 +141,6 @@ async function DashboardRevendedorContent() {
       .reduce((acc, r) => acc + (r.totalFinal || 0), 0);
 
   /* ── 4. LOTES EN CURSO ── */
-  // Solo mostramos lotes que NO son fully_paid todavía
-  // (accumulating, closed, lot_closed — todos "en proceso")
-
-  // Desde payments (fraccionados pagados normalmente)
   const lotMapFromPayments = new Map<string, {
     lotId: string;
     productId: string;
@@ -179,7 +153,6 @@ async function DashboardRevendedorContent() {
     .filter((o) => {
       if (o.orderType !== "fraccionado" || !o.lotId) return false;
       const realStatus = lotsRealStatus.get(o.lotId)?.status;
-      // Mostrar si NO es fully_paid (accumulating, closed, etc.)
       return realStatus && realStatus !== "fully_paid";
     })
     .forEach((p) => {
@@ -199,9 +172,9 @@ async function DashboardRevendedorContent() {
       }
     });
 
-  // Desde reservas (pending_lot o lot_closed)
   const lotMapFromReservations = new Map<string, {
     lotId: string;
+    reservationDocId: string;
     productId: string;
     productName: string;
     totalQty: number;
@@ -219,6 +192,7 @@ async function DashboardRevendedorContent() {
       } else {
         lotMapFromReservations.set(r.lotId, {
           lotId: r.lotId,
+          reservationDocId: r.id,
           productId: r.productId,
           productName: r.productName || "Producto",
           totalQty: r.qty || 0,
@@ -232,17 +206,15 @@ async function DashboardRevendedorContent() {
   /* ── 5. ARMAR LISTA DE LOTES ACTIVOS ── */
   const activeLots: ActiveLot[] = [];
 
-  // Desde payments
   for (const [lotId, ui] of lotMapFromPayments.entries()) {
+    const listId = lotId;
+    if (hiddenIds.includes(listId)) continue;
+
     const lotReal = lotsRealStatus.get(lotId);
     if (!lotReal) continue;
 
-    // "lotClosed" en la UI significa "el lote cerró y está esperando pagos"
-    // (status = "closed"). NO significa completado (eso es "fully_paid").
-    const lotClosed = lotReal.status === "closed";
-
     activeLots.push({
-      id: lotId,
+      id: listId,
       productId: lotReal.productId || ui.productId,
       productName: ui.productName,
       type: lotReal.type,
@@ -250,26 +222,25 @@ async function DashboardRevendedorContent() {
       minimumOrder: lotReal.minimumOrder,
       userQty: ui.totalQty,
       userPayments: ui.payments,
-      progress:
-        lotReal.minimumOrder > 0
-          ? Math.min((lotReal.accumulatedQty / lotReal.minimumOrder) * 100, 100)
-          : 0,
+      progress: lotReal.minimumOrder > 0
+        ? Math.min((lotReal.accumulatedQty / lotReal.minimumOrder) * 100, 100)
+        : 0,
       isReservation: false,
-      lotClosed,
+      isPendingLot: false,
+      lotClosed: lotReal.status === "closed",
     });
   }
 
-  // Desde reservas
   for (const [lotId, ui] of lotMapFromReservations.entries()) {
+    const listId = `reservation-${lotId}`;
+    if (hiddenIds.includes(listId)) continue;
+
     const lotReal = lotsRealStatus.get(lotId);
     if (!lotReal) continue;
 
-    // Para reservas: "lotClosed" = la reserva está en "lot_closed"
-    // (el lote cerró y el usuario está esperando pagar o ya pagó pero hay otros sin pagar)
-    const lotClosed = ui.status === "lot_closed" || lotReal.status === "closed";
-
     activeLots.push({
-      id: `reservation-${lotId}`,
+      id: listId,
+      reservationDocId: ui.reservationDocId,
       productId: lotReal.productId || ui.productId,
       productName: ui.productName,
       type: lotReal.type,
@@ -277,21 +248,19 @@ async function DashboardRevendedorContent() {
       minimumOrder: lotReal.minimumOrder,
       userQty: ui.totalQty,
       userPayments: 1,
-      progress:
-        lotReal.minimumOrder > 0
-          ? Math.min((lotReal.accumulatedQty / lotReal.minimumOrder) * 100, 100)
-          : 0,
+      progress: lotReal.minimumOrder > 0
+        ? Math.min((lotReal.accumulatedQty / lotReal.minimumOrder) * 100, 100)
+        : 0,
       isReservation: true,
-      lotClosed,
+      isPendingLot: ui.status === "pending_lot",
+      lotClosed: ui.status === "lot_closed" || lotReal.status === "closed",
       paymentLink: ui.paymentLink,
       totalFinal: ui.totalFinal,
     });
   }
 
-  // Completar nombres de productos faltantes
-  const lotsWithoutName = activeLots.filter(
-    (l) => !l.productName || l.productName === "Producto"
-  );
+  // Completar nombres faltantes
+  const lotsWithoutName = activeLots.filter((l) => !l.productName || l.productName === "Producto");
   if (lotsWithoutName.length > 0) {
     const productIds = [...new Set(lotsWithoutName.map((l) => l.productId))];
     for (let i = 0; i < productIds.length; i += 10) {
@@ -358,11 +327,13 @@ async function DashboardRevendedorContent() {
                 return (
                   <div key={lot.id} className="border border-gray-100 rounded-lg p-4">
 
-                    {/* Nombre + badges */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                    {/* Nombre + badges + botón ocultar */}
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-900">{lot.productName}</span>
-                        {lot.isReservation && !lot.lotClosed && (
+
+                        {/* Badge de estado */}
+                        {lot.isReservation && lot.isPendingLot && (
                           <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded font-medium">
                             Reserva
                           </span>
@@ -378,9 +349,16 @@ async function DashboardRevendedorContent() {
                           </span>
                         )}
                       </div>
-                      <span className="text-sm text-gray-500">
-                        {lot.accumulatedQty} / {lot.minimumOrder} unidades
-                      </span>
+
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-gray-500">
+                          {lot.accumulatedQty} / {lot.minimumOrder} uds.
+                        </span>
+                        {/* Ocultar lote del dashboard (solo completados o pagados) */}
+                        {!lot.isPendingLot && !lot.lotClosed && (
+                          <HideOrderButton itemId={lot.id} label="Ocultar" />
+                        )}
+                      </div>
                     </div>
 
                     <p className="text-xs text-gray-500 mb-3">
@@ -389,7 +367,7 @@ async function DashboardRevendedorContent() {
                         ` en ${lot.userPayments} compras`}
                     </p>
 
-                    {/* Barra de progreso solo si el lote NO cerró todavía */}
+                    {/* Barra de progreso solo si NO cerró */}
                     {!lot.lotClosed && (
                       <>
                         <div className="w-full bg-gray-200 rounded-full h-3">
@@ -401,7 +379,7 @@ async function DashboardRevendedorContent() {
                         {isNearComplete && (
                           <p className="text-xs text-green-600 mt-1">¡Cerca de completarse!</p>
                         )}
-                        {lot.isReservation && (
+                        {lot.isReservation && lot.isPendingLot && (
                           <p className="text-xs text-orange-600 mt-1">
                             🔖 Cuando el lote se complete, te mandamos el link de pago por email
                           </p>
@@ -409,7 +387,7 @@ async function DashboardRevendedorContent() {
                       </>
                     )}
 
-                    {/* Si el lote cerró y tiene link de pago (reserva) */}
+                    {/* Lote cerró + tiene link de pago (reserva) */}
                     {lot.lotClosed && lot.isReservation && lot.paymentLink && (
                       <div className="mt-2">
                         <p className="text-xs text-blue-700 mb-2">
@@ -424,10 +402,26 @@ async function DashboardRevendedorContent() {
                       </div>
                     )}
 
-                    {/* Si el lote cerró y es un pago normal (fraccionado ya pagado, esperando otros) */}
+                    {/* Lote cerró + pago normal (esperando otros) */}
                     {lot.lotClosed && !lot.isReservation && (
                       <p className="text-xs text-yellow-700 mt-1">
                         ⏳ Tu pago está confirmado — esperando que los demás compradores del lote paguen
+                      </p>
+                    )}
+
+                    {/* ── BOTÓN DAR DE BAJA (solo si pending_lot) ── */}
+                    {lot.isReservation && lot.isPendingLot && lot.reservationDocId && (
+                      <CancelReservationButton
+                        reservationId={lot.reservationDocId}
+                        productName={lot.productName}
+                      />
+                    )}
+
+                    {/* ── BLOQUEADO si quiere cancelar en lot_closed ── */}
+                    {lot.isReservation && lot.lotClosed && (
+                      <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                        <span>🔒</span>
+                        <span>El lote cerró — no es posible darse de baja en esta etapa</span>
                       </p>
                     )}
                   </div>

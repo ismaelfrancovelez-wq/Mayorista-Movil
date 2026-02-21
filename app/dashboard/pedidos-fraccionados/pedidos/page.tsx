@@ -1,28 +1,9 @@
-// app/dashboard/pedidos-fraccionados/pedidos/page.tsx
-//
-// ESTADOS DE RESERVA Y LO QUE MUESTRA EL USUARIO:
-//
-//   "pending_lot"  → badge "Reserva" naranja + estado "En proceso" amarillo
-//                    + barra de progreso del lote
-//
-//   "lot_closed"   → badge "Reserva" naranja + estado "A la espera de pagos" azul
-//                    + lista de quién pagó y quién no
-//                    + link "Pagar ahora" (el link que llegó por email)
-//
-//   "paid" + lote NO fully_paid → badge "Reserva" naranja + estado "A la espera de pagos" azul
-//                    + lista de quién pagó y quién no (el usuario ya pagó = ✅ en la lista)
-//                    SIN botón de pago (ya pagó)
-//
-//   "paid" + lote fully_paid  → badge "Compra fraccionada" morado + estado "Completado" verde
-//
-// IMPORTANTE: cuando alguien paga su reserva, se crea un "payment" en Firestore
-// con isDeferredPayment:true. Ese payment NO se muestra como fila separada —
-// la reserva sigue siendo la fuente de verdad para mostrar el estado.
-// El payment solo existe para registrar el cobro y en el historial de pagos.
 
 import { db } from "../../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import { formatCurrency } from "../../../../lib/utils";
+import CancelReservationButton from "../../../../components/CancelReservationButton";
+import HideOrderButton from "../../../../components/HideOrderButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
@@ -30,7 +11,8 @@ export const revalidate = 10;
 type ReservationStatus = "pending_lot" | "lot_closed" | "paid" | "cancelled";
 
 type Pedido = {
-  id: string;
+  id: string;                     // id único en la lista (para hide)
+  reservationDocId?: string;      // ID real del doc en Firestore (para cancel)
   productId: string;
   productName: string;
   factoryName: string;
@@ -40,10 +22,7 @@ type Pedido = {
   lotId?: string;
   isReservation?: boolean;
   reservationStatus?: ReservationStatus;
-  lotMates?: {
-    name: string;
-    paid: boolean;
-  }[];
+  lotMates?: { name: string; paid: boolean }[];
   paymentLink?: string;
   totalFinal?: number;
   status: "accumulating" | "lot_closed" | "all_paid" | "completed";
@@ -54,6 +33,7 @@ type Pedido = {
   createdAt: string;
   createdAtTimestamp: number;
   purchaseCount?: number;
+  lotClosedAt?: number;           // timestamp ms del cierre del lote (para countdown)
   lotProgress?: {
     currentQty: number;
     targetQty: number;
@@ -62,9 +42,120 @@ type Pedido = {
   };
 };
 
-async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
+// ── Tabla de beneficios/sanciones ────────────────────────────────────────────
+// Se muestra cuando el lote cerró y el usuario todavía no pagó
+function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
+  const now = Date.now();
+  const elapsed = lotClosedAtMs ? Math.floor((now - lotClosedAtMs) / (1000 * 60 * 60)) : 0;
 
-  // ── Traemos payments Y reservas en paralelo ──────────────────────────────
+  // Calcular tiempo restante hasta las 96h
+  const hoursLeft = lotClosedAtMs
+    ? Math.max(0, 96 - Math.floor((now - lotClosedAtMs) / (1000 * 60 * 60)))
+    : 96;
+  const daysLeft = Math.floor(hoursLeft / 24);
+  const hoursRemainder = hoursLeft % 24;
+
+  const countdownText =
+    hoursLeft === 0
+      ? "⏰ Plazo vencido"
+      : daysLeft > 0
+      ? `⏰ ${daysLeft}d ${hoursRemainder}h restantes`
+      : `⏰ ${hoursLeft}h restantes`;
+
+  const countdownColor = hoursLeft <= 24 ? "text-red-600 font-bold" : hoursLeft <= 48 ? "text-orange-600 font-semibold" : "text-blue-700 font-semibold";
+
+  const tiers = [
+    {
+      range: "Dentro de 24h",
+      icon: "🌟",
+      label: "RÁPIDO",
+      benefit: "+5 puntos de confianza · Prioridad garantizada en el próximo lote",
+      color: "bg-green-50 border-green-300 text-green-800",
+      iconBg: "bg-green-100",
+      active: elapsed <= 24,
+    },
+    {
+      range: "Entre 24h y 48h",
+      icon: "✅",
+      label: "A TIEMPO",
+      benefit: "Sin penalización",
+      color: "bg-gray-50 border-gray-200 text-gray-700",
+      iconBg: "bg-gray-100",
+      active: elapsed > 24 && elapsed <= 48,
+    },
+    {
+      range: "Entre 48h y 72h",
+      icon: "⚠️",
+      label: "TARDÍO",
+      benefit: "−3 puntos de confianza",
+      color: "bg-yellow-50 border-yellow-300 text-yellow-800",
+      iconBg: "bg-yellow-100",
+      active: elapsed > 48 && elapsed <= 72,
+    },
+    {
+      range: "Entre 72h y 96h",
+      icon: "🔴",
+      label: "MUY TARDÍO",
+      benefit: "−8 puntos · Última posición en los próximos lotes",
+      color: "bg-orange-50 border-orange-300 text-orange-800",
+      iconBg: "bg-orange-100",
+      active: elapsed > 72 && elapsed <= 96,
+    },
+    {
+      range: "Después de 96h",
+      icon: "❌",
+      label: "CANCELADO",
+      benefit: "Reserva cancelada automáticamente · 30 días sin poder reservar este producto",
+      color: "bg-red-50 border-red-300 text-red-800",
+      iconBg: "bg-red-100",
+      active: elapsed > 96,
+    },
+  ];
+
+  return (
+    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+      {/* Countdown */}
+      {lotClosedAtMs && (
+        <div className={`text-center text-sm mb-3 ${countdownColor}`}>
+          {countdownText} para pagar sin penalización
+        </div>
+      )}
+
+      <p className="text-xs font-semibold text-blue-900 mb-2 uppercase tracking-wide">
+        💡 Beneficios y sanciones según cuándo pagás
+      </p>
+
+      <div className="space-y-1.5">
+        {tiers.map((tier) => (
+          <div
+            key={tier.range}
+            className={`flex items-center gap-2 p-2 rounded border text-xs ${tier.color} ${tier.active ? "ring-2 ring-blue-400" : ""}`}
+          >
+            <span className={`w-7 h-7 flex items-center justify-center rounded-full text-base flex-shrink-0 ${tier.iconBg}`}>
+              {tier.icon}
+            </span>
+            <div className="flex-1 min-w-0">
+              <span className="font-semibold">{tier.range}</span>
+              <span className="mx-1 text-gray-400">·</span>
+              <span>{tier.benefit}</span>
+            </div>
+            {tier.active && (
+              <span className="text-blue-700 font-bold text-xs flex-shrink-0">← ahora</span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <p className="text-xs text-blue-700 mt-2.5 text-center">
+        🏆 3 pagos consecutivos dentro de 24h → badge <strong>"Comprador VIP"</strong> y acceso prioritario permanente
+      </p>
+    </div>
+  );
+}
+
+// ── Función principal de datos ────────────────────────────────────────────────
+async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promise<Pedido[]> {
+
   const [paymentsSnap, myReservationsSnap] = await Promise.all([
     db.collection("payments").where("retailerId", "==", retailerId).limit(50).get(),
     db.collection("reservations")
@@ -74,13 +165,13 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
       .get(),
   ]);
 
-  // ── Juntar todos los lotIds que necesitamos consultar ────────────────────
+  // Juntar todos los lotIds
   const lotIds = new Set<string>();
   paymentsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
   myReservationsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
 
-  // ── Batch query: estado real de todos los lotes desde Firestore ──────────
-  const lotsMap = new Map<string, { status: string; accumulatedQty: number; minimumOrder: number }>();
+  // Estado real de los lotes
+  const lotsMap = new Map<string, { status: string; accumulatedQty: number; minimumOrder: number; closedAt?: number }>();
   if (lotIds.size > 0) {
     const arr = Array.from(lotIds);
     for (let i = 0; i < arr.length; i += 10) {
@@ -90,12 +181,13 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
           status: d.data().status,
           accumulatedQty: d.data().accumulatedQty || 0,
           minimumOrder: d.data().minimumOrder || d.data().minimumQty || 0,
+          closedAt: d.data().closedAt?.toMillis?.() || undefined,
         });
       });
     }
   }
 
-  // ── Para lotes cerrados: obtener el estado de pago de TODOS los compradores ──
+  // Para lotes cerrados: quién pagó y quién no
   const lotIdsNeedingMates = new Set<string>();
   myReservationsSnap.docs.forEach((d) => {
     const r = d.data();
@@ -113,15 +205,16 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
         .where("status", "in", ["lot_closed", "paid"])
         .get();
 
-      const mates = allResSnap.docs.map((d) => ({
-        name: d.data().retailerName || "Comprador",
-        paid: d.data().status === "paid",
-      }));
-      lotMatesMap.set(lotId, mates);
+      lotMatesMap.set(
+        lotId,
+        allResSnap.docs.map((d) => ({
+          name: d.data().retailerName || "Comprador",
+          paid: d.data().status === "paid",
+        }))
+      );
     }
   }
 
-  // Helper: barra de progreso del lote
   function buildLotProgress(lotId?: string) {
     if (!lotId) return undefined;
     const lot = lotsMap.get(lotId);
@@ -134,10 +227,7 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     };
   }
 
-  // ── PASO 1: RESERVAS (fuente de verdad para el flujo diferido) ───────────
-  //
-  // Procesamos primero las reservas. Guardamos los lotIds ya cubiertos
-  // para no mostrarlos de nuevo desde payments.
+  // ── PASO 1: RESERVAS (fuente de verdad para el flujo diferido) ────────────
   const reservationLotIds = new Set<string>();
   const reservationOrders: Pedido[] = [];
 
@@ -145,7 +235,10 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     const r = resDoc.data();
     if (!r.lotId || r.status === "cancelled") continue;
 
-    // Marcar este lotId como "ya procesado por reserva"
+    const listId = `reservation-${resDoc.id}`;
+    // Filtrar los ocultos
+    if (hiddenIds.includes(listId)) continue;
+
     reservationLotIds.add(r.lotId);
 
     const resStatus = r.status as ReservationStatus;
@@ -153,11 +246,6 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     const unpaidCount = mates.filter((m) => !m.paid).length;
     const allPaid = mates.length > 0 && unpaidCount === 0;
 
-    // ── Estado visual ─────────────────────────────────────────────────────
-    // pending_lot              → accumulating  (esperando cierre del lote)
-    // lot_closed               → lot_closed    (lote cerró, usuario aún no pagó)
-    // paid + otros sin pagar   → lot_closed    (usuario ya pagó, otros no)
-    // paid + todos pagaron     → all_paid      (completado)
     let pedidoStatus: Pedido["status"] = "accumulating";
     if (resStatus === "lot_closed") {
       pedidoStatus = "lot_closed";
@@ -166,9 +254,11 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     }
 
     const shippingFinal = r.shippingCostFinal ?? r.shippingCostEstimated ?? 0;
+    const lotData = lotsMap.get(r.lotId);
 
     reservationOrders.push({
-      id: `reservation-${resDoc.id}`,
+      id: listId,
+      reservationDocId: resDoc.id,
       productId: r.productId,
       productName: r.productName || "Producto",
       factoryName: r.factoryName || "Fabricante",
@@ -179,7 +269,6 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
       isReservation: true,
       reservationStatus: resStatus,
       lotMates: mates,
-      // Solo mostrar link de pago si el usuario TODAVÍA NO pagó (status = lot_closed)
       paymentLink: resStatus === "lot_closed" ? (r.paymentLink || null) : null,
       totalFinal: r.totalFinal || null,
       status: pedidoStatus,
@@ -189,14 +278,12 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
       total: resStatus === "paid" ? (r.totalFinal || 0) : 0,
       createdAt: r.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
       createdAtTimestamp: r.createdAt?.toMillis() || 0,
+      lotClosedAt: r.lotClosedAt?.toMillis?.() || lotData?.closedAt || undefined,
       lotProgress: resStatus === "pending_lot" ? buildLotProgress(r.lotId) : undefined,
     });
   }
 
-  // ── PASO 2: PAYMENTS normales (fraccionados sin reserva + directos) ──────
-  //
-  // Si un lotId ya está cubierto por una reserva → saltarlo completamente.
-  // Esto incluye los pagos isDeferredPayment (reservas diferidas ya pagadas).
+  // ── PASO 2: PAYMENTS normales ─────────────────────────────────────────────
   const fractionalGrouped = new Map<string, { payments: any[]; totalQty: number; totalAmount: number; totalShipping: number; totalTotal: number; oldestDate: number; latestDate: number }>();
   const directOrders: Pedido[] = [];
 
@@ -204,8 +291,11 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
     const p = paymentDoc.data();
 
     if (p.orderType === "directa") {
+      const listId = `payment-${paymentDoc.id}`;
+      if (hiddenIds.includes(listId)) continue;
+
       directOrders.push({
-        id: paymentDoc.id,
+        id: listId,
         productId: p.productId,
         productName: p.productName || "Producto",
         factoryName: p.factoryName || "Fabricante",
@@ -220,8 +310,8 @@ async function getRetailerOrders(retailerId: string): Promise<Pedido[]> {
       });
 
     } else if (p.orderType === "fraccionado" && p.lotId) {
-      // ✅ Si este lotId ya tiene una reserva → NO procesar el payment acá
       if (reservationLotIds.has(p.lotId)) continue;
+      if (hiddenIds.includes(p.lotId)) continue;
 
       const lotId = p.lotId;
       if (fractionalGrouped.has(lotId)) {
@@ -296,7 +386,11 @@ export default async function PedidosPage() {
     );
   }
 
-  const orders = await getRetailerOrders(userId);
+  // Obtener lista de pedidos ocultos del usuario
+  const userSnap = await db.collection("users").doc(userId).get();
+  const hiddenIds: string[] = userSnap.data()?.hiddenOrders || [];
+
+  const orders = await getRetailerOrders(userId, hiddenIds);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -309,7 +403,7 @@ export default async function PedidosPage() {
 
         {orders.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <p className="text-gray-500 text-lg mb-4">No tienes pedidos todavía</p>
+            <p className="text-gray-500 text-lg mb-4">No tenés pedidos todavía</p>
             <a href="/explorar" className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
               Explorar productos
             </a>
@@ -318,11 +412,9 @@ export default async function PedidosPage() {
           <div className="space-y-4">
             {orders.map((order) => {
               const isFraccionado = order.orderType === "fraccionado";
-
-              // Badge de TIPO:
-              // "Reserva" mientras no todos hayan pagado (aunque el usuario ya pagó)
-              // "Compra fraccionada" solo cuando TODOS pagaron
               const isReservaActiva = order.isReservation && order.status !== "all_paid";
+
+              // ── Badge de TIPO ────────────────────────────────────────────
               const badgeLabel = isReservaActiva
                 ? "Reserva"
                 : isFraccionado
@@ -334,7 +426,7 @@ export default async function PedidosPage() {
                 ? "bg-purple-100 text-purple-800"
                 : "bg-blue-100 text-blue-800";
 
-              // Badge de ESTADO:
+              // ── Badge de ESTADO ──────────────────────────────────────────
               let estadoLabel = "Completado";
               let estadoColor = "bg-green-100 text-green-800";
               if (order.status === "accumulating") {
@@ -345,7 +437,7 @@ export default async function PedidosPage() {
                 estadoColor = "bg-blue-100 text-blue-800";
               }
 
-              // ¿El usuario ya pagó su reserva pero otros no pagaron aún?
+              // ¿El usuario ya pagó pero otros no?
               const userAlreadyPaid =
                 order.isReservation &&
                 order.reservationStatus === "paid" &&
@@ -353,9 +445,11 @@ export default async function PedidosPage() {
 
               return (
                 <div key={order.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
+
+                  {/* Header: nombre + badges + botón ocultar */}
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <h3 className="text-xl font-semibold text-gray-900">{order.productName}</h3>
                         <span className={`px-2 py-1 rounded text-xs font-medium ${badgeColor}`}>
                           {badgeLabel}
@@ -366,9 +460,15 @@ export default async function PedidosPage() {
                         <span className="font-medium">Fabricante:</span> {order.factoryName}
                       </p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${estadoColor}`}>
-                      {estadoLabel}
-                    </span>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${estadoColor}`}>
+                        {estadoLabel}
+                      </span>
+                      {/* Botón ocultar — disponible para completados y pagados */}
+                      {(order.status === "all_paid" || order.status === "completed" || !order.isReservation) && (
+                        <HideOrderButton itemId={order.id} label="Ocultar pedido" />
+                      )}
+                    </div>
                   </div>
 
                   {/* Info del pedido */}
@@ -435,7 +535,12 @@ export default async function PedidosPage() {
                     </div>
                   )}
 
-                  {/* ── ESTADO DE PAGOS DEL LOTE (cuando el lote cerró) ── */}
+                  {/* ── TABLA DE BENEFICIOS/SANCIONES (cuando el lote cerró y no pagó aún) ── */}
+                  {order.status === "lot_closed" && order.reservationStatus === "lot_closed" && (
+                    <PaymentTiersTable lotClosedAtMs={order.lotClosedAt} />
+                  )}
+
+                  {/* ── ESTADO DE PAGOS DEL LOTE ── */}
                   {order.status === "lot_closed" && order.lotMates && order.lotMates.length > 0 && (
                     <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <p className="font-medium text-blue-900 text-sm mb-3">
@@ -460,7 +565,7 @@ export default async function PedidosPage() {
                     </div>
                   )}
 
-                  {/* ── BOTÓN PAGAR (solo si el usuario NO pagó todavía) ── */}
+                  {/* ── BOTÓN PAGAR (solo si el usuario todavía no pagó) ── */}
                   {order.status === "lot_closed" &&
                     order.reservationStatus === "lot_closed" &&
                     order.paymentLink && (
@@ -524,7 +629,7 @@ export default async function PedidosPage() {
                     {order.status === "lot_closed" && !userAlreadyPaid && (
                       <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
                         <span>💳</span>
-                        <span>El lote se completó — usá el botón de arriba para confirmar tu compra</span>
+                        <span>El lote se completó — pagá antes de que se venza el plazo para no perder tu lugar</span>
                       </p>
                     )}
                     {order.status === "lot_closed" && userAlreadyPaid && (
@@ -543,6 +648,24 @@ export default async function PedidosPage() {
                       <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
                         <span>📦</span>
                         <span>Compra directa completada</span>
+                      </p>
+                    )}
+
+                    {/* ── BOTÓN DAR DE BAJA (solo pending_lot) ── */}
+                    {order.isReservation &&
+                      order.reservationStatus === "pending_lot" &&
+                      order.reservationDocId && (
+                      <CancelReservationButton
+                        reservationId={order.reservationDocId}
+                        productName={order.productName}
+                      />
+                    )}
+
+                    {/* ── MENSAJE BLOQUEADO si quiere cancelar en lot_closed ── */}
+                    {order.isReservation && order.reservationStatus === "lot_closed" && (
+                      <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
+                        <span>🔒</span>
+                        <span>El lote ya alcanzó el mínimo — no es posible darse de baja en esta etapa</span>
                       </p>
                     )}
                   </div>
