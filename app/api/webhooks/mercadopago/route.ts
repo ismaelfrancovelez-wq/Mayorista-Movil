@@ -257,24 +257,19 @@ export async function POST(req: NextRequest) {
       const reservationSnap = await reservationRef.get();
 
       if (!reservationSnap.exists) {
-        console.error(
-          "❌ Reserva no encontrada:",
-          normalizedMetadata.reservationId
-        );
-        throw new Error(
-          `Reserva ${normalizedMetadata.reservationId} no encontrada`
-        );
+        console.error("❌ Reserva no encontrada:", normalizedMetadata.reservationId);
+        throw new Error(`Reserva ${normalizedMetadata.reservationId} no encontrada`);
       }
 
       const reservation = reservationSnap.data()!;
 
-      // Si ya fue pagada, ignorar (idempotencia)
+      // Idempotencia: si ya fue pagada, ignorar
       if (reservation.status === "paid") {
         console.log("✅ Reserva ya marcada como pagada previamente");
         return NextResponse.json({ ok: true, message: "Already paid" });
       }
 
-      // Marcar la reserva como pagada
+      // ── 1. Marcar reserva como pagada ──
       await reservationRef.update({
         status: "paid",
         paidAt: FieldValue.serverTimestamp(),
@@ -282,7 +277,7 @@ export async function POST(req: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Guardar el pago en la colección payments (misma estructura que siempre)
+      // ── 2. Guardar pago en "payments" ──
       await paymentDocRef.set({
         paymentId,
         status: payment.status,
@@ -294,10 +289,7 @@ export async function POST(req: NextRequest) {
         productName: reservation.productName,
         qty: reservation.qty,
         orderType: "fraccionado",
-        lotType:
-          reservation.shippingMode === "pickup"
-            ? "fraccionado_retiro"
-            : "fraccionado_envio",
+        lotType: reservation.shippingMode === "pickup" ? "fraccionado_retiro" : "fraccionado_envio",
         type: "fractional",
         lotStatus: "closed",
         lotId: reservation.lotId || null,
@@ -307,11 +299,10 @@ export async function POST(req: NextRequest) {
         total: payment.transaction_amount || 0,
         createdAt: FieldValue.serverTimestamp(),
         processed: true,
-        // Marcar que este pago es del flujo diferido (para estadísticas)
         isDeferredPayment: true,
       });
 
-      // Crear la orden final
+      // ── 3. Crear orden ──
       const orderRef = db.collection("orders").doc();
       await orderRef.set({
         id: orderRef.id,
@@ -327,10 +318,7 @@ export async function POST(req: NextRequest) {
         shippingMode: reservation.shippingMode,
         shippingCost: reservation.shippingCostFinal || 0,
         orderType: "fraccionado",
-        lotType:
-          reservation.shippingMode === "pickup"
-            ? "fraccionado_retiro"
-            : "fraccionado_envio",
+        lotType: reservation.shippingMode === "pickup" ? "fraccionado_retiro" : "fraccionado_envio",
         lotId: reservation.lotId || null,
         status: "pendiente",
         isDeferredPayment: true,
@@ -338,81 +326,198 @@ export async function POST(req: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      console.log(
-        "✅ Pago de reserva diferida procesado. Orden creada:",
-        orderRef.id
-      );
+      console.log("✅ Pago de reserva diferida procesado. Orden creada:", orderRef.id);
 
-      // Enviar email de confirmación al comprador
+      // ── 4. Email de confirmación al comprador ──
       try {
-        const userSnap = await db
-          .collection("users")
-          .doc(reservation.retailerId)
-          .get();
-        const buyerEmail =
-          reservation.retailerEmail || userSnap.data()?.email || "";
-
+        const buyerEmail = reservation.retailerEmail || "";
         if (buyerEmail) {
           const shippingFinal = reservation.shippingCostFinal || 0;
           const isPickup = reservation.shippingMode === "pickup";
-          const html = `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f5f5f5;}
-    .container{background:white;border-radius:8px;padding:30px;box-shadow:0 2px 4px rgba(0,0,0,.1);}
-    .header{text-align:center;border-bottom:3px solid #10b981;padding-bottom:20px;margin-bottom:30px;}
-    .header h1{color:#10b981;margin:0;font-size:24px;}
-    .section{margin:25px 0;padding:20px;background:#f9fafb;border-radius:6px;border-left:4px solid #10b981;}
-    .row{margin:10px 0;}
-    .label{font-weight:600;color:#6b7280;}
-    .value{font-weight:600;color:#111827;}
-    .success{background:#d1fae5;border:2px solid #10b981;border-radius:6px;padding:15px;margin:20px 0;text-align:center;}
-    .footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:14px;}
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>✅ ¡Pago confirmado!</h1>
-    </div>
-    <div class="success">
-      <strong>Tu compra está confirmada</strong>
-    </div>
-    <p>¡Hola <strong>${reservation.retailerName}</strong>! Tu pago fue procesado correctamente.</p>
-    <div class="section">
-      <h3 style="margin-top:0;">📦 Tu pedido</h3>
-      <div class="row"><span class="label">Producto:</span> <span class="value">${reservation.productName}</span></div>
-      <div class="row"><span class="label">Cantidad:</span> <span class="value">${reservation.qty} unidades</span></div>
-      <div class="row"><span class="label">Total pagado:</span> <span class="value">$${(payment.transaction_amount || 0).toLocaleString("es-AR")}</span></div>
-      <div class="row"><span class="label">Envío:</span> <span class="value">${isPickup ? "Retiro en fábrica" : `$${shippingFinal.toLocaleString("es-AR")}`}</span></div>
-    </div>
-    <div class="section">
-      <h3 style="margin-top:0;">⏰ Próximos pasos</h3>
-      <ol style="margin:15px 0;padding-left:20px;">
-        <li>${isPickup ? "El fabricante preparará tu pedido para retiro" : "Coordinaremos la entrega a tu dirección"}</li>
-        <li>Te contactaremos pronto con los detalles</li>
-      </ol>
-    </div>
-    <div class="footer">
-      <p><strong>Mayorista Móvil</strong></p>
-    </div>
+          const confirmHtml = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f5f5f5;}
+  .container{background:white;border-radius:8px;padding:30px;box-shadow:0 2px 4px rgba(0,0,0,.1);}
+  .header{text-align:center;border-bottom:3px solid #10b981;padding-bottom:20px;margin-bottom:30px;}
+  .header h1{color:#10b981;margin:0;font-size:24px;}
+  .section{margin:25px 0;padding:20px;background:#f9fafb;border-radius:6px;border-left:4px solid #10b981;}
+  .row{margin:10px 0;}.label{font-weight:600;color:#6b7280;}.value{font-weight:600;color:#111827;}
+  .success{background:#d1fae5;border:2px solid #10b981;border-radius:6px;padding:15px;margin:20px 0;text-align:center;}
+  .footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:14px;}
+</style></head><body><div class="container">
+  <div class="header"><h1>✅ ¡Pago confirmado!</h1></div>
+  <div class="success"><strong>Tu compra está confirmada</strong></div>
+  <p>¡Hola <strong>${reservation.retailerName}</strong>! Tu pago fue procesado correctamente.</p>
+  <div class="section">
+    <h3 style="margin-top:0;">📦 Tu pedido</h3>
+    <div class="row"><span class="label">Producto:</span> <span class="value">${reservation.productName}</span></div>
+    <div class="row"><span class="label">Cantidad:</span> <span class="value">${reservation.qty} unidades</span></div>
+    <div class="row"><span class="label">Total pagado:</span> <span class="value">$${(payment.transaction_amount || 0).toLocaleString("es-AR")}</span></div>
+    <div class="row"><span class="label">Envío:</span> <span class="value">${isPickup ? "Retiro en fábrica" : `$${shippingFinal.toLocaleString("es-AR")}`}</span></div>
   </div>
-</body>
-</html>`;
+  <div class="section">
+    <h3 style="margin-top:0;">⏰ Próximos pasos</h3>
+    <ol style="margin:15px 0;padding-left:20px;">
+      <li>${isPickup ? "El fabricante preparará tu pedido para retiro" : "Coordinaremos la entrega a tu dirección"}</li>
+      <li>Te contactaremos pronto con los detalles</li>
+    </ol>
+  </div>
+  <div class="footer"><p><strong>Mayorista Móvil</strong></p></div>
+</div></body></html>`;
 
           await sendEmail({
             to: buyerEmail,
             subject: `✅ Pago confirmado — ${reservation.productName}`,
-            html,
+            html: confirmHtml,
           });
-          console.log("✅ Email de confirmación enviado a:", buyerEmail);
+          console.log("✅ Email de confirmación enviado al comprador:", buyerEmail);
         }
       } catch (emailErr) {
-        console.error("❌ Error enviando email de confirmación:", emailErr);
-        // No lanzar error — el pago ya fue procesado
+        console.error("❌ Error enviando email de confirmación al comprador:", emailErr);
+      }
+
+      // ── 5. Verificar si TODOS los compradores del lote ya pagaron ──
+      //
+      // Buscamos cuántas reservas del mismo lote todavía están en "lot_closed"
+      // (es decir, sin pagar). Si el resultado es 0 → todos pagaron.
+      //
+      // ✅ ESTE ES EL PUNTO CORRECTO para notificar al fabricante:
+      //    NO cuando cierra el lote (porque los pagos aún no llegaron),
+      //    SINO cuando el último comprador paga.
+      //
+      // El pago al fabricante en MercadoPago ya se libera automáticamente
+      // cuando cada comprador paga su preferencia individual (split payment).
+      // No hay que "liberar" nada manualmente desde acá.
+      if (reservation.lotId) {
+        try {
+          const pendingSnap = await db
+            .collection("reservations")
+            .where("lotId", "==", reservation.lotId)
+            .where("status", "==", "lot_closed")
+            .get();
+
+          const allPaid = pendingSnap.empty;
+          console.log(
+            `💰 Lote ${reservation.lotId}: quedan ${pendingSnap.size} reservas sin pagar. allPaid=${allPaid}`
+          );
+
+          if (allPaid) {
+            // Marcar el lote como fully_paid
+            await db.collection("lots").doc(reservation.lotId).update({
+              status: "fully_paid",
+              fullyPaidAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+            console.log(`✅ Lote ${reservation.lotId} marcado como fully_paid`);
+
+            // Obtener datos del fabricante para notificarle
+            const factorySnap = await db
+              .collection("manufacturers")
+              .doc(reservation.factoryId)
+              .get();
+            const factoryData = factorySnap.data();
+            const factoryEmail = factoryData?.email || "";
+            const factoryName = factoryData?.businessName || factoryData?.name || "Fabricante";
+            const factoryAddress = factoryData?.address?.formattedAddress || "";
+            const isPickupLot = reservation.shippingMode === "pickup";
+
+            // Obtener TODAS las reservas pagadas del lote para armar el resumen
+            const allPaidSnap = await db
+              .collection("reservations")
+              .where("lotId", "==", reservation.lotId)
+              .where("status", "==", "paid")
+              .get();
+
+            // Calcular totales del lote
+            let totalUnidades = 0;
+            const retailers: { name: string; qty: number; address: string; total: number }[] = [];
+
+            allPaidSnap.docs.forEach((d) => {
+              const r = d.data();
+              totalUnidades += r.qty || 0;
+              retailers.push({
+                name: r.retailerName || "Comprador",
+                qty: r.qty || 0,
+                address: r.retailerAddress || "Dirección no disponible",
+                total: r.totalFinal || 0,
+              });
+            });
+
+            if (factoryEmail) {
+              const retailersHtml = retailers
+                .map(
+                  (r) => `
+                <div style="background:white;border:1px solid #e5e7eb;border-radius:6px;padding:15px;margin:10px 0;">
+                  <div style="font-weight:bold;margin-bottom:8px;">${r.name}</div>
+                  <div>• Cantidad: ${r.qty} unidades</div>
+                  <div>• Dirección: ${r.address}</div>
+                  <div>• Total pagado: $${r.total.toLocaleString("es-AR")}</div>
+                </div>`
+                )
+                .join("");
+
+              const factoryHtml = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f5f5f5;}
+  .container{background:white;border-radius:8px;padding:30px;box-shadow:0 2px 4px rgba(0,0,0,.1);}
+  .header{text-align:center;border-bottom:3px solid #10b981;padding-bottom:20px;margin-bottom:30px;}
+  .header h1{color:#10b981;margin:0;font-size:24px;}
+  .section{margin:25px 0;padding:20px;background:#f9fafb;border-radius:6px;border-left:4px solid #10b981;}
+  .info-row{margin:10px 0;}.label{font-weight:600;color:#6b7280;}.value{font-weight:600;color:#111827;}
+  .warning{background:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:15px;margin:20px 0;}
+  .footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:14px;}
+</style></head><body><div class="container">
+  <div class="header"><h1>✅ Lote Fraccionado Completado — Todos Pagaron</h1></div>
+  <p>¡Felicitaciones <strong>${factoryName}</strong>!</p>
+  <p>Todos los compradores del lote de <strong>${reservation.productName}</strong> han completado sus pagos. El lote está listo para ser despachado.</p>
+  <div class="section">
+    <h3 style="margin-top:0;">📦 Resumen del Lote</h3>
+    <div class="info-row"><span class="label">Producto:</span> <span class="value">${reservation.productName}</span></div>
+    <div class="info-row"><span class="label">Cantidad Total:</span> <span class="value">${totalUnidades} unidades</span></div>
+    <div class="info-row"><span class="label">Compradores:</span> <span class="value">${retailers.length}</span></div>
+    <div class="info-row"><span class="label">Tipo:</span> <span class="value">Compra fraccionada — todos los pagos recibidos</span></div>
+  </div>
+  <div class="section">
+    <h3 style="margin-top:0;">📋 Distribución por Revendedor</h3>
+    ${retailersHtml}
+  </div>
+  <div class="section">
+    <h3 style="margin-top:0;">🚚 Logística</h3>
+    ${isPickupLot
+      ? `<p><strong>Modalidad:</strong> RETIRO EN FÁBRICA</p>
+        <div class="warning">
+          <strong>⏰ IMPORTANTE:</strong> Los revendedores se comunicarán para coordinar el retiro.<br><br>
+          Asegurate de tener la mercadería preparada en tus horarios de atención.
+        </div>`
+      : `<p><strong>Modalidad:</strong> ENVÍO POR PLATAFORMA</p>
+        <ol style="margin:15px 0;padding-left:20px;">
+          <li>Preparar ${totalUnidades} unidades separadas por revendedor</li>
+          <li>Punto de entrega de la plataforma: ${factoryAddress}</li>
+          <li>Te contactaremos para coordinar el retiro</li>
+        </ol>`
+    }
+  </div>
+  <div class="footer">
+    <p><strong>Mayorista Móvil</strong></p>
+    <p>Tu plataforma mayorista de confianza</p>
+    <p style="font-size:12px;color:#9ca3af;margin-top:10px;">ID de lote: ${reservation.lotId}</p>
+  </div>
+</div></body></html>`;
+
+              await sendEmail({
+                to: factoryEmail,
+                subject: `✅ Lote Completado — ${reservation.productName} (${totalUnidades} unidades, ${retailers.length} compradores)`,
+                html: factoryHtml,
+              });
+              console.log("✅ Email al fabricante enviado:", factoryEmail);
+            }
+          }
+        } catch (allPaidErr) {
+          console.error("❌ Error verificando/notificando todos-pagaron:", allPaidErr);
+          // No lanzar — el pago del comprador ya fue procesado correctamente
+        }
       }
 
       return NextResponse.json({ ok: true, orderId: orderRef.id });

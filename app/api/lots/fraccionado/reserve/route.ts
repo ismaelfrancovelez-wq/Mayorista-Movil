@@ -223,6 +223,12 @@ async function processLotClosure(params: {
       } catch (emailErr) {
         console.error(`❌ Error enviando email a ${r.retailerEmail}:`, emailErr);
       }
+
+      // ✅ DELAY entre emails — Resend tiene límite de 2 emails/segundo
+      // en el plan gratuito. Sin este delay, cuando hay 3+ compradores
+      // el 3er email falla silenciosamente y nunca llega.
+      // 600ms entre envíos = máximo 1.6 emails/seg, bien dentro del límite.
+      await new Promise((resolve) => setTimeout(resolve, 600));
     }
   }
 
