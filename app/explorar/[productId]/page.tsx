@@ -173,6 +173,16 @@ export default async function ProductDetailPage({
                 </p>
               </div>
 
+              {/* ✅ DESCRIPCIÓN */}
+              {product.description && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-gray-500 mb-1">Descripción</h3>
+                  <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
+                    {product.description}
+                  </p>
+                </div>
+              )}
+
               {/* PEDIDO MÍNIMO */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <p className="text-sm text-gray-600 mb-1">Pedido mínimo</p>

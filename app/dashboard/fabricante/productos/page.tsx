@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-// 1. Importación del componente agregada al inicio
-import BackButton from "../../../../components/BackButton"; 
+import BackButton from "../../../../components/BackButton";
 
 type Product = {
   id: string;
@@ -14,7 +13,7 @@ type Product = {
   category: string;
   featured: boolean;
   active: boolean;
-  imageUrls?: string[];   // ✅ ACTUALIZADO: array en lugar de imageUrl string
+  imageUrls?: string[];
 };
 
 export default function ProductosFabricantePage() {
@@ -80,7 +79,6 @@ export default function ProductosFabricantePage() {
   return (
     <div className="p-8 max-w-6xl mx-auto">
       
-      {/* 2. Reemplazo del botón anterior por el componente BackButton */}
       <BackButton className="mb-4" />
 
       <div className="flex justify-between items-center mb-6">
@@ -162,13 +160,23 @@ export default function ProductosFabricantePage() {
                 </p>
               </div>
 
-              <button
-                onClick={() => handleDelete(p.id, p.name)}
-                disabled={deletingId === p.id}
-                className="w-full border-2 border-red-500 text-red-600 py-2 rounded-lg hover:bg-red-50 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {deletingId === p.id ? "Eliminando..." : "🗑️ Eliminar producto"}
-              </button>
+              {/* ✅ BOTONES: Editar + Eliminar */}
+              <div className="flex flex-col gap-2">
+                <Link
+                  href={`/dashboard/fabricante/productos/${p.id}/editar`}
+                  className="w-full border-2 border-blue-500 text-blue-600 py-2 rounded-lg hover:bg-blue-50 transition font-medium text-center"
+                >
+                  ✏️ Editar producto
+                </Link>
+
+                <button
+                  onClick={() => handleDelete(p.id, p.name)}
+                  disabled={deletingId === p.id}
+                  className="w-full border-2 border-red-500 text-red-600 py-2 rounded-lg hover:bg-red-50 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deletingId === p.id ? "Eliminando..." : "🗑️ Eliminar producto"}
+                </button>
+              </div>
             </div>
           </div>
         ))}

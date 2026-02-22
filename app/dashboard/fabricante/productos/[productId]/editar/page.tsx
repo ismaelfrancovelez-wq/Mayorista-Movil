@@ -1,12 +1,11 @@
-// app/dashboard/fabricante/productos/nuevo/page.tsx
-// ✅ VERSIÓN ACTUALIZADA - múltiples fotos + descripción obligatoria + 4 zonas + validación exclusividad
+// app/dashboard/fabricante/productos/[productId]/editar/page.tsx
 
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ProductCategory, CATEGORY_LABELS } from "../../../../../lib/types/product";
-import { uploadImage, validateImageFile } from "../../../../../lib/firebase-storage";
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { ProductCategory, CATEGORY_LABELS } from "../../../../../../lib/types/product";
+import { uploadImage, validateImageFile } from "../../../../../../lib/firebase-storage";
 import toast from "react-hot-toast";
 
 /* ===============================
@@ -16,15 +15,12 @@ function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
 }
 
-function sanitizeNumber(value: number | "", min: number = 0, max: number = 1000000): number | "" {
-  if (value === "") return "";
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "";
-  return Math.max(min, Math.min(max, num));
-}
-
-export default function NuevoProductoPage() {
+export default function EditarProductoPage() {
   const router = useRouter();
+  const params = useParams();
+  const productId = params.productId as string;
+
+  const [loadingProduct, setLoadingProduct] = useState(true);
 
   /* ===============================
      📦 DATOS BÁSICOS
@@ -42,6 +38,7 @@ export default function NuevoProductoPage() {
   const MAX_IMAGES = 6;
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   /* ===============================
@@ -69,13 +66,87 @@ export default function NuevoProductoPage() {
   const [loading, setLoading] = useState(false);
 
   /* ===============================
-     🖼️ MANEJO DE IMÁGENES (múltiples)
+     📥 CARGAR PRODUCTO EXISTENTE
   =============================== */
+  useEffect(() => {
+    async function loadProduct() {
+      try {
+        const res = await fetch("/api/products/my-products");
+        if (!res.ok) throw new Error("Error al cargar productos");
+
+        const data = await res.json();
+        const product = (data.products || []).find((p: any) => p.id === productId);
+
+        if (!product) {
+          toast.error("Producto no encontrado");
+          router.push("/dashboard/fabricante/productos");
+          return;
+        }
+
+        // Pre-llenar formulario
+        setName(product.name || "");
+        setDescription(product.description || "");
+        setPrice(product.price || "");
+        setMinimumOrder(product.minimumOrder || "");
+        setNetProfitPerUnit(product.netProfitPerUnit ?? "");
+        setCategory(product.category || "otros");
+
+        // Imágenes existentes
+        if (Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
+          setExistingImageUrls(product.imageUrls);
+          setImagePreviews(product.imageUrls);
+        }
+
+        // Shipping
+        const shipping = product.shipping;
+        if (shipping) {
+          const methods: string[] = shipping.methods || [];
+          setFactoryPickup(methods.includes("factory_pickup"));
+          setOwnLogistics(methods.includes("own_logistics"));
+          setThirdParty(methods.includes("third_party"));
+
+          if (methods.includes("own_logistics") && shipping.ownLogistics) {
+            const own = shipping.ownLogistics;
+            setOwnType(own.type || "");
+            if (own.type === "per_km") {
+              setPricePerKm(own.pricePerKm || "");
+              setRoundTrip(own.roundTrip || false);
+            }
+            if (own.type === "zones" && own.zones) {
+              setZones({
+                z1: String(own.zones.z1 || ""),
+                z2: String(own.zones.z2 || ""),
+                z3: String(own.zones.z3 || ""),
+                z4: String(own.zones.z4 || ""),
+              });
+            }
+          }
+
+          if (methods.includes("third_party") && shipping.thirdParty) {
+            setThirdPartyPrice(shipping.thirdParty.fixedPrice || "");
+          }
+        }
+      } catch (err) {
+        toast.error("Error al cargar el producto");
+        router.push("/dashboard/fabricante/productos");
+      } finally {
+        setLoadingProduct(false);
+      }
+    }
+
+    loadProduct();
+  }, [productId, router]);
+
+  /* ===============================
+     🖼️ MANEJO DE IMÁGENES
+  =============================== */
+  const totalImages = existingImageUrls.length + imageFiles.length;
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
-    const remaining = MAX_IMAGES - imageFiles.length;
+    const remaining = MAX_IMAGES - totalImages;
     if (remaining <= 0) {
       toast.error(`Máximo ${MAX_IMAGES} fotos permitidas`);
       e.target.value = "";
@@ -83,7 +154,6 @@ export default function NuevoProductoPage() {
     }
 
     const filesToAdd = files.slice(0, remaining);
-
     if (files.length > remaining) {
       toast.error(`Solo se agregaron ${remaining} foto(s). Límite: ${MAX_IMAGES}`);
     }
@@ -97,10 +167,6 @@ export default function NuevoProductoPage() {
       if (!validation.valid) {
         toast.error(`${file.name}: ${validation.error || "Imagen inválida"}`);
         processed++;
-        if (processed === filesToAdd.length && validFiles.length > 0) {
-          setImageFiles((prev) => [...prev, ...validFiles]);
-          setImagePreviews((prev) => [...prev, ...newPreviews]);
-        }
         return;
       }
 
@@ -120,9 +186,21 @@ export default function NuevoProductoPage() {
     e.target.value = "";
   };
 
-  const handleRemoveImage = (index: number) => {
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  // Eliminar imagen existente (ya subida)
+  const handleRemoveExisting = (index: number) => {
+    const updated = existingImageUrls.filter((_, i) => i !== index);
+    setExistingImageUrls(updated);
+    // También actualizar previews (las existentes van primero)
+    setImagePreviews([...updated, ...imageFiles.map((_, i) => imagePreviews[existingImageUrls.length + i])]);
+  };
+
+  // Eliminar imagen nueva (aún no subida)
+  const handleRemoveNew = (index: number) => {
+    const updatedFiles = imageFiles.filter((_, i) => i !== index);
+    const updatedPreviews = imagePreviews.slice(0, existingImageUrls.length)
+      .concat(imagePreviews.slice(existingImageUrls.length).filter((_, i) => i !== index));
+    setImageFiles(updatedFiles);
+    setImagePreviews(updatedPreviews);
   };
 
   /* ===============================
@@ -208,11 +286,7 @@ export default function NuevoProductoPage() {
         setError("Completá los precios de las 4 zonas");
         return;
       }
-      const z1 = Number(zones.z1);
-      const z2 = Number(zones.z2);
-      const z3 = Number(zones.z3);
-      const z4 = Number(zones.z4);
-      if (z1 <= 0 || z2 <= 0 || z3 <= 0 || z4 <= 0) {
+      if (Number(zones.z1) <= 0 || Number(zones.z2) <= 0 || Number(zones.z3) <= 0 || Number(zones.z4) <= 0) {
         setError("Los precios de zonas deben ser mayores a 0");
         return;
       }
@@ -260,16 +334,16 @@ export default function NuevoProductoPage() {
     }
 
     /* ===============================
-       🖼️ SUBIR IMÁGENES
+       🖼️ SUBIR IMÁGENES NUEVAS
     =============================== */
     setLoading(true);
-    let imageUrls: string[] = [];
+    let newImageUrls: string[] = [];
 
     try {
       if (imageFiles.length > 0) {
         setUploadingImage(true);
         toast.loading(`Subiendo ${imageFiles.length} foto(s)...`);
-        imageUrls = await Promise.all(
+        newImageUrls = await Promise.all(
           imageFiles.map((file) => uploadImage(file, "products"))
         );
         toast.dismiss();
@@ -277,13 +351,17 @@ export default function NuevoProductoPage() {
         setUploadingImage(false);
       }
 
+      // Combinar URLs existentes (que no se eliminaron) + nuevas
+      const finalImageUrls = [...existingImageUrls, ...newImageUrls];
+
       /* ===============================
-         🚀 API
+         🚀 API EDIT
       =============================== */
-      const res = await fetch("/api/products/create", {
+      const res = await fetch("/api/products/edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          productId,
           name: sanitizedName,
           description: sanitizedDescription,
           price: Number(price),
@@ -291,25 +369,36 @@ export default function NuevoProductoPage() {
           netProfitPerUnit: Number(netProfitPerUnit),
           category,
           shipping,
-          imageUrls,   // ✅ array de URLs
+          imageUrls: finalImageUrls,
         }),
       });
 
       setLoading(false);
 
       if (res.ok) {
-        toast.success("Producto creado exitosamente");
+        toast.success("Producto actualizado correctamente");
         router.push("/dashboard/fabricante/productos");
       } else {
         const data = await res.json();
-        setError(data.error || "Error al crear producto");
+        setError(data.error || "Error al actualizar producto");
       }
     } catch (err: any) {
       setLoading(false);
       setUploadingImage(false);
-      setError(err.message || "Error al crear producto");
-      toast.error(err.message || "Error al crear producto");
+      setError(err.message || "Error al actualizar producto");
+      toast.error(err.message || "Error al actualizar producto");
     }
+  }
+
+  /* ===============================
+     ⏳ LOADING INICIAL
+  =============================== */
+  if (loadingProduct) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500">Cargando producto...</p>
+      </div>
+    );
   }
 
   /* ===============================
@@ -318,7 +407,15 @@ export default function NuevoProductoPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto p-8">
-        <h1 className="text-3xl font-semibold mb-6">Nuevo producto</h1>
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => router.push("/dashboard/fabricante/productos")}
+            className="text-blue-600 hover:text-blue-700 font-medium"
+          >
+            ← Volver
+          </button>
+          <h1 className="text-3xl font-semibold">Editar producto</h1>
+        </div>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded mb-6">
@@ -341,13 +438,12 @@ export default function NuevoProductoPage() {
             />
           </div>
 
-          {/* ✅ DESCRIPCIÓN OBLIGATORIA */}
           <div>
             <label className="block text-sm mb-1">
               Descripción del producto <span className="text-red-500">*</span>
             </label>
             <textarea
-              placeholder="Ej: Zapatillas deportivas de alta calidad, ideales para uso intensivo. Disponibles en todos los talles..."
+              placeholder="Ej: Zapatillas deportivas de alta calidad..."
               className="w-full border rounded px-3 py-2 resize-none"
               rows={4}
               value={description}
@@ -374,7 +470,7 @@ export default function NuevoProductoPage() {
             </select>
           </div>
 
-          {/* ✅ MÚLTIPLES IMÁGENES */}
+          {/* IMÁGENES */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Fotos del producto{" "}
@@ -384,8 +480,9 @@ export default function NuevoProductoPage() {
             {/* Grilla de previews */}
             {imagePreviews.length > 0 && (
               <div className="grid grid-cols-3 gap-2 mb-3">
-                {imagePreviews.map((src, index) => (
-                  <div key={index} className="relative group">
+                {/* Imágenes existentes */}
+                {existingImageUrls.map((src, index) => (
+                  <div key={`existing-${index}`} className="relative group">
                     <img
                       src={src}
                       alt={`Foto ${index + 1}`}
@@ -393,7 +490,7 @@ export default function NuevoProductoPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => handleRemoveImage(index)}
+                      onClick={() => handleRemoveExisting(index)}
                       className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -407,11 +504,32 @@ export default function NuevoProductoPage() {
                     )}
                   </div>
                 ))}
+                {/* Imágenes nuevas (aún no subidas) */}
+                {imageFiles.map((_, index) => (
+                  <div key={`new-${index}`} className="relative group">
+                    <img
+                      src={imagePreviews[existingImageUrls.length + index]}
+                      alt={`Nueva foto ${index + 1}`}
+                      className="w-full h-28 object-cover rounded-lg border border-blue-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveNew(index)}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    <span className="absolute bottom-1 left-1 bg-blue-500/80 text-white text-xs px-1.5 py-0.5 rounded">
+                      Nueva
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Botón para agregar más fotos (visible si no llegó al límite) */}
-            {imageFiles.length < MAX_IMAGES && (
+            {totalImages < MAX_IMAGES && (
               <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                 <div className="flex flex-col items-center justify-center">
                   <svg className="w-8 h-8 mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -421,8 +539,7 @@ export default function NuevoProductoPage() {
                     <span className="font-semibold">Click para subir</span> o arrastrá fotos
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    PNG, JPG o WEBP · MAX. 5MB por foto ·{" "}
-                    {imageFiles.length}/{MAX_IMAGES} subidas
+                    PNG, JPG o WEBP · MAX. 5MB por foto · {totalImages}/{MAX_IMAGES} subidas
                   </p>
                 </div>
                 <input
@@ -625,7 +742,7 @@ export default function NuevoProductoPage() {
           disabled={loading || uploadingImage}
           className="w-full bg-blue-600 text-white py-3 rounded-xl disabled:opacity-50 hover:bg-blue-700 transition"
         >
-          {loading || uploadingImage ? "Creando producto..." : "Crear producto"}
+          {loading || uploadingImage ? "Guardando cambios..." : "Guardar cambios"}
         </button>
       </div>
     </div>

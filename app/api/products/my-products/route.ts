@@ -1,9 +1,10 @@
+// app/api/products/my-products/route.ts
+
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
 
-
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
@@ -37,10 +38,13 @@ export async function GET() {
       return {
         id: doc.id,
         name: data.name,
+        description: data.description || "",         // ✅ para edición
         price: data.price,
         minimumOrder: data.minimumOrder,
+        netProfitPerUnit: data.netProfitPerUnit || 0, // ✅ para edición
         category: data.category || "otros",
-        imageUrl: data.imageUrl || null, // 🆕 AGREGAR imageUrl
+        imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [], // ✅ actualizado
+        shipping: data.shipping || null,              // ✅ para edición
         active: data.active !== false,
         featured: data.featured || false,
         featuredUntil: data.featuredUntil?.toDate()?.toISOString() || null,
