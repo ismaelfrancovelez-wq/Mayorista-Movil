@@ -1,5 +1,3 @@
-// app/dashboard/fabricante/productos/[productId]/editar/page.tsx
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -9,7 +7,7 @@ import { uploadImage, validateImageFile } from "../../../../../../lib/firebase-s
 import toast from "react-hot-toast";
 
 /* ===============================
-   🛡️ FUNCIONES DE SANITIZACIÓN
+    🛡️ FUNCIONES DE SANITIZACIÓN
 =============================== */
 function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
@@ -18,12 +16,14 @@ function sanitizeText(text: string, maxLength: number = 100): string {
 export default function EditarProductoPage() {
   const router = useRouter();
   const params = useParams();
-  const productId = params.productId as string;
+  
+  // ✅ Solución al error de compilación: params?.productId
+  const productId = params?.productId as string;
 
   const [loadingProduct, setLoadingProduct] = useState(true);
 
   /* ===============================
-     📦 DATOS BÁSICOS
+      📦 DATOS BÁSICOS
   =============================== */
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -33,7 +33,7 @@ export default function EditarProductoPage() {
   const [category, setCategory] = useState<ProductCategory>("otros");
 
   /* ===============================
-     🖼️ IMÁGENES DEL PRODUCTO (múltiples)
+      🖼️ IMÁGENES DEL PRODUCTO (múltiples)
   =============================== */
   const MAX_IMAGES = 6;
   const [imageFiles, setImageFiles] = useState<File[]>([]);
@@ -42,14 +42,14 @@ export default function EditarProductoPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
 
   /* ===============================
-     🚚 MÉTODOS DE ENVÍO
+      🚚 MÉTODOS DE ENVÍO
   =============================== */
   const [factoryPickup, setFactoryPickup] = useState(false);
   const [ownLogistics, setOwnLogistics] = useState(false);
   const [thirdParty, setThirdParty] = useState(false);
 
   /* ===============================
-     🚚 ENVÍO PROPIO
+      🚚 ENVÍO PROPIO
   =============================== */
   const [ownType, setOwnType] = useState<"per_km" | "zones" | "">("");
   const [pricePerKm, setPricePerKm] = useState<number | "">("");
@@ -60,15 +60,18 @@ export default function EditarProductoPage() {
   const [thirdPartyPrice, setThirdPartyPrice] = useState<number | "">("");
 
   /* ===============================
-     ⚠️ UI
+      ⚠️ UI
   =============================== */
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   /* ===============================
-     📥 CARGAR PRODUCTO EXISTENTE
+      📥 CARGAR PRODUCTO EXISTENTE
   =============================== */
   useEffect(() => {
+    // ✅ Guarda para asegurar que el ID existe antes de cargar
+    if (!productId) return;
+
     async function loadProduct() {
       try {
         const res = await fetch("/api/products/my-products");
@@ -138,7 +141,7 @@ export default function EditarProductoPage() {
   }, [productId, router]);
 
   /* ===============================
-     🖼️ MANEJO DE IMÁGENES
+      🖼️ MANEJO DE IMÁGENES
   =============================== */
   const totalImages = existingImageUrls.length + imageFiles.length;
 
@@ -186,15 +189,12 @@ export default function EditarProductoPage() {
     e.target.value = "";
   };
 
-  // Eliminar imagen existente (ya subida)
   const handleRemoveExisting = (index: number) => {
     const updated = existingImageUrls.filter((_, i) => i !== index);
     setExistingImageUrls(updated);
-    // También actualizar previews (las existentes van primero)
     setImagePreviews([...updated, ...imageFiles.map((_, i) => imagePreviews[existingImageUrls.length + i])]);
   };
 
-  // Eliminar imagen nueva (aún no subida)
   const handleRemoveNew = (index: number) => {
     const updatedFiles = imageFiles.filter((_, i) => i !== index);
     const updatedPreviews = imagePreviews.slice(0, existingImageUrls.length)
@@ -204,7 +204,7 @@ export default function EditarProductoPage() {
   };
 
   /* ===============================
-     ✅ VALIDACIÓN DE EXCLUSIVIDAD
+      ✅ VALIDACIÓN DE EXCLUSIVIDAD
   =============================== */
   const handleOwnLogisticsChange = (checked: boolean) => {
     if (checked && thirdParty) {
@@ -226,7 +226,7 @@ export default function EditarProductoPage() {
   };
 
   /* ===============================
-     💾 SUBMIT
+      💾 SUBMIT
   =============================== */
   async function handleSubmit() {
     setError(null);
@@ -300,10 +300,9 @@ export default function EditarProductoPage() {
     }
 
     /* ===============================
-       📦 ARMADO SHIPPING
+        📦 ARMADO SHIPPING
     =============================== */
     const shipping: any = { methods: [] };
-
     if (factoryPickup) shipping.methods.push("factory_pickup");
 
     if (ownLogistics) {
@@ -334,7 +333,7 @@ export default function EditarProductoPage() {
     }
 
     /* ===============================
-       🖼️ SUBIR IMÁGENES NUEVAS
+        🖼️ SUBIR IMÁGENES NUEVAS
     =============================== */
     setLoading(true);
     let newImageUrls: string[] = [];
@@ -351,12 +350,8 @@ export default function EditarProductoPage() {
         setUploadingImage(false);
       }
 
-      // Combinar URLs existentes (que no se eliminaron) + nuevas
       const finalImageUrls = [...existingImageUrls, ...newImageUrls];
 
-      /* ===============================
-         🚀 API EDIT
-      =============================== */
       const res = await fetch("/api/products/edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -391,7 +386,7 @@ export default function EditarProductoPage() {
   }
 
   /* ===============================
-     ⏳ LOADING INICIAL
+      ⏳ LOADING INICIAL
   =============================== */
   if (loadingProduct) {
     return (
@@ -402,7 +397,7 @@ export default function EditarProductoPage() {
   }
 
   /* ===============================
-     🧾 UI
+      🧾 UI
   =============================== */
   return (
     <div className="min-h-screen bg-gray-50">
@@ -477,10 +472,8 @@ export default function EditarProductoPage() {
               <span className="text-gray-400 font-normal">(opcional · máx. {MAX_IMAGES})</span>
             </label>
 
-            {/* Grilla de previews */}
             {imagePreviews.length > 0 && (
               <div className="grid grid-cols-3 gap-2 mb-3">
-                {/* Imágenes existentes */}
                 {existingImageUrls.map((src, index) => (
                   <div key={`existing-${index}`} className="relative group">
                     <img
@@ -504,7 +497,6 @@ export default function EditarProductoPage() {
                     )}
                   </div>
                 ))}
-                {/* Imágenes nuevas (aún no subidas) */}
                 {imageFiles.map((_, index) => (
                   <div key={`new-${index}`} className="relative group">
                     <img
