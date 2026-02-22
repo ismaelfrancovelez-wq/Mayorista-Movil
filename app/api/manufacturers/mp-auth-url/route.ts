@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-
+import { db } from "../../../../lib/firebase-admin";
+import crypto from "crypto";
 
 export const dynamic = 'force-dynamic';
+
+// Genera un code_verifier aleatorio y su code_challenge (PKCE)
+function generateCodeVerifier(): string {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function generateCodeChallenge(verifier: string): string {
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
+}
 
 export async function GET() {
   try {
@@ -26,18 +36,30 @@ export async function GET() {
       );
     }
 
-    // ✅ URL correcta de callback
+    // ✅ Generar PKCE
+    const codeVerifier = generateCodeVerifier();
+    const codeChallenge = generateCodeChallenge(codeVerifier);
+
+    // ✅ Guardar code_verifier en Firestore para usarlo después en mp-connect
+    await db.collection("manufacturers").doc(userId).set({
+      mpOAuth: {
+        codeVerifier,
+        createdAt: new Date(),
+      }
+    }, { merge: true });
+
     const REDIRECT_URI = `${BASE_URL}/api/manufacturers/mp-callback`;
 
-    // ✅ Construir URL de autorización
     const authUrl = new URL('https://auth.mercadopago.com.ar/authorization');
     authUrl.searchParams.set('client_id', APP_ID);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('platform_id', 'mp');
     authUrl.searchParams.set('state', userId);
     authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
+    authUrl.searchParams.set('code_challenge', codeChallenge);
+    authUrl.searchParams.set('code_challenge_method', 'S256');
 
-    console.log('🔗 URL de autorización generada:', authUrl.toString());
+    console.log('🔗 URL de autorización generada con PKCE');
 
     return NextResponse.json({ authUrl: authUrl.toString() });
   } catch (error) {

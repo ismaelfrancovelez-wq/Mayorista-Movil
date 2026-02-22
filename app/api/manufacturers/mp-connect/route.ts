@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
 
-// ✅ FIX ERROR 6: Agregar force-dynamic para evitar que Next.js cachee respuestas OAuth
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
@@ -25,12 +24,21 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log("🔄 Intercambiando código por access token...");
+    // ✅ Recuperar el code_verifier guardado en Firestore
+    const manufacturerDoc = await db.collection("manufacturers").doc(userId).get();
+    const codeVerifier = manufacturerDoc.data()?.mpOAuth?.codeVerifier;
 
-    // 🔧 FIX: redirect_uri debe coincidir con el usado en mp-auth-url
+    if (!codeVerifier) {
+      return NextResponse.json(
+        { error: "No se encontró el code_verifier. Iniciá el proceso de vinculación nuevamente." },
+        { status: 400 }
+      );
+    }
+
+    console.log("🔄 Intercambiando código por access token con PKCE...");
+
     const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/api/manufacturers/mp-callback`;
 
-    // Intercambiar código por access_token
     const tokenResponse = await fetch("https://api.mercadopago.com/oauth/token", {
       method: "POST",
       headers: { 
@@ -42,7 +50,8 @@ export async function POST(req: Request) {
         client_secret: process.env.MERCADOPAGO_CLIENT_SECRET,
         code,
         grant_type: "authorization_code",
-        redirect_uri: REDIRECT_URI, // 🔧 Ahora usa la URL correcta
+        redirect_uri: REDIRECT_URI,
+        code_verifier: codeVerifier, // ✅ PKCE
       }),
     });
 
@@ -57,7 +66,7 @@ export async function POST(req: Request) {
     const tokenData = await tokenResponse.json();
     console.log("✅ Token obtenido exitosamente");
 
-    // Guardar en Firestore
+    // Guardar token y limpiar el code_verifier temporal
     await db.collection("manufacturers").doc(userId).set({
       mercadopago: {
         access_token: tokenData.access_token,
@@ -66,6 +75,7 @@ export async function POST(req: Request) {
         public_key: tokenData.public_key,
         connected_at: new Date(),
       },
+      mpOAuth: null, // ✅ Limpiar datos temporales
       updatedAt: new Date(),
     }, { merge: true });
 
