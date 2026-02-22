@@ -10,6 +10,7 @@ type Product = {
   name: string;
   price: number;
   MF: number;
+  factoryId: string;  // ✅ FIX ERROR 7: Incluir factoryId para pasarlo como prop
 };
 
 type FraccionadoLot = {
@@ -38,7 +39,8 @@ async function getProductById(
     id: snap.id,
     name: data?.name ?? "",
     price: data?.price ?? 0,
-    MF: data?.minimumQuantity ?? 0,
+    MF: data?.minimumOrder ?? 0,       // ✅ FIX ERROR 3: era minimumQuantity, el campo correcto es minimumOrder
+    factoryId: data?.factoryId ?? "",  // ✅ FIX ERROR 7: leer factoryId desde Firestore
   };
 }
 
@@ -113,11 +115,12 @@ export default async function ProductPage({ params }: Props) {
         </p>
       )}
 
-      {/* 👇 SOLO PASA LO NECESARIO */}
+      {/* ✅ FIX ERROR 7: Se pasa factoryId como prop para evitar llamar a /api/products/explore */}
       <ProductPurchaseClient
   price={product.price}
   MF={product.MF}
   productId={product.id}
+  factoryId={product.factoryId}
 />
     </main>
   );

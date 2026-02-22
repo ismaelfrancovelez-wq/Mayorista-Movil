@@ -10,6 +10,11 @@ const BASE_ADDRESS =
 const PRECIO_POR_KM = 85;
 const FIJO_CONDUCTOR = 3500;
 
+// ✅ FIX ERROR 12: Costo fijo de fallback cuando no hay API key de Google Maps.
+// Antes la función lanzaba una excepción que podía romper páginas enteras.
+// Ahora devuelve un costo estimado razonable sin romper nada.
+const FALLBACK_SHIPPING_COST = 8000;
+
 export type ShippingResult = {
   kmBaseToFactory: number;
   kmFactoryToRetailer: number;
@@ -21,6 +26,7 @@ export type ShippingResult = {
 /**
  * Calcula envío fraccionado usando Google Maps Distance Matrix API
  * ⚠️ REQUIERE direcciones válidas (string de texto completo)
+ * ✅ FIX ERROR 12: Si no hay API key, devuelve un costo fijo en lugar de lanzar excepción
  */
 export async function calculateFraccionadoShipping(params: {
   factoryAddress: string;
@@ -28,10 +34,20 @@ export async function calculateFraccionadoShipping(params: {
 }): Promise<ShippingResult> {
   const { factoryAddress, retailerAddress } = params;
 
+  // ✅ FIX ERROR 12: getEnvOptional puede devolver "" si la key no está configurada.
+  // Verificamos con trim() para también cubrir el caso de espacios en blanco.
   const apiKey = env.googleMaps.apiKey();
 
-  if (!apiKey) {
-    throw new Error("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY no configurada");
+  if (!apiKey || apiKey.trim() === "") {
+    // No hay API key — devolver resultado de fallback en lugar de lanzar excepción
+    console.warn("⚠️ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY no configurada. Usando costo de envío fijo como fallback.");
+    return {
+      kmBaseToFactory: 0,
+      kmFactoryToRetailer: 0,
+      kmTotal: 0,
+      kmCharged: 0,
+      totalCost: FALLBACK_SHIPPING_COST,
+    };
   }
 
   const kmBaseToFactory = await getKm(

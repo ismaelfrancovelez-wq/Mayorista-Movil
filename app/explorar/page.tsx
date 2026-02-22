@@ -1,10 +1,18 @@
 // app/explorar/page.tsx - DISEÑO ORIGINAL + OPTIMIZADO
+
 import { db } from "../../lib/firebase-admin";
 import { ProductCategory, CATEGORY_LABELS } from "../../lib/types/product";
 import ExplorarClient from "./ExplorarClient";
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 10; // ✅ Caché de 10 segundos
+// ✅ FIX ERROR 20: Antes tenía AMBOS:
+//   export const dynamic = 'force-dynamic'   → nunca cachear
+//   export const revalidate = 10             → cachear 10 segundos
+// Estos se contradicen. force-dynamic hace que revalidate sea ignorado,
+// lo que significa que cada visita hacía una query nueva a Firestore.
+// La página de explorar NO necesita ser completamente dinámica —
+// los productos cambian poco. Usamos SOLO revalidate = 10 para tener caché
+// de 10 segundos, que es suficiente frescura y reduce carga en Firestore.
+export const revalidate = 10;
 
 type Product = {
   id: string;
@@ -15,7 +23,7 @@ type Product = {
   featured: boolean;
   shippingMethods: string[];
   imageUrl?: string;
-  // 🆕 Datos del fabricante
+  // Datos del fabricante
   manufacturerName?: string;
   manufacturerImageUrl?: string;
   manufacturerVerified?: boolean;
@@ -29,12 +37,12 @@ async function getProducts(): Promise<Product[]> {
       .where("active", "==", true)
       .get();
 
-    // 🆕 Obtener IDs de fabricantes únicos para consulta batch
+    // Obtener IDs de fabricantes únicos para consulta batch
     const factoryIds = [...new Set(
       snap.docs.map(doc => doc.data().factoryId).filter(Boolean)
     )] as string[];
 
-    // 🆕 Fetch fabricantes en batch (Firestore soporta hasta 10 por 'in')
+    // Fetch fabricantes en batch (Firestore soporta hasta 10 por 'in')
     const manufacturerMap: Record<string, {
       businessName?: string;
       profileImageUrl?: string;
@@ -74,7 +82,7 @@ async function getProducts(): Promise<Product[]> {
         featured: data.featured || false,
         shippingMethods: data.shipping?.methods || [],
         imageUrl: data.imageUrl || undefined,
-        // 🆕 Fabricante
+        // Fabricante
         manufacturerName: manufacturer?.businessName || undefined,
         manufacturerImageUrl: manufacturer?.profileImageUrl || undefined,
         manufacturerVerified: manufacturer?.verified || false,

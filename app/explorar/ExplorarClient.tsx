@@ -1,4 +1,4 @@
-// app/explorar/ExplorarClient.tsx - DISEÑO ORIGINAL
+// app/explorar/ExplorarClient.tsx - DISEÑO ORIGINAL + PAGINACIÓN
 "use client";
 
 import Link from "next/link";
@@ -14,7 +14,7 @@ type Product = {
   featured: boolean;
   shippingMethods: string[];
   imageUrl?: string;
-  // 🆕 Datos del fabricante
+  // Datos del fabricante
   manufacturerName?: string;
   manufacturerImageUrl?: string;
   manufacturerVerified?: boolean;
@@ -24,7 +24,15 @@ type Product = {
 type SortOption = "price_asc" | "price_desc" | "min_asc" | "min_desc" | "name";
 
 export default function ExplorarClient({ initialProducts }: { initialProducts: Product[] }) {
+  // ✅ FIX (compatibilidad paginación): allProducts contiene TODOS los productos cargados
+  // hasta ahora (página 1 viene del servidor, páginas siguientes se cargan con "Cargar más")
+  const [allProducts, setAllProducts] = useState<Product[]>(initialProducts);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>(initialProducts);
+
+  // ✅ Estado de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(initialProducts.length === 20); // si vinieron 20, puede haber más
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // 🔍 Estados de filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -36,9 +44,9 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
   const [onlyFeatured, setOnlyFeatured] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("name");
 
-  // 🔄 Aplicar filtros
+  // 🔄 Aplicar filtros sobre TODOS los productos cargados
   useEffect(() => {
-    let result = [...initialProducts];
+    let result = [...allProducts];
 
     // 🔍 Búsqueda por nombre
     if (searchTerm) {
@@ -94,7 +102,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
 
     setFilteredProducts(result);
   }, [
-    initialProducts,
+    allProducts,
     searchTerm,
     selectedCategory,
     minPrice,
@@ -104,6 +112,35 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
     onlyFeatured,
     sortBy,
   ]);
+
+  // ✅ Función para cargar la siguiente página
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+
+    setLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const res = await fetch(`/api/products/explore?page=${nextPage}`);
+      if (!res.ok) throw new Error("Error al cargar más productos");
+
+      const data = await res.json();
+      const newProducts: Product[] = data.products || [];
+
+      // Agregar los nuevos productos a los ya cargados (evitando duplicados por id)
+      setAllProducts(prev => {
+        const existingIds = new Set(prev.map(p => p.id));
+        const unique = newProducts.filter(p => !existingIds.has(p.id));
+        return [...prev, ...unique];
+      });
+
+      setCurrentPage(nextPage);
+      setHasMore(data.hasMore === true);
+    } catch (err) {
+      console.error("Error cargando más productos:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   // 🧹 Limpiar filtros
   function clearFilters() {
@@ -273,6 +310,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
             {/* Contador de resultados */}
             <div className="mb-4 text-sm text-gray-600">
               {filteredProducts.length} producto{filteredProducts.length !== 1 && 's'} encontrado{filteredProducts.length !== 1 && 's'}
+              {hasMore && " (hay más por cargar)"}
             </div>
 
             {filteredProducts.length === 0 ? (
@@ -288,126 +326,151 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                 </button>
               </div>
             ) : (
-              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredProducts.map((product) => (
-                  <div
-                    key={product.id}
-                    className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden flex flex-col"
-                  >
-                    {/* IMAGEN DEL PRODUCTO */}
-                    <div className="relative h-48 bg-gray-200 overflow-hidden">
-                      {product.imageUrl ? (
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                          <svg
-                            className="w-16 h-16 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                            />
-                          </svg>
-                        </div>
-                      )}
-                      
-                      {/* Badge destacado sobre la imagen */}
-                      {product.featured && (
-                        <div className="absolute top-2 left-2">
-                          <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-medium">
-                            ⭐ Destacado
-                          </span>
-                        </div>
-                      )}
-
-                      {/* 🆕 AVATAR DEL FABRICANTE estilo Instagram - esquina inferior izquierda */}
-                      <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
-                        <div className="relative">
-                          <div className={`w-9 h-9 rounded-full p-0.5 shadow ${product.manufacturerVerified ? 'bg-blue-500' : 'bg-white/80'}`}>
-                            <div className="w-full h-full rounded-full overflow-hidden bg-white">
-                              {product.manufacturerImageUrl ? (
-                                <img
-                                  src={product.manufacturerImageUrl}
-                                  alt={product.manufacturerName || "Fabricante"}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
-                                  {product.manufacturerName ? product.manufacturerName.charAt(0).toUpperCase() : "F"}
-                                </div>
-                              )}
-                            </div>
+              <>
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {filteredProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden flex flex-col"
+                    >
+                      {/* IMAGEN DEL PRODUCTO */}
+                      <div className="relative h-48 bg-gray-200 overflow-hidden">
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                            <svg
+                              className="w-16 h-16 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              />
+                            </svg>
                           </div>
-                          {/* Check verificado */}
-                          {product.manufacturerVerified && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white">
-                              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
+                        )}
+                        
+                        {/* Badge destacado sobre la imagen */}
+                        {product.featured && (
+                          <div className="absolute top-2 left-2">
+                            <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-medium">
+                              ⭐ Destacado
+                            </span>
+                          </div>
+                        )}
+
+                        {/* AVATAR DEL FABRICANTE estilo Instagram - esquina inferior izquierda */}
+                        <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
+                          <div className="relative">
+                            <div className={`w-9 h-9 rounded-full p-0.5 shadow ${product.manufacturerVerified ? 'bg-blue-500' : 'bg-white/80'}`}>
+                              <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                                {product.manufacturerImageUrl ? (
+                                  <img
+                                    src={product.manufacturerImageUrl}
+                                    alt={product.manufacturerName || "Fabricante"}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
+                                    {product.manufacturerName ? product.manufacturerName.charAt(0).toUpperCase() : "F"}
+                                  </div>
+                                )}
+                              </div>
                             </div>
+                            {/* Check verificado */}
+                            {product.manufacturerVerified && (
+                              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white">
+                                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                          {/* Badge intermediario */}
+                          {product.isIntermediary && (
+                            <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-semibold shadow">
+                              Intermediario
+                            </span>
                           )}
                         </div>
-                        {/* Badge intermediario */}
-                        {product.isIntermediary && (
-                          <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-semibold shadow">
-                            Intermediario
-                          </span>
+                      </div>
+
+                      {/* CONTENIDO DEL CARD */}
+                      <div className="p-6 flex flex-col flex-grow">
+                        {/* Nombre fabricante */}
+                        {product.manufacturerName && (
+                          <p className="text-xs text-gray-400 mb-1 truncate">
+                            {product.manufacturerName}
+                          </p>
                         )}
+
+                        {/* Nombre */}
+                        <h2 className="text-lg font-semibold mb-2 line-clamp-2">
+                          {product.name}
+                        </h2>
+
+                        {/* Categoría */}
+                        <p className="text-xs text-gray-500 mb-3">
+                          {CATEGORY_LABELS[product.category]}
+                        </p>
+
+                        {/* Precio */}
+                        <p className="text-gray-900 mb-1">
+                          <span className="font-medium">Precio:</span>{" "}
+                          <span className="font-bold text-gray-900">
+                            ${product.price.toLocaleString("es-AR")}
+                          </span>
+                        </p>
+
+                        {/* Pedido mínimo */}
+                        <p className="text-sm text-gray-600 mb-4">
+                          Pedido mínimo: {product.minimumOrder} unidades
+                        </p>
+
+                        {/* Botón */}
+                        <Link
+                          href={`/explorar/${product.id}`}
+                          className="mt-auto w-full bg-blue-600 text-white text-center py-2 rounded-lg hover:bg-blue-700 transition font-medium"
+                        >
+                          Ver producto →
+                        </Link>
                       </div>
                     </div>
+                  ))}
+                </div>
 
-                    {/* CONTENIDO DEL CARD */}
-                    <div className="p-6 flex flex-col flex-grow">
-                      {/* 🆕 Nombre fabricante */}
-                      {product.manufacturerName && (
-                        <p className="text-xs text-gray-400 mb-1 truncate">
-                          {product.manufacturerName}
-                        </p>
-                      )}
-
-                      {/* Nombre */}
-                      <h2 className="text-lg font-semibold mb-2 line-clamp-2">
-                        {product.name}
-                      </h2>
-
-                      {/* Categoría */}
-                      <p className="text-xs text-gray-500 mb-3">
-                        {CATEGORY_LABELS[product.category]}
-                      </p>
-
-                      {/* Precio - 🆕 text-gray-900 en lugar de text-blue-600 */}
-                      <p className="text-gray-900 mb-1">
-                        <span className="font-medium">Precio:</span>{" "}
-                        <span className="font-bold text-gray-900">
-                          ${product.price.toLocaleString("es-AR")}
+                {/* ✅ BOTÓN "CARGAR MÁS" — solo aparece si hay más páginas disponibles */}
+                {hasMore && (
+                  <div className="mt-8 text-center">
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="px-8 py-3 bg-white border-2 border-blue-600 text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loadingMore ? (
+                        <span className="flex items-center gap-2 justify-center">
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                          </svg>
+                          Cargando...
                         </span>
-                      </p>
-
-                      {/* Pedido mínimo */}
-                      <p className="text-sm text-gray-600 mb-4">
-                        Pedido mínimo: {product.minimumOrder} unidades
-                      </p>
-
-                      {/* Botón - idéntico al original */}
-                      <Link
-                        href={`/explorar/${product.id}`}
-                        className="mt-auto w-full bg-blue-600 text-white text-center py-2 rounded-lg hover:bg-blue-700 transition font-medium"
-                      >
-                        Ver producto →
-                      </Link>
-                    </div>
+                      ) : (
+                        "Cargar más productos"
+                      )}
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
 

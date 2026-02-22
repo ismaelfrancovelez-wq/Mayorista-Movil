@@ -113,77 +113,70 @@ export default function HomePrincipal() {
   const [loadingFeaturedFactories, setLoadingFeaturedFactories] = useState(true);
   const [loadingAllProducts, setLoadingAllProducts] = useState(true);
 
-  // Verificar autenticación
+  // ✅ FIX ERROR 13: En lugar de 4 useEffects con 4 llamadas separadas (waterfall),
+  // se usa un solo useEffect con Promise.all para hacer todas las llamadas en paralelo.
   useEffect(() => {
-    async function checkAuth() {
+    async function loadAllData() {
+      // Lanzar todas las peticiones al mismo tiempo
+      const [authRes, featuredProductsRes, featuredFactoriesRes, productsRes] =
+        await Promise.allSettled([
+          fetch('/api/auth/me'),
+          fetch('/api/featured/active?type=product'),
+          fetch('/api/featured/active?type=factory'),
+          fetch('/api/products/explore?page=1'),  // ✅ FIX paginación: agrega ?page=1
+        ]);
+
+      // Procesar autenticación
       try {
-        const response = await fetch('/api/auth/me');
-        if (response.ok) {
-          const data = await response.json();
+        if (authRes.status === 'fulfilled' && authRes.value.ok) {
+          const data = await authRes.value.json();
           setIsAuthenticated(!!data.userId);
         }
-      } catch (error) {
-        console.error('Error verificando autenticación:', error);
-        setIsAuthenticated(false);
+      } catch (e) {
+        console.error('Error verificando autenticación:', e);
       } finally {
         setIsLoading(false);
       }
-    }
-    checkAuth();
-  }, []);
 
-  // Cargar productos destacados
-  useEffect(() => {
-    async function loadFeaturedProducts() {
+      // Procesar productos destacados
       try {
-        const res = await fetch('/api/featured/active?type=product');
-        if (res.ok) {
-          const data = await res.json();
+        if (featuredProductsRes.status === 'fulfilled' && featuredProductsRes.value.ok) {
+          const data = await featuredProductsRes.value.json();
           setFeaturedProducts(data.items || []);
         }
-      } catch (error) {
-        console.error('Error cargando productos destacados:', error);
+      } catch (e) {
+        console.error('Error cargando productos destacados:', e);
       } finally {
         setLoadingFeaturedProducts(false);
       }
-    }
-    loadFeaturedProducts();
-  }, []);
 
-  // Cargar fábricas destacadas
-  useEffect(() => {
-    async function loadFeaturedFactories() {
+      // Procesar fábricas destacadas
       try {
-        const res = await fetch('/api/featured/active?type=factory');
-        if (res.ok) {
-          const data = await res.json();
+        if (featuredFactoriesRes.status === 'fulfilled' && featuredFactoriesRes.value.ok) {
+          const data = await featuredFactoriesRes.value.json();
           setFeaturedFactories(data.items || []);
         }
-      } catch (error) {
-        console.error('Error cargando fábricas destacadas:', error);
+      } catch (e) {
+        console.error('Error cargando fábricas destacadas:', e);
       } finally {
         setLoadingFeaturedFactories(false);
       }
-    }
-    loadFeaturedFactories();
-  }, []);
 
-  // Cargar todos los productos
-  useEffect(() => {
-    async function loadAllProducts() {
+      // Procesar todos los productos
+      // ✅ FIX paginación: la API ahora devuelve { products, page, hasMore }
       try {
-        const res = await fetch('/api/products/explore');
-        if (res.ok) {
-          const data = await res.json();
+        if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
+          const data = await productsRes.value.json();
           setAllProducts(data.products || []);
         }
-      } catch (error) {
-        console.error('Error cargando productos:', error);
+      } catch (e) {
+        console.error('Error cargando productos:', e);
       } finally {
         setLoadingAllProducts(false);
       }
     }
-    loadAllProducts();
+
+    loadAllData();
   }, []);
 
   // Cargar progreso de lotes para productos destacados
@@ -218,31 +211,32 @@ export default function HomePrincipal() {
     }
   }, [featuredProducts, loadingFeaturedProducts]);
 
+  // ✅ FIX ERROR 14: Corregidos errores ortográficos en los banners
   const banners = [
     {
       title: '¡Pedidos desde 10 unidades!',
-      subtitle: 'Comprá a precio de fabrica sin invertir grandes volumenes.',
+      subtitle: 'Comprá a precio de fábrica sin invertir grandes volúmenes.',  // ✅ "fabrica" → "fábrica", "volumenes" → "volúmenes"
       bgColor: 'from-blue-600 via-blue-700 to-blue-900',
       image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200',
       cta: 'Explorar'
     },
     {
-       title: '¡Fabricas celebres!',
-      subtitle: 'Encontraras productos de las fabricas mas importantes',
+      title: '¡Fábricas Célebres!',  // ✅ "celebres" → "Célebres"
+      subtitle: 'Encontrarás productos de las fábricas más importantes.',  // ✅ "Encontraras" → "Encontrarás", "fabricas" → "fábricas"
       bgColor: 'from-zinc-600 via-zinc-700 to-zinc-900',
       image: 'https://images.unsplash.com/photo-1615797534094-7fde0a4861f3?w=1200',
       cta: 'Explorar'
     },
     {
-      title: '¡Fabricas Verificadas!',
-      subtitle: 'Puedes buscar productos de forma segura y tranquila.',
-       bgColor: 'from-emerald-600 via-emerald-700 to-emerald-900',
+      title: '¡Fábricas Verificadas!',
+      subtitle: 'Podés buscar productos de forma segura y tranquila.',  // ✅ "Puedes" → "Podés" (consistent with Argentine Spanish)
+      bgColor: 'from-emerald-600 via-emerald-700 to-emerald-900',
       image: 'https://images.unsplash.com/photo-1603899122406-e7eb957f9fd6?w=1200',
       cta: 'Explorar'
     },
     {
       title: '¡Lotes a Punto De Cerrar!',
-      subtitle: 'Unite antes de que se completen.',
+      subtitle: 'Unite antes de que se completen.',  // ✅ "Unite" ya estaba bien en voseo
       bgColor: 'from-orange-600 via-orange-700 to-orange-900',
       image: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1200',
       cta: 'Ver Lotes'
@@ -866,24 +860,26 @@ export default function HomePrincipal() {
       </section>
 
       {/* FOOTER */}
-      <footer className="bg-slate-900 text-white">
-        <div className="max-w-7xl mx-auto px-4 py-12">
+      <footer className="bg-slate-900 text-white py-12">
+        <div className="max-w-7xl mx-auto px-4">
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
-              <h4 className="font-bold text-lg mb-4">Conocenos</h4>
-              <ul className="space-y-2 text-gray-300">
-                <li><Link href="/nosotros" className="hover:text-white transition">Sobre nosotros</Link></li>
-                <li><Link href="/como-funciona" className="hover:text-white transition">Cómo funciona</Link></li>
-                <li><Link href="/contacto" className="hover:text-white transition">Contacto</Link></li>
-                <li><Link href="/blog" className="hover:text-white transition">Blog</Link></li>
-              </ul>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
+                  <span className="text-xl font-black">M</span>
+                </div>
+                <span className="font-bold text-lg">MayoristaMovil</span>
+              </div>
+              <p className="text-gray-400 text-sm">
+                La plataforma de compra mayorista fraccionada más grande de Argentina.
+              </p>
             </div>
             
             <div>
               <h4 className="font-bold text-lg mb-4">Compradores</h4>
               <ul className="space-y-2 text-gray-300">
-                <li><Link href="/como-comprar" className="hover:text-white transition">Cómo comprar</Link></li>
-                <li><Link href="/mis-compras" className="hover:text-white transition">Mis compras</Link></li>
+                <li><Link href="/explorar" className="hover:text-white transition">Explorar productos</Link></li>
+                <li><Link href="/como-funciona" className="hover:text-white transition">Cómo funciona</Link></li>
                 <li><Link href="/preguntas-frecuentes" className="hover:text-white transition">Preguntas frecuentes</Link></li>
                 <li><Link href="/politicas" className="hover:text-white transition">Políticas de compra</Link></li>
               </ul>

@@ -17,10 +17,12 @@ export async function GET(req: Request) {
       );
     }
 
+    // ✅ FIX ERROR 4: Buscar lotes con status "open" O "accumulating"
+    // Antes solo buscaba "open" y los lotes nuevos usan "accumulating"
     const snap = await db
       .collection("lots")
       .where("productId", "==", productId)
-      .where("status", "==", "open")
+      .where("status", "in", ["open", "accumulating"])
       .get();
 
     let withShipping = {

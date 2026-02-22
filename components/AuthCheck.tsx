@@ -8,15 +8,33 @@ export default function AuthCheck() {
   const pathname = usePathname();
   
   useEffect(() => {
-    // ✅ FIX: Manejar pathname null de forma explícita
+    // ✅ FIX ERROR 19a: Manejar pathname null de forma explícita
     const currentPath = pathname ?? "/";
     
-    // ✅ No verificar en páginas públicas
-    const publicPaths = ["/", "/login", "/success", "/failure", "/pending"];
-    if (publicPaths.includes(currentPath)) {
+    // ✅ FIX ERROR 19b: Agregar /registro, /explorar y /como-funciona a rutas públicas
+    // Antes faltaban y podían causar redirecciones incorrectas a /login
+    const publicPaths = [
+      "/",
+      "/login",
+      "/registro",
+      "/explorar",
+      "/como-funciona",
+      "/ayuda",
+      "/success",
+      "/failure",
+      "/pending",
+    ];
+
+    // Verificar si la ruta actual es pública (exacta o por prefijo)
+    const isPublicPath =
+      publicPaths.includes(currentPath) ||
+      currentPath.startsWith("/explorar"); // /explorar/[id] también es pública
+
+    if (isPublicPath) {
       return;
     }
 
+    // Solo verificar autenticación si estamos en una ruta protegida
     async function checkAuth() {
       try {
         const res = await fetch("/api/auth/me", {
@@ -25,7 +43,7 @@ export default function AuthCheck() {
         
         if (!res.ok) {
           // ✅ Solo redirigir si estamos en ruta protegida
-          if (currentPath.startsWith("/dashboard") || currentPath.startsWith("/explorar")) {
+          if (currentPath.startsWith("/dashboard") || currentPath.startsWith("/admin")) {
             console.log("⚠️ Sesión expirada, redirigiendo a login...");
             router.push("/login");
           }
@@ -38,11 +56,14 @@ export default function AuthCheck() {
     
     // ✅ Verificar al montar
     checkAuth();
-    
-    // ✅ Verificar cada 5 minutos
-    const interval = setInterval(checkAuth, 5 * 60 * 1000);
-    
-    return () => clearInterval(interval);
+
+    // ✅ FIX ERROR 19c: Eliminar el polling cada 5 minutos.
+    // Era innecesario: /api/auth/me ya se llama en cada página protegida del server,
+    // y el middleware también protege las rutas. El polling generaba peticiones
+    // de Firestore constantes sin beneficio real.
+    // Si en el futuro se necesita detección de sesión expirada en tiempo real,
+    // la solución correcta sería un WebSocket o Server-Sent Events, no polling.
+
   }, [router, pathname]);
   
   return null;

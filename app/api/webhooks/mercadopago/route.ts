@@ -1214,11 +1214,10 @@ export async function POST(req: NextRequest) {
     console.error("Stack trace:", error.stack);
 
     return NextResponse.json(
-      {
-        error: error?.message || "Error procesando webhook",
-        details: error?.stack,
-      },
-      { status: 500 }
-    );
+  {
+    error: error?.message || "Error procesando webhook",
+  },
+  { status: 500 }
+);
   }
 }

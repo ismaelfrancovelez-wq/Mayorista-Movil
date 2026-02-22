@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
+import { cookies } from "next/headers";
 
 export async function POST(req: Request) {
   try {
@@ -13,6 +14,26 @@ export async function POST(req: Request) {
     ) {
       return NextResponse.json(
         { error: "Datos de pago inválidos" },
+        { status: 400 }
+      );
+    }
+
+    // ✅ FIX ERROR 2: Obtener el userId real de la cookie en lugar de hardcodeado
+    const retailerId = cookies().get("userId")?.value;
+
+    if (!retailerId) {
+      return NextResponse.json(
+        { error: "No autorizado" },
+        { status: 401 }
+      );
+    }
+
+    // ✅ FIX ERROR 2: El factoryId debe venir en el body, no hardcodeado
+    const factoryId = body.factoryId;
+
+    if (!factoryId) {
+      return NextResponse.json(
+        { error: "factoryId requerido" },
         { status: 400 }
       );
     }
@@ -45,8 +66,8 @@ export async function POST(req: Request) {
           productId: body.productId ?? "prod_test_123",
           qty: body.qty,
           MF: body.MF ?? 50,
-          retailerId: "retailer_test",
-          factoryId: "factory_test",
+          retailerId: retailerId,   // ✅ FIX: ID real del usuario autenticado
+          factoryId: factoryId,     // ✅ FIX: ID real del fabricante del producto
         },
 
         back_urls: {

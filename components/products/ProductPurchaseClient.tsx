@@ -8,6 +8,9 @@
 //    El botón dice "Reservar lugar" en lugar de "Continuar al pago".
 //
 //    Compras directas y fraccionadas con retiro en fábrica: SIN CAMBIOS.
+//
+// ✅ FIX ERROR 7: Se recibe factoryId como prop en lugar de llamar
+//    a /api/products/explore (que traía TODOS los productos solo para encontrar uno).
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 
@@ -15,11 +18,12 @@ type Props = {
   price: number;
   MF: number;
   productId: string;
+  factoryId: string;  // ✅ FIX ERROR 7: recibir factoryId como prop
 };
 
 type ShippingMode = "pickup" | "factory" | "platform";
 
-export default function ProductPurchaseClient({ price, MF, productId }: Props) {
+export default function ProductPurchaseClient({ price, MF, productId, factoryId }: Props) {
   const [qty, setQty] = useState(1);
   const isFraccionado = qty < MF;
 
@@ -30,7 +34,6 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
 
   const [mpConnected, setMpConnected] = useState<boolean | null>(null);
   const [loadingMPStatus, setLoadingMPStatus] = useState(true);
-  const [factoryId, setFactoryId] = useState<string | null>(null);
 
   // ✅ NUEVO: estados del flujo de reserva
   const [reserving, setReserving] = useState(false);
@@ -43,24 +46,17 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
     isFraccionado && selectedShipping === "platform";
 
   useEffect(() => {
+    // ✅ FIX ERROR 7: Ya tenemos factoryId como prop, no necesitamos cargar todos los productos
     async function checkFactoryMPStatus() {
       setLoadingMPStatus(true);
       try {
-        const productRes = await fetch(`/api/products/explore`);
-        if (!productRes.ok) throw new Error("Error cargando producto");
-
-        const { products } = await productRes.json();
-        const product = products.find((p: any) => p.id === productId);
-
-        if (!product || !product.factoryId) {
+        if (!factoryId) {
           setMpConnected(false);
           return;
         }
 
-        setFactoryId(product.factoryId);
-
         const mpRes = await fetch(
-          `/api/manufacturers/mp-status-public?factoryId=${product.factoryId}`
+          `/api/manufacturers/mp-status-public?factoryId=${factoryId}`
         );
         if (!mpRes.ok) {
           setMpConnected(false);
@@ -78,7 +74,7 @@ export default function ProductPurchaseClient({ price, MF, productId }: Props) {
     }
 
     checkFactoryMPStatus();
-  }, [productId]);
+  }, [factoryId]);
 
   const calculatePlatformShipping = useCallback(async () => {
     setLoadingShipping(true);

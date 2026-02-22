@@ -4,6 +4,9 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { auth, db } from "../../../../lib/firebase-admin";
 
+// ✅ FIX ERROR 11: Duración de la sesión — 7 días en segundos
+const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
+
 export async function POST(req: Request) {
   try {
     const { idToken } = await req.json();
@@ -36,12 +39,13 @@ export async function POST(req: Request) {
     const user = userSnap.docs[0].data();
     const activeRole = user.activeRole || user.usertype;
 
-    // 🍪 Cookies
+    // 🍪 Cookies — ✅ FIX ERROR 11: Agregar maxAge para que persistan tras cerrar el browser
     cookies().set("userId", userId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
+      maxAge: SESSION_MAX_AGE,  // ✅ FIX: sin esto las cookies expiraban al cerrar el browser
     });
 
     cookies().set("activeRole", activeRole, {
@@ -49,6 +53,7 @@ export async function POST(req: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
+      maxAge: SESSION_MAX_AGE,  // ✅ FIX: sin esto las cookies expiraban al cerrar el browser
     });
 
     return NextResponse.json({

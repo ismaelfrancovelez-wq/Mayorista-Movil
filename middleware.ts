@@ -6,8 +6,11 @@ export function middleware(req: NextRequest) {
   const role = req.cookies.get("activeRole")?.value;
   const path = req.nextUrl.pathname;
 
-  // ✅ FIX ERROR 18: Redirigir a login si no está autenticado
-  if (!userId && !path.startsWith("/login")) {
+  // ✅ FIX ERROR 1: Solo proteger rutas del dashboard
+  // Las rutas públicas (/explorar, /login, /registro, /) NO requieren autenticación
+  const isProtectedRoute = path.startsWith("/dashboard");
+
+  if (!userId && isProtectedRoute) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
@@ -36,11 +39,11 @@ export function middleware(req: NextRequest) {
 
 /* ===============================
    RUTAS PROTEGIDAS
-   ✅ FIX ERROR 18: Agregado /explorar
+   Solo el dashboard requiere autenticación.
+   /explorar, /login, /registro, / son públicas.
 =============================== */
 export const config = {
   matcher: [
     "/dashboard/:path*",
-    "/explorar/:path*", // ✅ Ahora explorar requiere autenticación
   ],
 };

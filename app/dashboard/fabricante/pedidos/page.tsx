@@ -41,21 +41,36 @@ export default async function PedidosFabricantePage() {
     .where("status", "==", "closed")
     .get();
 
+  // ✅ FIX ERROR 16: Recolectar todos los productIds únicos de los lotes
+  // para buscarlos TODOS de una sola vez con getAll() en lugar de uno por uno en un loop
+  const lotProductIds = [...new Set(
+    lotsSnap.docs.map(doc => doc.data().productId).filter(Boolean)
+  )];
+
+  // Buscar todos los productos de lotes en una sola operación batch
+  const lotProductDocs = lotProductIds.length > 0
+    ? await db.getAll(...lotProductIds.map(id => db.collection("products").doc(id)))
+    : [];
+
+  const lotProductsMap = new Map(
+    lotProductDocs.filter(d => d.exists).map(d => [d.id, d.data()])
+  );
+
   const lotOrders: Order[] = [];
 
+  // ✅ FIX ERROR 16: Los participantes de cada lote siguen siendo una subcollección
+  // pero ya no buscamos el producto individualmente en cada iteración
   for (const lotDoc of lotsSnap.docs) {
     const lotData = lotDoc.data();
     
-    // ✅ Intentar obtener producto (puede no existir)
-    const productDoc = await db.collection("products").doc(lotData.productId).get();
-    const productData = productDoc.exists ? productDoc.data() : null;
+    // Usar el mapa pre-cargado en lugar de una query individual
+    const productData = lotProductsMap.get(lotData.productId) || null;
     
-    // ✅ Usar datos guardados en el lote
     const productName = lotData.productName || productData?.name || "Producto eliminado";
     const productPrice = lotData.productPrice || productData?.price || 0;
     const netProfitPerUnit = lotData.netProfitPerUnit || productData?.netProfitPerUnit || 0;
     
-    // Obtener participantes
+    // Los participantes son una subcollección — se obtienen por lote (no hay otra forma)
     const participantsSnap = await lotDoc.ref.collection("participants").get();
     const buyers = participantsSnap.docs.map(doc => {
       const data = doc.data();
@@ -71,11 +86,11 @@ export default async function PedidosFabricantePage() {
     lotOrders.push({
       id: lotDoc.id,
       type: 'lote',
-      productName: productName,  // ✅ Usar variable
+      productName,
       qty: accumulatedQty,
-      pricePerUnit: productPrice,  // ✅ Usar variable
+      pricePerUnit: productPrice,
       total: accumulatedQty * productPrice,
-      ganancia: accumulatedQty * netProfitPerUnit,  // ✅ Usar variable
+      ganancia: accumulatedQty * netProfitPerUnit,
       date: lotData.closedAt?.toDate().toLocaleDateString("es-AR") || "-",
       status: "Completado",
       buyers,
@@ -93,36 +108,60 @@ export default async function PedidosFabricantePage() {
     .where("status", "==", "approved")
     .get();
 
-  const directOrders: Order[] = [];
+  // ✅ FIX ERROR 16: Recolectar todos los IDs necesarios para búsqueda batch
+  const directProductIds = [...new Set(
+    directOrdersSnap.docs.map(doc => doc.data().productId).filter(Boolean)
+  )];
+  const directBuyerIds = [...new Set(
+    directOrdersSnap.docs.map(doc => doc.data().retailerId || doc.data().buyerId).filter(Boolean)
+  )];
 
-  for (const paymentDoc of directOrdersSnap.docs) {
+  // Buscar todos los productos, usuarios y retailers en 3 operaciones paralelas (no en loop)
+  const [directProductDocs, directUserDocs, directRetailerDocs] = await Promise.all([
+    directProductIds.length > 0
+      ? db.getAll(...directProductIds.map(id => db.collection("products").doc(id)))
+      : Promise.resolve([]),
+    directBuyerIds.length > 0
+      ? db.getAll(...directBuyerIds.map(id => db.collection("users").doc(id)))
+      : Promise.resolve([]),
+    directBuyerIds.length > 0
+      ? db.getAll(...directBuyerIds.map(id => db.collection("retailers").doc(id)))
+      : Promise.resolve([]),
+  ]);
+
+  // Construir mapas para búsqueda O(1)
+  const directProductsMap = new Map(
+    directProductDocs.filter(d => d.exists).map(d => [d.id, d.data()])
+  );
+  const directUsersMap = new Map(
+    directUserDocs.filter(d => d.exists).map(d => [d.id, d.data()])
+  );
+  const directRetailersMap = new Map(
+    directRetailerDocs.filter(d => d.exists).map(d => [d.id, d.data()])
+  );
+
+  const directOrders: Order[] = directOrdersSnap.docs.map(paymentDoc => {
     const payment = paymentDoc.data();
-    
-    // ✅ Intentar obtener producto
-    const productDoc = await db.collection("products").doc(payment.productId).get();
-    const productData = productDoc.exists ? productDoc.data() : null;
-    
-    // ✅ Usar datos de payment si existe
+    const buyerId = payment.retailerId || payment.buyerId;
+
+    // Usar mapas pre-cargados en lugar de queries individuales
+    const productData = directProductsMap.get(payment.productId) || null;
+    const buyerData = directUsersMap.get(buyerId) || null;
+    const retailerData = directRetailersMap.get(buyerId) || null;
+
     const productName = payment.productName || productData?.name || "Producto eliminado";
     const qty = payment.qty || 0;
     const productPrice = payment.productPrice || productData?.price || (payment.amount / qty) || 0;
     const netProfitPerUnit = payment.netProfitPerUnit || productData?.netProfitPerUnit || 0;
-    
-    // Obtener info del comprador
-    const buyerDoc = await db.collection("users").doc(payment.retailerId || payment.buyerId).get();
-    const buyerData = buyerDoc.data();
-    
-    const retailerDoc = await db.collection("retailers").doc(payment.retailerId || payment.buyerId).get();
-    const retailerData = retailerDoc.data();
-    
-    directOrders.push({
+
+    return {
       id: paymentDoc.id,
       type: 'directo',
-      productName: productName,  // ✅ Usar variable
+      productName,
       qty,
-      pricePerUnit: productPrice,  // ✅ Usar variable
+      pricePerUnit: productPrice,
       total: qty * productPrice,
-      ganancia: qty * netProfitPerUnit,  // ✅ Usar variable
+      ganancia: qty * netProfitPerUnit,
       date: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
       status: "Completado",
       buyers: [{
@@ -130,8 +169,8 @@ export default async function PedidosFabricantePage() {
         qty,
         address: retailerData?.address?.formatted || "N/A",
       }],
-    });
-  }
+    };
+  });
 
   /* ===============================
      📊 COMBINAR TODOS

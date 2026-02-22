@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
 
+// ✅ FIX ERROR 6: Agregar force-dynamic para evitar que Next.js cachee respuestas OAuth
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   try {
     const userId = cookies().get("userId")?.value;

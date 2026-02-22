@@ -112,15 +112,10 @@ export default async function AdminProductIntermediaryPage() {
             Marca los productos que funcionan como intermediarios (ustedes gestionan stock, compra y logística)
           </p>
 
-          {/* 🆕 DEBUG INFO */}
-          <div className="mt-4 bg-gray-100 border border-gray-300 rounded-lg p-3 text-sm">
-            <p className="text-gray-700">
-              <strong>Usuario admin:</strong> {adminUserId}
-            </p>
-            <p className="text-gray-700">
-              <strong>Productos encontrados:</strong> {products.length}
-            </p>
-          </div>
+          {/* ✅ FIX ERROR 15: Bloque de debug eliminado.
+              Antes mostraba adminUserId en el HTML visible → cualquiera que
+              abriera DevTools podía ver el ID interno del administrador.
+              El console.log en getAdminProducts() es suficiente para debug. */}
         </div>
 
         {/* INFORMACIÓN */}
