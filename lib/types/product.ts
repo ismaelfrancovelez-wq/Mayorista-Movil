@@ -82,15 +82,15 @@ export interface Product {
 
   /* 📦 BÁSICO */
   name: string;
-  description?: string;
+  description: string;        // ✅ obligatorio
   price: number;
   minimumOrder: number;
 
   /* ✅ Categoría del producto */
   category: ProductCategory;
 
-  /* 🖼️ IMAGEN DEL PRODUCTO */
-  imageUrl?: string;
+  /* 🖼️ IMÁGENES DEL PRODUCTO */
+  imageUrls?: string[];       // ✅ array de URLs en lugar de imageUrl string
 
   /* 💰 Ganancia neta informativa por unidad (solo fabricante) */
   netProfitPerUnit: number;

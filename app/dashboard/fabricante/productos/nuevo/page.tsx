@@ -1,5 +1,5 @@
 // app/dashboard/fabricante/productos/nuevo/page.tsx
-// ✅ VERSIÓN ACTUALIZADA - 4 zonas (z1,z2,z3,z4) + validación de exclusividad
+// ✅ VERSIÓN ACTUALIZADA - múltiples fotos + descripción obligatoria + 4 zonas + validación exclusividad
 
 "use client";
 
@@ -30,17 +30,18 @@ export default function NuevoProductoPage() {
      📦 DATOS BÁSICOS
   =============================== */
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [price, setPrice] = useState<number | "">("");
   const [minimumOrder, setMinimumOrder] = useState<number | "">("");
   const [netProfitPerUnit, setNetProfitPerUnit] = useState<number | "">("");
-  
   const [category, setCategory] = useState<ProductCategory>("otros");
 
   /* ===============================
-     🖼️ IMAGEN DEL PRODUCTO
+     🖼️ IMÁGENES DEL PRODUCTO (múltiples)
   =============================== */
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const MAX_IMAGES = 6;
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
 
   /* ===============================
@@ -54,17 +55,9 @@ export default function NuevoProductoPage() {
      🚚 ENVÍO PROPIO
   =============================== */
   const [ownType, setOwnType] = useState<"per_km" | "zones" | "">("");
-
-  // Precio por km
   const [pricePerKm, setPricePerKm] = useState<number | "">("");
-  const [roundTrip, setRoundTrip] = useState(false); // ✅ Por defecto: SOLO IDA
-  // ✅ 4 zonas (z1, z2, z3, z4)
-  const [zones, setZones] = useState({
-    z1: "",  // 0-15km
-    z2: "",  // 15-35km
-    z3: "",  // 35-60km
-    z4: "",  // +60km
-  });
+  const [roundTrip, setRoundTrip] = useState(false);
+  const [zones, setZones] = useState({ z1: "", z2: "", z3: "", z4: "" });
 
   // Envío por terceros
   const [thirdPartyPrice, setThirdPartyPrice] = useState<number | "">("");
@@ -76,30 +69,60 @@ export default function NuevoProductoPage() {
   const [loading, setLoading] = useState(false);
 
   /* ===============================
-     🖼️ MANEJO DE IMAGEN
+     🖼️ MANEJO DE IMÁGENES (múltiples)
   =============================== */
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-    const validation = validateImageFile(file);
-    if (!validation.valid) {
-      toast.error(validation.error || "Imagen inválida");
+    const remaining = MAX_IMAGES - imageFiles.length;
+    if (remaining <= 0) {
+      toast.error(`Máximo ${MAX_IMAGES} fotos permitidas`);
+      e.target.value = "";
       return;
     }
 
-    setImageFile(file);
+    const filesToAdd = files.slice(0, remaining);
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    if (files.length > remaining) {
+      toast.error(`Solo se agregaron ${remaining} foto(s). Límite: ${MAX_IMAGES}`);
+    }
+
+    const validFiles: File[] = [];
+    const newPreviews: string[] = [];
+    let processed = 0;
+
+    filesToAdd.forEach((file) => {
+      const validation = validateImageFile(file);
+      if (!validation.valid) {
+        toast.error(`${file.name}: ${validation.error || "Imagen inválida"}`);
+        processed++;
+        if (processed === filesToAdd.length && validFiles.length > 0) {
+          setImageFiles((prev) => [...prev, ...validFiles]);
+          setImagePreviews((prev) => [...prev, ...newPreviews]);
+        }
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        validFiles.push(file);
+        newPreviews.push(reader.result as string);
+        processed++;
+        if (processed === filesToAdd.length) {
+          setImageFiles((prev) => [...prev, ...validFiles]);
+          setImagePreviews((prev) => [...prev, ...newPreviews]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = "";
   };
 
-  const handleRemoveImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
+  const handleRemoveImage = (index: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   /* ===============================
@@ -111,9 +134,7 @@ export default function NuevoProductoPage() {
       return;
     }
     setOwnLogistics(checked);
-    if (!checked) {
-      setOwnType("");
-    }
+    if (!checked) setOwnType("");
     setError(null);
   };
 
@@ -127,15 +148,21 @@ export default function NuevoProductoPage() {
   };
 
   /* ===============================
-     💾 SUBMIT CON VALIDACIÓN REFORZADA
+     💾 SUBMIT
   =============================== */
   async function handleSubmit() {
     setError(null);
 
     const sanitizedName = sanitizeText(name, 100);
-    
+    const sanitizedDescription = sanitizeText(description, 500);
+
     if (sanitizedName.length < 3) {
       setError("El nombre debe tener al menos 3 caracteres");
+      return;
+    }
+
+    if (sanitizedDescription.length < 10) {
+      setError("La descripción debe tener al menos 10 caracteres");
       return;
     }
 
@@ -203,21 +230,17 @@ export default function NuevoProductoPage() {
     =============================== */
     const shipping: any = { methods: [] };
 
-    if (factoryPickup) {
-      shipping.methods.push("factory_pickup");
-    }
+    if (factoryPickup) shipping.methods.push("factory_pickup");
 
     if (ownLogistics) {
       shipping.methods.push("own_logistics");
-
       if (ownType === "per_km") {
-  shipping.ownLogistics = {
-    type: "per_km",
-    pricePerKm: Number(pricePerKm),
-    roundTrip: roundTrip,  // ✅ NUEVO
-  };
-}
-
+        shipping.ownLogistics = {
+          type: "per_km",
+          pricePerKm: Number(pricePerKm),
+          roundTrip,
+        };
+      }
       if (ownType === "zones") {
         shipping.ownLogistics = {
           type: "zones",
@@ -233,41 +256,42 @@ export default function NuevoProductoPage() {
 
     if (thirdParty) {
       shipping.methods.push("third_party");
-      shipping.thirdParty = {
-        fixedPrice: Number(thirdPartyPrice),
-      };
+      shipping.thirdParty = { fixedPrice: Number(thirdPartyPrice) };
     }
 
     /* ===============================
-       🖼️ SUBIR IMAGEN
+       🖼️ SUBIR IMÁGENES
     =============================== */
     setLoading(true);
-    let imageUrl = "";
+    let imageUrls: string[] = [];
 
     try {
-      if (imageFile) {
+      if (imageFiles.length > 0) {
         setUploadingImage(true);
-        toast.loading("Subiendo imagen...");
-        imageUrl = await uploadImage(imageFile, "products");
+        toast.loading(`Subiendo ${imageFiles.length} foto(s)...`);
+        imageUrls = await Promise.all(
+          imageFiles.map((file) => uploadImage(file, "products"))
+        );
         toast.dismiss();
-        toast.success("Imagen subida correctamente");
+        toast.success("Fotos subidas correctamente");
         setUploadingImage(false);
       }
 
       /* ===============================
-         🚀 API CON DATOS SANITIZADOS
+         🚀 API
       =============================== */
       const res = await fetch("/api/products/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: sanitizedName,
+          description: sanitizedDescription,
           price: Number(price),
           minimumOrder: Number(minimumOrder),
           netProfitPerUnit: Number(netProfitPerUnit),
           category,
           shipping,
-          imageUrl,
+          imageUrls,   // ✅ array de URLs en lugar de imageUrl string
         }),
       });
 
@@ -294,9 +318,7 @@ export default function NuevoProductoPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto p-8">
-        <h1 className="text-3xl font-semibold mb-6">
-          Nuevo producto
-        </h1>
+        <h1 className="text-3xl font-semibold mb-6">Nuevo producto</h1>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded mb-6">
@@ -319,6 +341,24 @@ export default function NuevoProductoPage() {
             />
           </div>
 
+          {/* ✅ DESCRIPCIÓN OBLIGATORIA */}
+          <div>
+            <label className="block text-sm mb-1">
+              Descripción del producto <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              placeholder="Ej: Zapatillas deportivas de alta calidad, ideales para uso intensivo. Disponibles en todos los talles..."
+              className="w-full border rounded px-3 py-2 resize-none"
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              maxLength={500}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              {description.length}/500 caracteres · mínimo 10
+            </p>
+          </div>
+
           <div>
             <label className="block text-sm mb-1">Categoría</label>
             <select
@@ -334,69 +374,64 @@ export default function NuevoProductoPage() {
             </select>
           </div>
 
-          {/* IMAGEN */}
+          {/* ✅ MÚLTIPLES IMÁGENES */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Imagen del producto (opcional)
+              Fotos del producto{" "}
+              <span className="text-gray-400 font-normal">(opcional · máx. {MAX_IMAGES})</span>
             </label>
-            
-            {!imagePreview ? (
-              <div className="flex items-center justify-center w-full">
-                <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <svg
-                      className="w-10 h-10 mb-3 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                      />
-                    </svg>
-                    <p className="mb-2 text-sm text-gray-500">
-                      <span className="font-semibold">Click para subir</span> o arrastra una imagen
-                    </p>
-                    <p className="text-xs text-gray-500">PNG, JPG o WEBP (MAX. 5MB)</p>
-                  </div>
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/jpeg,image/jpg,image/png,image/webp"
-                    onChange={handleImageChange}
-                  />
-                </label>
-              </div>
-            ) : (
-              <div className="relative">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-full h-64 object-cover rounded-lg"
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
+
+            {/* Grilla de previews */}
+            {imagePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {imagePreviews.map((src, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={src}
+                      alt={`Foto ${index + 1}`}
+                      className="w-full h-28 object-cover rounded-lg border"
                     />
-                  </svg>
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(index)}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                    {index === 0 && (
+                      <span className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
+                        Principal
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
+            )}
+
+            {/* Zona de drop/upload — se oculta si ya se llegó al límite */}
+            {imageFiles.length < MAX_IMAGES && (
+              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                <div className="flex flex-col items-center justify-center">
+                  <svg className="w-8 h-8 mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm text-gray-500">
+                    <span className="font-semibold">Click para subir</span> o arrastrá fotos
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    PNG, JPG o WEBP · MAX. 5MB por foto · {imageFiles.length}/{MAX_IMAGES} subidas
+                  </p>
+                </div>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  multiple
+                  onChange={handleImageChange}
+                />
+              </label>
             )}
           </div>
 
@@ -443,12 +478,10 @@ export default function NuevoProductoPage() {
 
         {/* ENVÍOS */}
         <div className="bg-white rounded-xl shadow p-6 mb-8 space-y-3">
-          <h2 className="font-semibold mb-2">
-            Métodos de envío
-          </h2>
-          
+          <h2 className="font-semibold mb-2">Métodos de envío</h2>
+
           <p className="text-sm text-gray-600 mb-4">
-            Retiro en fábrica puede combinarse con cualquier otro método. 
+            Retiro en fábrica puede combinarse con cualquier otro método.
             Los demás métodos son exclusivos entre sí.
           </p>
 
@@ -482,46 +515,44 @@ export default function NuevoProductoPage() {
               </label>
 
               {ownType === "per_km" && (
-  <div className="space-y-3 ml-4 border-l-2 border-gray-200 pl-4">
-    {/* Input de precio */}
-    <div>
-      <label className="block text-sm mb-1">Precio por kilómetro</label>
-      <input
-        type="number"
-        placeholder="Ej: 85"
-        className="border rounded px-3 py-2 w-full"
-        value={pricePerKm}
-        onChange={(e) => setPricePerKm(Number(e.target.value))}
-        min={0}
-      />
-    </div>
+                <div className="space-y-3 ml-4 border-l-2 border-gray-200 pl-4">
+                  <div>
+                    <label className="block text-sm mb-1">Precio por kilómetro</label>
+                    <input
+                      type="number"
+                      placeholder="Ej: 85"
+                      className="border rounded px-3 py-2 w-full"
+                      value={pricePerKm}
+                      onChange={(e) => setPricePerKm(Number(e.target.value))}
+                      min={0}
+                    />
+                  </div>
 
-    {/* ✅ RADIO BUTTONS: Solo ida / Ida y vuelta */}
-    <div>
-      <label className="block text-sm mb-2 font-medium">Tipo de cálculo:</label>
-      
-      <label className="flex items-center gap-2 mb-2">
-        <input
-          type="radio"
-          checked={!roundTrip}
-          onChange={() => setRoundTrip(false)}
-        />
-        <span>Solo ida</span>
-        <span className="text-xs text-gray-500">(fábrica → revendedor)</span>
-      </label>
+                  <div>
+                    <label className="block text-sm mb-2 font-medium">Tipo de cálculo:</label>
 
-      <label className="flex items-center gap-2">
-        <input
-          type="radio"
-          checked={roundTrip}
-          onChange={() => setRoundTrip(true)}
-        />
-        <span>Ida y vuelta (×2)</span>
-        <span className="text-xs text-gray-500">(fábrica → revendedor → fábrica)</span>
-      </label>
-    </div>
-  </div>
-)}
+                    <label className="flex items-center gap-2 mb-2">
+                      <input
+                        type="radio"
+                        checked={!roundTrip}
+                        onChange={() => setRoundTrip(false)}
+                      />
+                      <span>Solo ida</span>
+                      <span className="text-xs text-gray-500">(fábrica → revendedor)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        checked={roundTrip}
+                        onChange={() => setRoundTrip(true)}
+                      />
+                      <span>Ida y vuelta (×2)</span>
+                      <span className="text-xs text-gray-500">(fábrica → revendedor → fábrica)</span>
+                    </label>
+                  </div>
+                </div>
+              )}
 
               <label className="flex items-center gap-2">
                 <input
@@ -539,48 +570,28 @@ export default function NuevoProductoPage() {
                     type="number"
                     className="border px-2 py-1"
                     value={zones.z1}
-                    onChange={(e) =>
-                      setZones({
-                        ...zones,
-                        z1: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setZones({ ...zones, z1: e.target.value })}
                   />
                   <input
                     placeholder="Zona 2 (15-35 km)"
                     type="number"
                     className="border px-2 py-1"
                     value={zones.z2}
-                    onChange={(e) =>
-                      setZones({
-                        ...zones,
-                        z2: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setZones({ ...zones, z2: e.target.value })}
                   />
                   <input
                     placeholder="Zona 3 (35-60 km)"
                     type="number"
                     className="border px-2 py-1"
                     value={zones.z3}
-                    onChange={(e) =>
-                      setZones({
-                        ...zones,
-                        z3: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setZones({ ...zones, z3: e.target.value })}
                   />
                   <input
                     placeholder="Zona 4 (+60 km)"
                     type="number"
                     className="border px-2 py-1"
                     value={zones.z4}
-                    onChange={(e) =>
-                      setZones({
-                        ...zones,
-                        z4: e.target.value,
-                      })
-                    }
+                    onChange={(e) => setZones({ ...zones, z4: e.target.value })}
                   />
                 </div>
               )}

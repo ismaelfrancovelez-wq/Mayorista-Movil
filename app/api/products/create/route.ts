@@ -45,6 +45,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // ✅ NUEVO: Validación de descripción obligatoria
+    if (
+      !body.description ||
+      typeof body.description !== "string" ||
+      body.description.trim().length < 10
+    ) {
+      return NextResponse.json(
+        { error: "La descripción debe tener al menos 10 caracteres" },
+        { status: 400 }
+      );
+    }
+
     if (typeof body.price !== "number" || body.price <= 0) {
       return NextResponse.json(
         { error: "Precio inválido" },
@@ -91,13 +103,14 @@ export async function POST(req: Request) {
 
     /* ===============================
        💾 GUARDAR PRODUCTO
-       🆕 AHORA INCLUYE isIntermediary, category e imageUrl
     =============================== */
 
     const productRef = await db.collection("products").add({
       factoryId, // 🔒 siempre desde cookie / rol
 
       name: body.name,
+      description: body.description.trim(), // ✅ NUEVO: descripción obligatoria
+
       price: body.price,
       minimumOrder: body.minimumOrder,
 
@@ -107,8 +120,8 @@ export async function POST(req: Request) {
       // ✅ categoría del producto
       category: body.category || "otros",
 
-      // 🖼️ imagen del producto (opcional) - 🆕 NUEVO
-      imageUrl: body.imageUrl || null,
+      // 🖼️ imágenes del producto (array de URLs) - ✅ ACTUALIZADO
+      imageUrls: Array.isArray(body.imageUrls) ? body.imageUrls : [],
 
       // 🚚 reglas de envío
       shipping: body.shipping,
