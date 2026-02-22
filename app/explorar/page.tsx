@@ -22,7 +22,7 @@ type Product = {
   category: ProductCategory;
   featured: boolean;
   shippingMethods: string[];
-  imageUrl?: string;
+  imageUrls?: string[];   // ✅ ACTUALIZADO: array en lugar de imageUrl string
   // Datos del fabricante
   manufacturerName?: string;
   manufacturerImageUrl?: string;
@@ -81,7 +81,7 @@ async function getProducts(): Promise<Product[]> {
         category: (data.category || "otros") as ProductCategory,
         featured: data.featured || false,
         shippingMethods: data.shipping?.methods || [],
-        imageUrl: data.imageUrl || undefined,
+        imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : undefined,  // ✅ ACTUALIZADO
         // Fabricante
         manufacturerName: manufacturer?.businessName || undefined,
         manufacturerImageUrl: manufacturer?.profileImageUrl || undefined,

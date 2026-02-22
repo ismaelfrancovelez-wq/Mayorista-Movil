@@ -110,6 +110,11 @@ export default async function ProductDetailPage({
 
   const minimumOrder = Number(product.minimumOrder) || 0;
 
+  // ✅ Primera imagen del array (o undefined si no hay)
+  const mainImage = product.imageUrls && product.imageUrls.length > 0
+    ? product.imageUrls[0]
+    : undefined;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto p-8">
@@ -127,9 +132,9 @@ export default async function ProductDetailPage({
             
             {/* COLUMNA IZQUIERDA - IMAGEN */}
             <div className="relative bg-gray-100">
-              {product.imageUrl ? (
+              {mainImage ? (
                 <img
-                  src={product.imageUrl}
+                  src={mainImage}
                   alt={product.name}
                   className="w-full h-full object-cover"
                   style={{ minHeight: "400px", maxHeight: "600px" }}
@@ -292,6 +297,7 @@ export default async function ProductDetailPage({
                     price={product.price}
                     MF={minimumOrder}
                     productId={product.id}
+                    factoryId={product.factoryId}
                   />
                 </div>
               )}

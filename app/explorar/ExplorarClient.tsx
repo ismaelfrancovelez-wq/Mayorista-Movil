@@ -13,7 +13,7 @@ type Product = {
   category: ProductCategory;
   featured: boolean;
   shippingMethods: string[];
-  imageUrl?: string;
+  imageUrls?: string[];   // ✅ ACTUALIZADO: array en lugar de imageUrl string
   // Datos del fabricante
   manufacturerName?: string;
   manufacturerImageUrl?: string;
@@ -335,9 +335,9 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                     >
                       {/* IMAGEN DEL PRODUCTO */}
                       <div className="relative h-48 bg-gray-200 overflow-hidden">
-                        {product.imageUrl ? (
+                        {product.imageUrls && product.imageUrls.length > 0 ? (
                           <img
-                            src={product.imageUrl}
+                            src={product.imageUrls[0]}
                             alt={product.name}
                             className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                           />

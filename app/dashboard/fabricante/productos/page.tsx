@@ -14,7 +14,7 @@ type Product = {
   category: string;
   featured: boolean;
   active: boolean;
-  imageUrl?: string; // 🆕 AGREGAR imageUrl
+  imageUrls?: string[];   // ✅ ACTUALIZADO: array en lugar de imageUrl string
 };
 
 export default function ProductosFabricantePage() {
@@ -112,11 +112,11 @@ export default function ProductosFabricantePage() {
             key={p.id}
             className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden"
           >
-            {/* 🆕 IMAGEN DEL PRODUCTO */}
+            {/* IMAGEN DEL PRODUCTO */}
             <div className="relative h-48 bg-gray-200">
-              {p.imageUrl ? (
+              {p.imageUrls && p.imageUrls.length > 0 ? (
                 <img
-                  src={p.imageUrl}
+                  src={p.imageUrls[0]}
                   alt={p.name}
                   className="w-full h-full object-cover"
                 />
