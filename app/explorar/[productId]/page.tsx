@@ -150,16 +150,15 @@ export default async function ProductDetailPage({
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="grid lg:grid-cols-[55%_45%] gap-0">
 
-            {/* COLUMNA IZQUIERDA — IMAGEN */}
-            <div className="bg-gray-50 border-r border-gray-100">
-              <div style={{ minHeight: "500px" }} className="sticky top-6">
+            {/* COLUMNA IZQUIERDA — IMAGEN + DESCRIPCIÓN */}
+            <div className="bg-gray-50 border-r border-gray-100 flex flex-col">
+
+              {/* IMAGEN */}
+              <div className="flex-shrink-0" style={{ height: "500px" }}>
                 {images.length > 0 ? (
                   <ImageCarousel images={images} productName={product.name} />
                 ) : (
-                  <div
-                    className="w-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200"
-                    style={{ minHeight: "500px" }}
-                  >
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                     <svg
                       className="w-32 h-32 text-gray-400"
                       fill="none"
@@ -176,6 +175,17 @@ export default async function ProductDetailPage({
                   </div>
                 )}
               </div>
+
+              {/* DESCRIPCIÓN DEBAJO DE LA IMAGEN */}
+              {product.description && (
+                <div className="p-6 border-t border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Descripción</h3>
+                  <p className="text-gray-600 text-base leading-relaxed whitespace-pre-line">
+                    {product.description}
+                  </p>
+                </div>
+              )}
+
             </div>
 
             {/* COLUMNA DERECHA — INFO */}
@@ -190,18 +200,6 @@ export default async function ProductDetailPage({
                   ${product.price.toLocaleString("es-AR")}
                 </p>
               </div>
-
-              {/* DESCRIPCIÓN */}
-              {product.description && (
-                <div className="mb-6 pb-6 border-b border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                    Descripción
-                  </h3>
-                  <p className="text-gray-600 text-base leading-relaxed whitespace-pre-line">
-                    {product.description}
-                  </p>
-                </div>
-              )}
 
               {/* PEDIDO MÍNIMO */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
