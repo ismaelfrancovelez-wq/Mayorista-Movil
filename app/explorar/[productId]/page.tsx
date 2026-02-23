@@ -14,50 +14,31 @@ import ShippingSimulatorSection from "../../../components/ShippingSimulatorSecti
 import ImageCarousel from "../../../components/products/ImageCarousel";
 import Link from "next/link";
 
-// ✅ OPTIMIZACIÓN: Caché de 30 segundos
 export const revalidate = 30;
 
-/* ===============================
-    📍 OBTENER PRODUCTO
-================================ */
 async function getProduct(
   productId: string
 ): Promise<(Product & { id: string }) | null> {
   const snap = await db.collection("products").doc(productId).get();
-
   if (!snap.exists) return null;
-
   const data = snap.data() as Product;
-
-  return {
-    id: snap.id,
-    ...data,
-  };
+  return { id: snap.id, ...data };
 }
 
-/* ===============================
-    🏢 OBTENER INFO DEL FABRICANTE
-================================ */
 async function getManufacturerInfo(factoryId: string) {
   console.log("🔍 Buscando manufacturer con ID:", factoryId);
-  
   const snap = await db.collection("manufacturers").doc(factoryId).get();
-  
   if (!snap.exists) {
     console.log("❌ Manufacturer NO encontrado");
     return null;
   }
-  
   const data = snap.data();
-  
   const isVerified = data?.verification?.status === "verified";
-  
   console.log("✅ Manufacturer encontrado:", {
     businessName: data?.businessName,
     verificationStatus: data?.verification?.status,
     isVerified: isVerified,
   });
-  
   return {
     businessName: data?.businessName || "Fabricante",
     profileImageUrl: data?.profileImageUrl || "",
@@ -69,31 +50,19 @@ async function getManufacturerInfo(factoryId: string) {
   };
 }
 
-/* ===============================
-    📦 PROGRESO FRACCIONADO
-================================ */
 async function getFraccionadoProgress(productId: string) {
   const headersList = headers();
   const host = headersList.get("host");
-
   if (!host) return null;
-
-  const protocol =
-    process.env.NODE_ENV === "development" ? "http" : "https";
-
+  const protocol = process.env.NODE_ENV === "development" ? "http" : "https";
   const res = await fetch(
     `${protocol}://${host}/api/lots/fraccionado/progress?productId=${productId}`,
     { cache: "no-store" }
   );
-
   if (!res.ok) return null;
-
   return res.json();
 }
 
-/* ===============================
-    🧾 PAGE (SERVER COMPONENT)
-================================ */
 export default async function ProductDetailPage({
   params,
 }: {
@@ -101,7 +70,6 @@ export default async function ProductDetailPage({
 }) {
   const product = await getProduct(params.productId);
   const progressData = await getFraccionadoProgress(params.productId);
-
   const userId = cookies().get("userId")?.value;
 
   if (!product) {
@@ -109,10 +77,8 @@ export default async function ProductDetailPage({
   }
 
   const manufacturerInfo = await getManufacturerInfo(product.factoryId);
-
   const minimumOrder = Number(product.minimumOrder) || 0;
 
-  // ✅ Array de imágenes — soporta imageUrls[] (nuevo) e imageUrl string (legacy)
   const images: string[] =
     Array.isArray((product as any).imageUrls) && (product as any).imageUrls.length > 0
       ? (product as any).imageUrls
@@ -120,17 +86,11 @@ export default async function ProductDetailPage({
       ? [(product as any).imageUrl]
       : [];
 
-  /* ===============================
-     🚚 PERMISOS DE SHIPPING
-  ================================ */
   const shippingMethods: string[] = product.shipping?.methods ?? [];
-
   const allowPickup = shippingMethods.includes("factory_pickup");
-
   const allowFactoryShipping =
     shippingMethods.includes("own_logistics") ||
     shippingMethods.includes("third_party");
-
   const hasFactoryAddress = !!(
     manufacturerInfo?.address?.formattedAddress ||
     manufacturerInfo?.address?.lat
@@ -138,29 +98,30 @@ export default async function ProductDetailPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto px-4 py-6">
 
         <Link
           href="/explorar"
-          className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-6"
+          className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium mb-4 text-sm"
         >
           ← Volver a explorar
         </Link>
 
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="grid lg:grid-cols-[55%_45%] gap-0">
+        {/* CARD PRINCIPAL */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="grid lg:grid-cols-[52%_48%]">
 
             {/* COLUMNA IZQUIERDA — IMAGEN + DESCRIPCIÓN */}
-            <div className="bg-gray-50 border-r border-gray-100 flex flex-col">
+            <div className="border-r border-gray-100 flex flex-col">
 
-              {/* IMAGEN */}
-              <div className="flex-shrink-0" style={{ height: "500px" }}>
+              {/* CARRUSEL */}
+              <div style={{ height: "500px" }}>
                 {images.length > 0 ? (
                   <ImageCarousel images={images} productName={product.name} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                  <div className="w-full h-full flex items-center justify-center bg-gray-50">
                     <svg
-                      className="w-32 h-32 text-gray-400"
+                      className="w-24 h-24 text-gray-300"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -176,11 +137,13 @@ export default async function ProductDetailPage({
                 )}
               </div>
 
-              {/* DESCRIPCIÓN DEBAJO DE LA IMAGEN */}
+              {/* DESCRIPCIÓN */}
               {product.description && (
-                <div className="p-6 border-t border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Descripción</h3>
-                  <p className="text-gray-600 text-base leading-relaxed whitespace-pre-line">
+                <div className="px-6 py-5 border-t border-gray-100">
+                  <h3 className="text-base font-semibold text-gray-900 mb-2">
+                    Descripción
+                  </h3>
+                  <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">
                     {product.description}
                   </p>
                 </div>
@@ -188,37 +151,37 @@ export default async function ProductDetailPage({
 
             </div>
 
-            {/* COLUMNA DERECHA — INFO */}
-            <div className="p-8 overflow-y-auto">
+            {/* COLUMNA DERECHA — INFO + COMPRA */}
+            <div className="px-8 py-6 flex flex-col overflow-y-auto">
 
-              {/* NOMBRE Y PRECIO */}
-              <div className="mb-6 pb-6 border-b border-gray-100">
-                <h1 className="text-2xl font-bold text-gray-900 mb-3 leading-tight">
-                  {product.name}
-                </h1>
-                <p className="text-4xl font-bold text-gray-900">
-                  ${product.price.toLocaleString("es-AR")}
-                </p>
-              </div>
+              {/* NOMBRE */}
+              <h1 className="text-xl font-semibold text-gray-900 leading-snug mb-3">
+                {product.name}
+              </h1>
+
+              {/* PRECIO */}
+              <p className="text-4xl font-light text-gray-900 mb-6">
+                ${product.price.toLocaleString("es-AR")}
+              </p>
 
               {/* PEDIDO MÍNIMO */}
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <p className="text-sm text-gray-500 mb-1">Pedido mínimo</p>
-                <p className="text-2xl font-bold text-gray-900">
+              <div className="bg-gray-50 rounded-xl p-4 mb-5">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Pedido mínimo</p>
+                <p className="text-2xl font-semibold text-gray-900">
                   {minimumOrder} unidades
                 </p>
               </div>
 
               {/* PROGRESO FRACCIONADO */}
               {progressData && progressData.accumulatedQty > 0 && (
-                <div className="bg-blue-50 rounded-lg p-4 mb-6">
-                  <h3 className="font-semibold text-lg mb-3">📦 Progreso Fraccionado</h3>
-                  <p className="text-sm text-gray-600 mb-4">
+                <div className="bg-blue-50 rounded-xl p-4 mb-5">
+                  <h3 className="font-semibold text-sm mb-2 text-blue-900">📦 Progreso Fraccionado</h3>
+                  <p className="text-sm text-gray-600 mb-3">
                     {progressData.accumulatedQty} / {minimumOrder} unidades acumuladas
                   </p>
-                  <div className="w-full bg-gray-200 rounded-full h-4">
+                  <div className="w-full bg-blue-100 rounded-full h-3">
                     <div
-                      className="bg-blue-600 h-4 rounded-full transition-all duration-300"
+                      className="bg-blue-500 h-3 rounded-full transition-all duration-300"
                       style={{
                         width: `${Math.min((progressData.accumulatedQty / minimumOrder) * 100, 100)}%`,
                       }}
@@ -229,14 +192,14 @@ export default async function ProductDetailPage({
 
               {/* INFO DEL FABRICANTE */}
               {manufacturerInfo && (
-                <div className="border-t border-gray-200 pt-6 mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                <div className="border-t border-gray-100 pt-5 mb-5">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">
                     Información del Fabricante
                   </h3>
 
-                  <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-3 mb-3">
                     <div className="relative flex-shrink-0">
-                      <div className={`w-12 h-12 rounded-full p-0.5 ${manufacturerInfo.verified ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                      <div className={`w-10 h-10 rounded-full p-0.5 ${manufacturerInfo.verified ? 'bg-blue-500' : 'bg-gray-200'}`}>
                         <div className="w-full h-full rounded-full overflow-hidden bg-white">
                           {manufacturerInfo.profileImageUrl ? (
                             <img
@@ -245,7 +208,7 @@ export default async function ProductDetailPage({
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full bg-gray-100 flex items-center justify-center text-base font-bold text-gray-500">
+                            <div className="w-full h-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500">
                               {manufacturerInfo.businessName.charAt(0).toUpperCase()}
                             </div>
                           )}
@@ -260,7 +223,7 @@ export default async function ProductDetailPage({
                       )}
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900">{manufacturerInfo.businessName}</p>
+                      <p className="font-semibold text-sm text-gray-900">{manufacturerInfo.businessName}</p>
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {manufacturerInfo.verified && (
                           <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold">
@@ -276,7 +239,7 @@ export default async function ProductDetailPage({
                     </div>
                   </div>
 
-                  <div className="space-y-2 text-gray-700">
+                  <div className="space-y-1.5 text-sm text-gray-700">
                     <p>
                       <span className="font-medium">Empresa:</span>{" "}
                       {manufacturerInfo.businessName}
@@ -294,16 +257,16 @@ export default async function ProductDetailPage({
                       </p>
                     )}
                     {manufacturerInfo.verified && (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="flex items-center gap-2 text-green-600 mt-2">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
                         <span className="text-sm font-medium">Fabricante Verificado</span>
                       </div>
                     )}
                     {product.isIntermediary && (
-                      <div className="flex items-center gap-2 text-blue-600">
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="flex items-center gap-2 text-blue-600 mt-2">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
                         </svg>
                         <span className="text-sm font-medium">Intermediario</span>
@@ -331,7 +294,7 @@ export default async function ProductDetailPage({
         </div>
 
         {userId && (
-          <div className="bg-white rounded-xl shadow-lg p-8 mt-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mt-4">
             <ShippingSimulatorSection productId={product.id} />
           </div>
         )}
