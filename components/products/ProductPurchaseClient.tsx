@@ -14,6 +14,10 @@ type Props = {
 
 type ShippingMode = "pickup" | "factory" | "platform";
 
+function formatNumber(n: number): string {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 export default function ProductPurchaseClient({
   price,
   MF,
@@ -259,7 +263,7 @@ export default function ProductPurchaseClient({
           </p>
           <p className="text-xs text-green-600 mt-3">
             El envío estimado es{" "}
-            <strong>${shippingCost.toLocaleString()}</strong> si pagás solo. Si
+            <strong>${formatNumber(shippingCost)}</strong> si pagás solo. Si
             se suman más personas de tu zona, ese precio baja.
           </p>
         </div>
@@ -367,7 +371,7 @@ export default function ProductPurchaseClient({
                 "Calculando envío..."
               ) : (
                 <>
-                  Envío por plataforma: ${shippingCost.toLocaleString()}
+                  Envío por plataforma: ${formatNumber(shippingCost)}
                   {shippingKm !== null && (
                     <span className="text-sm text-gray-600 ml-1">
                       ({shippingKm} km)
@@ -393,7 +397,7 @@ export default function ProductPurchaseClient({
                 "Calculando envío..."
               ) : (
                 <>
-                  Envío por fábrica: ${shippingCost.toLocaleString()}
+                  Envío por fábrica: ${formatNumber(shippingCost)}
                   {shippingKm !== null && (
                     <span className="text-sm text-gray-600 ml-1">
                       ({shippingKm} km)
@@ -414,13 +418,13 @@ export default function ProductPurchaseClient({
 
       {/* RESUMEN DE COSTOS */}
       <div className="border rounded p-4 text-sm mb-4 bg-gray-50">
-        <p>Subtotal producto: $ {productSubtotal.toLocaleString()}</p>
+        <p>Subtotal producto: $ {formatNumber(productSubtotal)}</p>
         {commission > 0 && (
-          <p>Comisión (12%): $ {commission.toLocaleString()}</p>
+          <p>Comisión (12%): $ {formatNumber(commission)}</p>
         )}
-        <p>Envío: $ {shippingCost.toLocaleString()}</p>
+        <p>Envío: $ {formatNumber(shippingCost)}</p>
         <p className="font-semibold mt-2 text-base">
-          Total: $ {totalToCharge.toLocaleString()}
+          Total: $ {formatNumber(totalToCharge)}
         </p>
       </div>
 
@@ -431,7 +435,7 @@ export default function ProductPurchaseClient({
             <strong>💡 El envío podría ser menos.</strong> Buscamos otros
             compradores en tu zona para dividir el costo. Si se suman, pagás
             menos de{" "}
-            <strong>${shippingCost.toLocaleString()}</strong>.
+            <strong>${formatNumber(shippingCost)}</strong>.
             El precio final lo ves en el email cuando el lote cierre.
           </p>
         </div>
@@ -443,7 +447,7 @@ export default function ProductPurchaseClient({
           <p className="text-sm text-red-700">{reserveError}</p>
           {reserveError.includes("dirección") && (
             
-              <a href="/dashboard/pedidos-fraccionados/perfil"
+             <a href="/dashboard/pedidos-fraccionados/perfil"
               className="text-sm font-semibold text-red-800 underline mt-1 block"
             >
               Ir a configurar dirección
