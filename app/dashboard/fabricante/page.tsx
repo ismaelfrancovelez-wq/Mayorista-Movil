@@ -12,10 +12,16 @@ export const revalidate = 0;
 async function DashboardFabricanteContent() {
   const userId = cookies().get("userId")?.value;
   const role = cookies().get("activeRole")?.value;
-  const userEmail = cookies().get("userEmail")?.value || ""; // ✅ NUEVO
 
   if (!userId || role !== "manufacturer") {
     return <div className="p-6">No autorizado</div>;
+  }
+
+  // ✅ NUEVO: leer email desde cookie; si no existe (sesión previa), buscarlo en Firestore
+  let userEmail = cookies().get("userEmail")?.value || "";
+  if (!userEmail) {
+    const userSnap = await db.collection("users").doc(userId).get();
+    userEmail = userSnap.data()?.email || "";
   }
 
   /* ===============================

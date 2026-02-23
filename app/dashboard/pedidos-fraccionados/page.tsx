@@ -34,7 +34,6 @@ type ActiveLot = {
 async function DashboardRevendedorContent() {
   const userId = cookies().get("userId")?.value;
   const role = cookies().get("activeRole")?.value;
-  const userEmail = cookies().get("userEmail")?.value || ""; // ✅ NUEVO
 
   if (!userId || role !== "retailer") {
     return <div className="p-6">No autorizado</div>;
@@ -59,6 +58,9 @@ async function DashboardRevendedorContent() {
 
   // IDs ocultos por el usuario
   const hiddenIds: string[] = userSnap.data()?.hiddenOrders || [];
+
+  // ✅ NUEVO: leer email desde cookie; si no existe (sesión previa), usar el de Firestore (ya cargado)
+  const userEmail = cookies().get("userEmail")?.value || userSnap.data()?.email || "";
 
   /* ── 2. ESTADO REAL DE LOTES DESDE FIRESTORE ── */
   const allLotIds = new Set<string>();

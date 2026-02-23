@@ -39,33 +39,24 @@ export async function POST(req: Request) {
 
     const user = userSnap.docs[0].data();
     const activeRole = user.activeRole || user.usertype;
+    // El email ya está guardado en Firestore desde el registro
+    const userEmail = user.email || decoded.email || "";
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+      path: "/",
+      maxAge: SESSION_MAX_AGE,  // ✅ FIX: sin esto las cookies expiraban al cerrar el browser
+    };
 
     // 🍪 Cookies — ✅ FIX ERROR 11: Agregar maxAge para que persistan tras cerrar el browser
-    cookies().set("userId", userId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE,  // ✅ FIX: sin esto las cookies expiraban al cerrar el browser
-    });
-
-    cookies().set("activeRole", activeRole, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE,  // ✅ FIX: sin esto las cookies expiraban al cerrar el browser
-    });
+    cookies().set("userId", userId, cookieOptions);
+    cookies().set("activeRole", activeRole, cookieOptions);
 
     // ✅ NUEVO: guardar email para mostrarlo en el dashboard sin consultar Firestore
-    if (decoded.email) {
-      cookies().set("userEmail", decoded.email, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: SESSION_MAX_AGE,
-      });
+    if (userEmail) {
+      cookies().set("userEmail", userEmail, cookieOptions);
     }
 
     return NextResponse.json({
