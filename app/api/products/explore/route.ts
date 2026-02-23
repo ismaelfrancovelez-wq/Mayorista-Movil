@@ -7,12 +7,12 @@ export const revalidate = 10;
 // ✅ FIX ERROR 18: Cuántos productos devolver por página
 const PAGE_SIZE = 20;
 
-export async function GET(req: Request) {
+export async function GET(req: Request & { nextUrl: { searchParams: URLSearchParams } }) {
   try {
     const { adminDb } = await getAdminServices();
 
     // ✅ FIX ERROR 18: Leer el parámetro ?page= de la URL (por defecto página 1)
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = req.nextUrl;
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const offset = (page - 1) * PAGE_SIZE;
 
