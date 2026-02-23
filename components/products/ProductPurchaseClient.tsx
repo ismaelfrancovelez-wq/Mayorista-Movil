@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useMemo, useState, useCallback } from "react";
 
 type Props = {
@@ -5,10 +7,9 @@ type Props = {
   MF: number;
   productId: string;
   factoryId: string;
-  // ✅ NUEVOS PROPS de permisos (calculados server-side)
-  allowPickup: boolean;          // factory_pickup está en shipping.methods
-  allowFactoryShipping: boolean; // own_logistics o third_party está en shipping.methods
-  hasFactoryAddress: boolean;    // fabricante tiene dirección registrada
+  allowPickup: boolean;
+  allowFactoryShipping: boolean;
+  hasFactoryAddress: boolean;
 };
 
 type ShippingMode = "pickup" | "factory" | "platform";
@@ -27,10 +28,9 @@ export default function ProductPurchaseClient({
 
   /* ─── Shipping state ─── */
   const [selectedShipping, setSelectedShipping] = useState<ShippingMode>(() => {
-    // Inicializar con la primera opción disponible
     if (allowPickup) return "pickup";
     if (allowFactoryShipping) return "factory";
-    return "platform"; // fallback: plataforma (fraccionado)
+    return "platform";
   });
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingKm, setShippingKm] = useState<number | null>(null);
@@ -45,7 +45,6 @@ export default function ProductPurchaseClient({
   const [reserved, setReserved] = useState(false);
   const [reserveError, setReserveError] = useState<string | null>(null);
 
-  // ¿Usa flujo de reserva? Solo fraccionado + envío por plataforma
   const usesReserveFlow = isFraccionado && selectedShipping === "platform";
 
   /* ─── Chequeo MP ─── */
@@ -102,12 +101,10 @@ export default function ProductPurchaseClient({
   /* ─── Cálculo de envío directo (fábrica) ─── */
   useEffect(() => {
     if (isFraccionado) {
-      // Fraccionado: siempre plataforma
       calculatePlatformShipping();
       return;
     }
 
-    // Directo: calcular envío según config del fabricante
     async function calculateDirectShipping() {
       setLoadingShipping(true);
       try {
@@ -149,20 +146,15 @@ export default function ProductPurchaseClient({
   );
 
   /* ─── ¿Puede comprar? ─── */
-  // Bloqueado si el fabricante no tiene dirección Y el shipping elegido la requiere
   const shippingNeedsAddress =
     selectedShipping === "factory" || selectedShipping === "platform";
   const blockedByAddress = shippingNeedsAddress && !hasFactoryAddress;
 
-  /* ─────────────────────────────────────────────
-     FLUJO RESERVA (fraccionado + plataforma)
-  ───────────────────────────────────────────── */
+  /* ─── FLUJO RESERVA ─── */
   async function handleReserve() {
     if (blockedByAddress) return;
     if (mpConnected === false) {
-      alert(
-        "⚠️ Este producto no está disponible para compra.\n\nEl fabricante aún no ha vinculado su cuenta de Mercado Pago."
-      );
+      alert("⚠️ Este producto no está disponible para compra.\n\nEl fabricante aún no ha vinculado su cuenta de Mercado Pago.");
       return;
     }
     if (loadingMPStatus) {
@@ -183,13 +175,9 @@ export default function ProductPurchaseClient({
 
       if (!res.ok) {
         if (data.missingAddress) {
-          setReserveError(
-            "Necesitás configurar tu dirección antes de reservar. Andá a tu perfil."
-          );
+          setReserveError("Necesitás configurar tu dirección antes de reservar. Andá a tu perfil.");
         } else if (data.alreadyReserved) {
-          setReserveError(
-            "Ya tenés una reserva activa para este producto. Revisá tu email cuando el lote cierre."
-          );
+          setReserveError("Ya tenés una reserva activa para este producto. Revisá tu email cuando el lote cierre.");
         } else {
           setReserveError(data.error || "Error al reservar. Intentá de nuevo.");
         }
@@ -205,15 +193,11 @@ export default function ProductPurchaseClient({
     }
   }
 
-  /* ─────────────────────────────────────────────
-     FLUJO PAGO (directo o fraccionado con retiro)
-  ───────────────────────────────────────────── */
+  /* ─── FLUJO PAGO ─── */
   async function handleCheckout() {
     if (blockedByAddress) return;
     if (mpConnected === false) {
-      alert(
-        "⚠️ Este producto no está disponible para compra.\n\nEl fabricante aún no ha vinculado su cuenta de Mercado Pago."
-      );
+      alert("⚠️ Este producto no está disponible para compra.\n\nEl fabricante aún no ha vinculado su cuenta de Mercado Pago.");
       return;
     }
     if (loadingMPStatus) {
@@ -259,9 +243,7 @@ export default function ProductPurchaseClient({
     }
   }
 
-  /* ─────────────────────────────────────────────
-     RENDER: confirmación de reserva
-  ───────────────────────────────────────────── */
+  /* ─── RENDER: confirmación de reserva ─── */
   if (reserved) {
     return (
       <div className="border rounded-xl p-6 mt-8 bg-white shadow">
@@ -285,9 +267,7 @@ export default function ProductPurchaseClient({
     );
   }
 
-  /* ─────────────────────────────────────────────
-     RENDER NORMAL
-  ───────────────────────────────────────────── */
+  /* ─── RENDER NORMAL ─── */
   return (
     <div className="border rounded-xl p-6 mt-8 bg-white shadow">
 
@@ -350,8 +330,6 @@ export default function ProductPurchaseClient({
       <div className="mb-4">
         <p className="text-sm font-medium mb-2">Opciones de entrega:</p>
 
-        {/* ─── Retiro en fábrica ───
-            Solo visible si el fabricante habilitó factory_pickup */}
         {allowPickup && (
           <label className="block mb-1">
             <input
@@ -371,10 +349,6 @@ export default function ProductPurchaseClient({
           </label>
         )}
 
-        {/* ─── Envío fraccionado por plataforma ───
-            Visible cuando qty < MF.
-            Si el fabricante SOLO tiene factory_pickup pero es fraccionado,
-            igual mostramos la opción de plataforma (que es la única forma de envío). */}
         {isFraccionado && (
           <label className="block mt-1">
             <input
@@ -405,8 +379,6 @@ export default function ProductPurchaseClient({
           </label>
         )}
 
-        {/* ─── Envío directo por fábrica ───
-            Visible cuando qty >= MF Y el fabricante configuró own_logistics o third_party */}
         {!isFraccionado && allowFactoryShipping && (
           <label className="block mt-1">
             <input
@@ -433,9 +405,6 @@ export default function ProductPurchaseClient({
           </label>
         )}
 
-        {/* ─── Aviso: solo retiro en fábrica disponible (pedido completo) ───
-            Si el fabricante NO configuró envío propio/terceros
-            y el pedido es directo (>= MF), informamos que solo hay retiro */}
         {!isFraccionado && !allowFactoryShipping && allowPickup && (
           <p className="text-xs text-gray-500 mt-2 italic">
             * Este producto solo admite retiro en fábrica para pedidos directos.
@@ -473,11 +442,11 @@ export default function ProductPurchaseClient({
         <div className="bg-red-50 border border-red-300 rounded-lg p-3 mb-4">
           <p className="text-sm text-red-700">{reserveError}</p>
           {reserveError.includes("dirección") && (
-            <a
-              href="/dashboard/pedidos-fraccionados/perfil"
+            
+              <a href="/dashboard/pedidos-fraccionados/perfil"
               className="text-sm font-semibold text-red-800 underline mt-1 block"
             >
-              Ir a configurar dirección →
+              Ir a configurar dirección
             </a>
           )}
         </div>
