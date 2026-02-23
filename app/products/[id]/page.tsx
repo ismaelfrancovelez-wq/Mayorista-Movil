@@ -10,7 +10,9 @@ type Product = {
   name: string;
   price: number;
   MF: number;
-  factoryId: string;  // ✅ FIX ERROR 7: Incluir factoryId para pasarlo como prop
+  factoryId: string;
+  allowPickup: boolean;
+  allowFactoryShipping: boolean;
 };
 
 type FraccionadoLot = {
@@ -27,20 +29,22 @@ type Props = {
    DATA
 ================================ */
 
-async function getProductById(
-  id: string
-): Promise<Product | null> {
+async function getProductById(id: string): Promise<Product | null> {
   const snap = await db.collection("products").doc(id).get();
   if (!snap.exists) return null;
 
   const data = snap.data();
+  const methods: string[] = data?.shipping?.methods ?? [];
 
   return {
     id: snap.id,
     name: data?.name ?? "",
     price: data?.price ?? 0,
-    MF: data?.minimumOrder ?? 0,       // ✅ FIX ERROR 3: era minimumQuantity, el campo correcto es minimumOrder
-    factoryId: data?.factoryId ?? "",  // ✅ FIX ERROR 7: leer factoryId desde Firestore
+    MF: data?.minimumOrder ?? 0,
+    factoryId: data?.factoryId ?? "",
+    allowPickup: methods.includes("factory_pickup"),
+    allowFactoryShipping:
+      methods.includes("own_logistics") || methods.includes("third_party"),
   };
 }
 
@@ -64,6 +68,14 @@ async function getFraccionadoLot(
   };
 }
 
+async function getHasFactoryAddress(factoryId: string): Promise<boolean> {
+  if (!factoryId) return false;
+  const snap = await db.collection("manufacturers").doc(factoryId).get();
+  if (!snap.exists) return false;
+  const data = snap.data();
+  return !!(data?.address?.formattedAddress);
+}
+
 /* ===============================
    PAGE
 ================================ */
@@ -81,15 +93,9 @@ export default async function ProductPage({ params }: Props) {
     );
   }
 
-  const retiroLot = await getFraccionadoLot(
-    product.id,
-    "fraccionado_retiro"
-  );
-
-  const envioLot = await getFraccionadoLot(
-    product.id,
-    "fraccionado_envio"
-  );
+  const retiroLot = await getFraccionadoLot(product.id, "fraccionado_retiro");
+  const envioLot = await getFraccionadoLot(product.id, "fraccionado_envio");
+  const hasFactoryAddress = await getHasFactoryAddress(product.factoryId);
 
   return (
     <main className="max-w-3xl mx-auto p-6">
@@ -115,13 +121,15 @@ export default async function ProductPage({ params }: Props) {
         </p>
       )}
 
-      {/* ✅ FIX ERROR 7: Se pasa factoryId como prop para evitar llamar a /api/products/explore */}
       <ProductPurchaseClient
-  price={product.price}
-  MF={product.MF}
-  productId={product.id}
-  factoryId={product.factoryId}
-/>
+        price={product.price}
+        MF={product.MF}
+        productId={product.id}
+        factoryId={product.factoryId}
+        allowPickup={product.allowPickup}
+        allowFactoryShipping={product.allowFactoryShipping}
+        hasFactoryAddress={hasFactoryAddress}
+      />
     </main>
   );
 }
