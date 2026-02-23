@@ -1,36 +1,28 @@
 import { NextResponse } from "next/server";
 import { getAdminServices } from "../../../../lib/firebase-admin";
 
-// ✅ Caché de 10 segundos (actualización rápida)
-export const revalidate = 10;
+export const dynamic = "force-dynamic";
 
 // ✅ FIX ERROR 18: Cuántos productos devolver por página
 const PAGE_SIZE = 20;
 
-export async function GET(req: Request & { nextUrl: { searchParams: URLSearchParams } }) {
+export async function GET(req: Request) {
   try {
     const { adminDb } = await getAdminServices();
 
     // ✅ FIX ERROR 18: Leer el parámetro ?page= de la URL (por defecto página 1)
-    const { searchParams } = req.nextUrl;
+    const { searchParams } = new URL(req.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const offset = (page - 1) * PAGE_SIZE;
 
-    // ✅ FIX ERROR 18: En lugar de traer TODOS los productos, usamos .limit() y .offset()
-    // para traer solo los productos de la página solicitada.
-    // Antes: sin límite → con 1000 productos enviaba 1000 docs de Firestore de una vez.
-    // Ahora: solo 20 documentos por llamada.
     const snap = await adminDb
       .collection("products")
       .where("active", "==", true)
-      .orderBy("createdAt", "desc")   // ✅ Orden consistente necesario para paginación
+      .orderBy("createdAt", "desc")
       .limit(PAGE_SIZE)
       .offset(offset)
       .get();
 
-    // También contamos el total para que el frontend sepa cuántas páginas hay
-    // (Firestore no tiene COUNT nativo eficiente, así que usamos un doc de stats
-    // o simplemente dejamos que el frontend sepa si hay más con "hasMore")
     const hasMore = snap.docs.length === PAGE_SIZE;
 
     const products = snap.docs.map((doc) => {
@@ -53,7 +45,7 @@ export async function GET(req: Request & { nextUrl: { searchParams: URLSearchPar
       products,
       page,
       pageSize: PAGE_SIZE,
-      hasMore,         // ✅ true si hay más páginas
+      hasMore,
     });
   } catch (err) {
     console.error("❌ EXPLORE PRODUCTS ERROR:", err);
