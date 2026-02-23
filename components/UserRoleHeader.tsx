@@ -32,7 +32,7 @@ export default function UserRoleHeader({
   const handleSwitch = async () => {
     setSwitching(true);
     // Llama a tu endpoint existente para cambiar de rol
-    await fetch("/api/switch-role", {
+    await fetch("/api/auth/switch-role", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: targetRole }),
