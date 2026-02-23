@@ -98,7 +98,7 @@ export default async function ProductDetailPage({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-4xl mx-auto px-4 py-6">
 
         <Link
           href="/explorar"
@@ -115,7 +115,7 @@ export default async function ProductDetailPage({
             <div className="border-r border-gray-100 flex flex-col">
 
               {/* CARRUSEL */}
-              <div style={{ height: "500px" }}>
+              <div style={{ height: "360px" }}>
                 {images.length > 0 ? (
                   <ImageCarousel images={images} productName={product.name} />
                 ) : (
@@ -152,7 +152,7 @@ export default async function ProductDetailPage({
             </div>
 
             {/* COLUMNA DERECHA — INFO + COMPRA */}
-            <div className="px-8 py-6 flex flex-col overflow-y-auto">
+            <div className="px-6 py-5 flex flex-col overflow-y-auto">
 
               {/* NOMBRE */}
               <h1 className="text-xl font-semibold text-gray-900 leading-snug mb-3">
@@ -160,12 +160,12 @@ export default async function ProductDetailPage({
               </h1>
 
               {/* PRECIO */}
-              <p className="text-4xl font-light text-gray-900 mb-6">
+              <p className="text-4xl font-light text-gray-900 mb-5">
                 ${product.price.toLocaleString("es-AR")}
               </p>
 
               {/* PEDIDO MÍNIMO */}
-              <div className="bg-gray-50 rounded-xl p-4 mb-5">
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
                 <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Pedido mínimo</p>
                 <p className="text-2xl font-semibold text-gray-900">
                   {minimumOrder} unidades
@@ -174,7 +174,7 @@ export default async function ProductDetailPage({
 
               {/* PROGRESO FRACCIONADO */}
               {progressData && progressData.accumulatedQty > 0 && (
-                <div className="bg-blue-50 rounded-xl p-4 mb-5">
+                <div className="bg-blue-50 rounded-xl p-4 mb-4">
                   <h3 className="font-semibold text-sm mb-2 text-blue-900">📦 Progreso Fraccionado</h3>
                   <p className="text-sm text-gray-600 mb-3">
                     {progressData.accumulatedQty} / {minimumOrder} unidades acumuladas
@@ -192,7 +192,7 @@ export default async function ProductDetailPage({
 
               {/* INFO DEL FABRICANTE */}
               {manufacturerInfo && (
-                <div className="border-t border-gray-100 pt-5 mb-5">
+                <div className="border-t border-gray-100 pt-4 mb-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">
                     Información del Fabricante
                   </h3>
@@ -294,7 +294,7 @@ export default async function ProductDetailPage({
         </div>
 
         {userId && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mt-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-4">
             <ShippingSimulatorSection productId={product.id} />
           </div>
         )}
