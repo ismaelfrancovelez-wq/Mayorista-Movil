@@ -28,6 +28,7 @@ export async function POST() {
     cookies().delete("userId");
     cookies().delete("activeRole");
     cookies().delete("token");
+    cookies().delete("userEmail"); // ✅ NUEVO
 
     return NextResponse.json(
       { 

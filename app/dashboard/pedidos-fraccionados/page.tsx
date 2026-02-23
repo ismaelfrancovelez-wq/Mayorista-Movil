@@ -2,8 +2,7 @@
 
 import { db } from "../../../lib/firebase-admin";
 import { cookies } from "next/headers";
-import ActiveRoleBadge from "../../../components/ActiveRoleBadge";
-import SwitchRoleButton from "../../../components/SwitchRoleButton";
+import UserRoleHeader from "../../../components/UserRoleHeader"; // ✅ NUEVO (reemplaza ActiveRoleBadge + SwitchRoleButton)
 import Link from "next/link";
 import { formatCurrency } from "../../../lib/utils";
 import { Suspense } from "react";
@@ -35,6 +34,7 @@ type ActiveLot = {
 async function DashboardRevendedorContent() {
   const userId = cookies().get("userId")?.value;
   const role = cookies().get("activeRole")?.value;
+  const userEmail = cookies().get("userEmail")?.value || ""; // ✅ NUEVO
 
   if (!userId || role !== "retailer") {
     return <div className="p-6">No autorizado</div>;
@@ -288,10 +288,11 @@ async function DashboardRevendedorContent() {
             <h1 className="text-3xl font-semibold">Dashboard del revendedor</h1>
             <p className="text-gray-600 mt-1">Gestioná tus compras y pedidos</p>
           </div>
-          <div className="flex items-center gap-4">
-            <ActiveRoleBadge />
-            <SwitchRoleButton targetRole="manufacturer" />
-          </div>
+          {/* ✅ NUEVO: reemplaza <ActiveRoleBadge /> + <SwitchRoleButton targetRole="manufacturer" /> */}
+          <UserRoleHeader
+            userEmail={userEmail}
+            activeRole="retailer"
+          />
         </div>
 
         {/* KPIs */}

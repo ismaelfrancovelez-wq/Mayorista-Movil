@@ -123,9 +123,7 @@ export default function ShippingSimulatorSection({ productId }: Props) {
 
       {/* ENCABEZADO */}
       <div className="mb-3">
-        <span className="inline-block bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full mb-2">
-          Paso 5
-        </span>
+        
         <h2 className="text-base font-bold text-gray-900">
           Simulador: el envío cae a medida que se suman compradores
         </h2>

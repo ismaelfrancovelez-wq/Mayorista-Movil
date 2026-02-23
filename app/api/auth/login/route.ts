@@ -1,3 +1,4 @@
+// app/api/auth/login/route.ts
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
@@ -55,6 +56,17 @@ export async function POST(req: Request) {
       path: "/",
       maxAge: SESSION_MAX_AGE,  // ✅ FIX: sin esto las cookies expiraban al cerrar el browser
     });
+
+    // ✅ NUEVO: guardar email para mostrarlo en el dashboard sin consultar Firestore
+    if (decoded.email) {
+      cookies().set("userEmail", decoded.email, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: SESSION_MAX_AGE,
+      });
+    }
 
     return NextResponse.json({
       success: true,

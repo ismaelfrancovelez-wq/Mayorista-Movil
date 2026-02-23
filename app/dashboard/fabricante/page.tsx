@@ -1,8 +1,7 @@
 import { db } from "../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import ActiveRoleBadge from "../../../components/ActiveRoleBadge";
-import SwitchRoleButton from "../../../components/SwitchRoleButton";
+import UserRoleHeader from "../../../components/UserRoleHeader"; // ✅ NUEVO (reemplaza ActiveRoleBadge + SwitchRoleButton)
 import { formatCurrency } from "../../../lib/utils";
 import { Suspense } from "react";
 import { DashboardSkeleton } from "../../../components/DashboardSkeleton";
@@ -13,6 +12,7 @@ export const revalidate = 0;
 async function DashboardFabricanteContent() {
   const userId = cookies().get("userId")?.value;
   const role = cookies().get("activeRole")?.value;
+  const userEmail = cookies().get("userEmail")?.value || ""; // ✅ NUEVO
 
   if (!userId || role !== "manufacturer") {
     return <div className="p-6">No autorizado</div>;
@@ -158,10 +158,11 @@ async function DashboardFabricanteContent() {
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
-            <ActiveRoleBadge />
-            <SwitchRoleButton targetRole="retailer" />
-          </div>
+          {/* ✅ NUEVO: reemplaza <ActiveRoleBadge /> + <SwitchRoleButton targetRole="retailer" /> */}
+          <UserRoleHeader
+            userEmail={userEmail}
+            activeRole="manufacturer"
+          />
         </div>
 
         {/* KPIs */}
