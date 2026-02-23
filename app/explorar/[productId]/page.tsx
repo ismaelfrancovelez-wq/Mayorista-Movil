@@ -1,15 +1,17 @@
-// app/explorar/[productId]/page.tsx - DISEÑO ORIGINAL + OPTIMIZADO
-// ✅ CAMBIO: Se agregó ShippingSimulatorSection debajo de la sección de compra
-//    NO se modificó ningún código existente, solo se agregó la importación
-//    y el componente nuevo.
+// app/explorar/[productId]/page.tsx
+// ✅ ACTUALIZADO:
+//    - Carrusel de imágenes (múltiples fotos del fabricante)
+//    - Shipping props pasados a ProductPurchaseClient:
+//        allowPickup / allowFactoryShipping / hasFactoryAddress
+//    - Bloqueo de compra si fabricante no tiene dirección
 
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { db } from "../../../lib/firebase-admin";
 import type { Product } from "../../../lib/types/product";
 import ProductPurchaseClient from "../../../components/products/ProductPurchaseClient";
-import ManufacturerInfoCard from "../../../components/ManufacturerInfoCard.tsx";
 import ShippingSimulatorSection from "../../../components/ShippingSimulatorSection";
+import ImageCarousel from "../../../components/products/ImageCarousel";
 import Link from "next/link";
 
 // ✅ OPTIMIZACIÓN: Caché de 30 segundos
@@ -110,10 +112,33 @@ export default async function ProductDetailPage({
 
   const minimumOrder = Number(product.minimumOrder) || 0;
 
-  // ✅ Primera imagen del array (o undefined si no hay)
-  const mainImage = product.imageUrls && product.imageUrls.length > 0
-    ? product.imageUrls[0]
-    : undefined;
+  // ✅ Array de imágenes — soporta imageUrls[] (nuevo) e imageUrl string (legacy)
+  const images: string[] =
+    Array.isArray((product as any).imageUrls) && (product as any).imageUrls.length > 0
+      ? (product as any).imageUrls
+      : (product as any).imageUrl
+      ? [(product as any).imageUrl]
+      : [];
+
+  /* ===============================
+     🚚 PERMISOS DE SHIPPING
+     Calculados server-side según config del fabricante
+  ================================ */
+  const shippingMethods: string[] = product.shipping?.methods ?? [];
+
+  // ¿El fabricante habilitó retiro en fábrica?
+  const allowPickup = shippingMethods.includes("factory_pickup");
+
+  // ¿El fabricante habilitó envío propio o por terceros?
+  const allowFactoryShipping =
+    shippingMethods.includes("own_logistics") ||
+    shippingMethods.includes("third_party");
+
+  // ¿Tiene dirección cargada? Necesaria para cualquier entrega que requiera distancia
+  const hasFactoryAddress = !!(
+    manufacturerInfo?.address?.formattedAddress ||
+    manufacturerInfo?.address?.lat
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -126,22 +151,17 @@ export default async function ProductDetailPage({
           ← Volver a explorar
         </Link>
 
-        {/* LAYOUT DE 2 COLUMNAS CON IMAGEN */}
+        {/* LAYOUT DE 2 COLUMNAS */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="grid lg:grid-cols-2 gap-0">
             
-            {/* COLUMNA IZQUIERDA - IMAGEN */}
-            <div className="relative bg-gray-100">
-              {mainImage ? (
-                <img
-                  src={mainImage}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                  style={{ minHeight: "400px", maxHeight: "600px" }}
-                />
+            {/* COLUMNA IZQUIERDA - CARRUSEL */}
+            <div className="relative bg-gray-100" style={{ minHeight: "400px" }}>
+              {images.length > 0 ? (
+                <ImageCarousel images={images} productName={product.name} />
               ) : (
-                <div 
-                  className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200" 
+                <div
+                  className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200"
                   style={{ minHeight: "400px" }}
                 >
                   <svg
@@ -167,13 +187,12 @@ export default async function ProductDetailPage({
               {/* HEADER */}
               <div className="mb-6">
                 <h1 className="text-3xl font-bold mb-4">{product.name}</h1>
-                {/* 🆕 Precio en negro (era text-blue-600) */}
                 <p className="text-4xl text-gray-900 font-bold">
                   ${product.price.toLocaleString("es-AR")}
                 </p>
               </div>
 
-              {/* ✅ DESCRIPCIÓN */}
+              {/* DESCRIPCIÓN */}
               {product.description && (
                 <div className="mb-6">
                   <h3 className="text-sm font-medium text-gray-500 mb-1">Descripción</h3>
@@ -216,7 +235,6 @@ export default async function ProductDetailPage({
                     Información del Fabricante
                   </h3>
 
-                  {/* 🆕 Avatar del fabricante estilo Instagram */}
                   <div className="flex items-center gap-3 mb-4">
                     <div className="relative flex-shrink-0">
                       <div className={`w-12 h-12 rounded-full p-0.5 ${manufacturerInfo.verified ? 'bg-blue-500' : 'bg-gray-200'}`}>
@@ -234,7 +252,6 @@ export default async function ProductDetailPage({
                           )}
                         </div>
                       </div>
-                      {/* Check verificado sobre el avatar */}
                       {manufacturerInfo.verified && (
                         <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white">
                           <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -245,7 +262,6 @@ export default async function ProductDetailPage({
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900">{manufacturerInfo.businessName}</p>
-                      {/* Badges junto al nombre */}
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {manufacturerInfo.verified && (
                           <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold">
@@ -253,7 +269,6 @@ export default async function ProductDetailPage({
                           </span>
                         )}
                         {product.isIntermediary && (
-                          // 🆕 "Intermediario" en azul (era "Gestionado por plataforma" en morado)
                           <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
                             Intermediario
                           </span>
@@ -288,7 +303,6 @@ export default async function ProductDetailPage({
                       </div>
                     )}
                     {product.isIntermediary && (
-                      // 🆕 "Intermediario" en azul (era "Gestionado por plataforma" con ícono triángulo morado)
                       <div className="flex items-center gap-2 text-blue-600">
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
@@ -308,6 +322,9 @@ export default async function ProductDetailPage({
                     MF={minimumOrder}
                     productId={product.id}
                     factoryId={product.factoryId}
+                    allowPickup={allowPickup}
+                    allowFactoryShipping={allowFactoryShipping}
+                    hasFactoryAddress={hasFactoryAddress}
                   />
                 </div>
               )}
@@ -316,17 +333,9 @@ export default async function ProductDetailPage({
           </div>
         </div>
 
-        {/* ✅ NUEVO: SIMULADOR DE AHORRO POR ZONA
-            Se muestra DEBAJO de la tarjeta del producto.
-            Solo aparece cuando el usuario está logueado.
-            El componente obtiene el costo de envío real por sí solo
-            llamando a /api/shipping/fraccionado (igual que ProductPurchaseClient).
-        */}
         {userId && (
           <div className="bg-white rounded-xl shadow-lg p-8 mt-6">
-            <ShippingSimulatorSection
-              productId={product.id}
-            />
+            <ShippingSimulatorSection productId={product.id} />
           </div>
         )}
 
