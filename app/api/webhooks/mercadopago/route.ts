@@ -10,6 +10,7 @@ import { db } from "../../../../lib/firebase-admin";
 import { sendEmail } from "../../../../lib/email/client";
 import { getOrCreateOpenLot } from "../../../../lib/lots/getOrCreateOpenLot";
 import { FieldValue } from "firebase-admin/firestore";
+import { updateRetailerScore, STREAK_BADGES, MILESTONE_BADGES } from "../../../../lib/retailers/calculateScore";
 
 const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || "";
 
@@ -277,6 +278,24 @@ export async function POST(req: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
+      // ── 1b. ✅ NUEVO: Recalcular score, nivel, comisión, racha y badges ──
+      // Se ejecuta después de marcar como "paid" para que el historial
+      // ya incluya este pago. El try/catch evita que un fallo en el score
+      // interrumpa el flujo de pago — el pago ya está confirmado.
+      let updatedScore: Awaited<ReturnType<typeof updateRetailerScore>> | null = null;
+      if (reservation.retailerId) {
+        try {
+          updatedScore = await updateRetailerScore(reservation.retailerId);
+          console.log(
+            `✅ Score actualizado — Nivel: ${updatedScore.level} | ` +
+            `Racha: ${updatedScore.currentStreak} | ` +
+            `Comisión: ${updatedScore.commission}%`
+          );
+        } catch (scoreErr) {
+          console.error("⚠️ Error actualizando score del retailer:", scoreErr);
+        }
+      }
+
       // ── 2. Guardar pago en "payments" ──
       await paymentDocRef.set({
         paymentId,
@@ -329,11 +348,83 @@ export async function POST(req: NextRequest) {
       console.log("✅ Pago de reserva diferida procesado. Orden creada:", orderRef.id);
 
       // ── 4. Email de confirmación al comprador ──
+      // Incluye resumen de badges y racha si updatedScore está disponible
       try {
         const buyerEmail = reservation.retailerEmail || "";
         if (buyerEmail) {
           const shippingFinal = reservation.shippingCostFinal || 0;
-          const isPickup = reservation.shippingMode === "pickup";
+          const isPickup      = reservation.shippingMode === "pickup";
+
+          // ── Construir bloque de gamificación para el email ──
+          let gamificationHtml = "";
+          if (updatedScore) {
+            // Badge de racha activo más alto
+            const topStreakBadge = STREAK_BADGES
+              .slice()
+              .reverse()
+              .find((b) => updatedScore!.streakBadges.includes(b.id));
+
+            // Badge de milestone más alto
+            const topMilestoneBadge = MILESTONE_BADGES
+              .slice()
+              .reverse()
+              .find((b) => updatedScore!.milestoneBadges.includes(b.id));
+
+            const streakLine = updatedScore.currentStreak > 0
+              ? `<div style="margin:6px 0;font-size:13px;color:#374151;">
+                  🔥 Racha actual: <strong>${updatedScore.currentStreak} pagos consecutivos en &lt;12h</strong>
+                 </div>`
+              : "";
+
+            const streakBadgeLine = topStreakBadge
+              ? `<div style="margin:6px 0;font-size:13px;color:#1d4ed8;">
+                  🏅 <strong>${topStreakBadge.label}</strong>
+                 </div>`
+              : "";
+
+            const milestoneBadgeLine = topMilestoneBadge
+              ? `<div style="margin:6px 0;font-size:13px;color:#047857;">
+                  🎖️ <strong>${topMilestoneBadge.label}</strong>
+                 </div>`
+              : "";
+
+            const commissionLine =
+              `<div style="margin:6px 0;font-size:13px;color:#374151;">
+                💼 Tu comisión actual: <strong>${updatedScore.commission}% (Nivel ${updatedScore.level})</strong>
+               </div>`;
+
+            const discountLine = updatedScore.nextMilestoneDiscount
+              ? `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:10px 14px;margin-top:10px;font-size:13px;color:#713f12;">
+                  🎁 <strong>¡Lograste un hito!</strong> Tu próximo lote tiene 1% de descuento adicional sobre el producto.
+                 </div>`
+              : "";
+
+            const nextStreakBadge = STREAK_BADGES.find(
+              (b) => updatedScore!.currentStreak < b.streak
+            );
+            const streakProgressLine = nextStreakBadge
+              ? `<div style="margin:6px 0;font-size:12px;color:#6b7280;">
+                  Próximo badge de racha: <em>${nextStreakBadge.label}</em>
+                  en ${nextStreakBadge.streak - updatedScore.currentStreak} pago(s) más
+                 </div>`
+              : "";
+
+            if (streakLine || streakBadgeLine || milestoneBadgeLine) {
+              gamificationHtml = `
+                <div style="margin:20px 0;padding:16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;">
+                  <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:0.05em;">
+                    Tu reputación en Mayorista Móvil
+                  </p>
+                  ${streakLine}
+                  ${streakBadgeLine}
+                  ${milestoneBadgeLine}
+                  ${commissionLine}
+                  ${streakProgressLine}
+                  ${discountLine}
+                </div>`;
+            }
+          }
+
           const confirmHtml = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8">
 <style>
@@ -356,6 +447,7 @@ export async function POST(req: NextRequest) {
     <div class="row"><span class="label">Total pagado:</span> <span class="value">$${(payment.transaction_amount || 0).toLocaleString("es-AR")}</span></div>
     <div class="row"><span class="label">Envío:</span> <span class="value">${isPickup ? "Retiro en fábrica" : `$${shippingFinal.toLocaleString("es-AR")}`}</span></div>
   </div>
+  ${gamificationHtml}
   <div class="section">
     <h3 style="margin-top:0;">⏰ Próximos pasos</h3>
     <ol style="margin:15px 0;padding-left:20px;">

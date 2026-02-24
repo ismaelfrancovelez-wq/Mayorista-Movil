@@ -11,6 +11,11 @@
 // ✅ FIX CRÍTICO: processLotClosure se llama con AWAIT.
 //    En Next.js serverless, sin await la función se corta apenas
 //    se devuelve la respuesta HTTP y los emails NUNCA se mandan.
+//
+// ✅ NUEVO: Sistema de niveles de confianza.
+//    - Nivel 1 puede entrar a lotes cerrados y desplazar a Nivel 4
+//    - Lotes ≥ 80% solo accesibles para Nivel 1 y 2
+//    - Score calculado desde retailers/{id}.paymentLevel
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -20,12 +25,10 @@ import { calculateFraccionadoShipping } from "../../../../../lib/shipping";
 import { sendEmail } from "../../../../../lib/email/client";
 import { createSplitPreference } from "../../../../../lib/mercadopago-split";
 import rateLimit from "../../../../../lib/rate-limit";
+import { consumeMilestoneDiscount } from "../../../../../lib/retailers/calculateScore";
 
 export const dynamic = "force-dynamic";
 // ✅ BUG 4 FIX: maxDuration para lotes grandes.
-// processLotClosure tarda ~1500ms por comprador (MP preference + Firestore + email + delay 600ms).
-// Con 7+ compradores supera el default de 10s de Vercel y el request se corta.
-// 60 segundos cubre hasta ~40 compradores con margen de sobra.
 export const maxDuration = 60;
 
 const limiter = rateLimit({
@@ -44,11 +47,6 @@ function extractPostalCode(addr: string): string | null {
 
 /* ====================================================
    PROCESAR CIERRE DE LOTE
-   - Agrupa reservas por CP
-   - Calcula envío dividido
-   - Genera links de MercadoPago
-   - Actualiza cada reserva a "lot_closed" ANTES del email
-   - Manda email con link de pago
 ==================================================== */
 async function processLotClosure(params: {
   lotId: string;
@@ -169,7 +167,6 @@ async function processLotClosure(params: {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Mandar email
       const savingsHtml =
         !isPickup && groupSize > 1
           ? `<div style="background:#d1fae5;border:2px solid #10b981;border-radius:8px;padding:16px;margin:20px 0;text-align:center;">
@@ -241,6 +238,235 @@ async function processLotClosure(params: {
 }
 
 /* ====================================================
+   ✅ NUEVO: DESPLAZAMIENTO NIVEL 1 → NIVEL 4
+   Cuando un Nivel 1 entra a un lote cerrado,
+   desplaza al Nivel 4 con peor score (si existe).
+==================================================== */
+async function processDisplacement(params: {
+  lotId: string;
+  productId: string;
+  productName: string;
+  factoryId: string;
+  factoryName: string;
+  newRetailerId: string;
+  newRetailerEmail: string;
+  newRetailerName: string;
+  newRetailerAddress: string;
+  newPostalCode: string | null;
+  qty: number;
+  shippingMode: string;
+  shippingCostEstimated: number;
+  productSubtotal: number;
+  commission: number;
+}): Promise<{ success: boolean; message: string }> {
+  const {
+    lotId, productId, productName, factoryId,
+    newRetailerId, newRetailerEmail, newRetailerName,
+    newRetailerAddress, newPostalCode,
+    qty, shippingMode, shippingCostEstimated,
+    productSubtotal, commission,
+  } = params;
+
+  // 1. Buscar reservas lot_closed con paymentLevel 4 que NO hayan pagado
+  const candidatesSnap = await db
+    .collection("reservations")
+    .where("lotId", "==", lotId)
+    .where("status", "==", "lot_closed")
+    .where("paymentLevel", "==", 4)
+    .get();
+
+  if (candidatesSnap.empty) {
+    return { success: false, message: "No hay Nivel 4 sin pagar en este lote." };
+  }
+
+  // 2. Elegir al de peor score (menor reliabilityScore)
+  const sorted = candidatesSnap.docs.sort((a, b) => {
+    const scoreA = a.data().reliabilityScore ?? 0;
+    const scoreB = b.data().reliabilityScore ?? 0;
+    return scoreA - scoreB; // menor score primero
+  });
+
+  const toDisplace = sorted[0];
+  const displaced = toDisplace.data();
+
+  // 3. Cancelar la reserva del desplazado
+  await db.collection("reservations").doc(toDisplace.id).update({
+    status: "cancelled",
+    cancelledReason: "displaced_by_level1",
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  // 4. Email al desplazado
+  if (displaced.retailerEmail) {
+    const htmlDisplaced = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f5f5f5;}
+  .container{background:white;border-radius:8px;padding:30px;box-shadow:0 2px 4px rgba(0,0,0,.1);}
+  .header{text-align:center;border-bottom:3px solid #ef4444;padding-bottom:20px;margin-bottom:30px;}
+  .header h1{color:#ef4444;margin:0;font-size:22px;}
+  .info{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;font-size:14px;}
+  .tip{background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;font-size:13px;}
+  .footer{text-align:center;color:#6b7280;font-size:12px;margin-top:30px;}
+</style></head>
+<body><div class="container">
+  <div class="header"><h1>⚠️ Perdiste tu lugar en el lote</h1></div>
+  <p>Tu reserva para <strong>${productName}</strong> fue cancelada porque un revendedor con mayor historial de pago ocupó tu lugar.</p>
+  <div class="info">
+    <strong>¿Por qué pasó esto?</strong><br>
+    Nuestro sistema de prioridades permite que revendedores con Nivel 1 de confianza (historial de pagos rápidos y completos) puedan ingresar a lotes cerrados desplazando a revendedores con Nivel 4.
+  </div>
+  <div class="tip">
+    <strong>💡 ¿Cómo mejorar tu nivel?</strong><br>
+    Tu nivel se calcula en base a la velocidad y tasa de completado de tus pagos anteriores. Pagá rápido y no canceles reservas para subir a Nivel 1 y tener prioridad garantizada.
+  </div>
+  <p>Podés buscar otro lote disponible para este u otros productos.</p>
+  <div class="footer"><p><strong>Mayorista Móvil</strong></p></div>
+</div></body></html>`;
+
+    try {
+      await sendEmail({
+        to: displaced.retailerEmail,
+        subject: `⚠️ Tu reserva de ${productName} fue cancelada`,
+        html: htmlDisplaced,
+      });
+    } catch (emailErr) {
+      console.error("❌ Error enviando email al desplazado:", emailErr);
+    }
+  }
+
+  // 5. Crear nueva reserva para el Nivel 1 como "lot_closed" inmediatamente
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.NODE_ENV === "development"
+      ? "http://localhost:3000"
+      : "https://mayoristamovil.com");
+
+  const factorySnap = await db.collection("manufacturers").doc(factoryId).get();
+  const factoryMPUserId = factorySnap.data()?.mercadopago?.user_id || null;
+
+  const isPickup = shippingMode === "pickup";
+  // Para el envío del nuevo comprador, usamos su costo estimado individual
+  const shippingFinal = isPickup ? 0 : shippingCostEstimated;
+  const totalFinal = productSubtotal + commission + shippingFinal;
+
+  // 6. Generar link de pago para el nuevo Nivel 1
+  const newReservationRef = db.collection("reservations").doc();
+  let paymentLink = `${baseUrl}/explorar/${productId}`;
+
+  try {
+    const preference = await createSplitPreference({
+      title: `Pago lote: ${productName}`,
+      unit_price: Math.round(totalFinal),
+      quantity: 1,
+      metadata: {
+        productId,
+        factoryId,
+        qty,
+        tipo: "fraccionada",
+        withShipping: !isPickup,
+        orderType: "fraccionado",
+        lotType: isPickup ? "fraccionado_retiro" : "fraccionado_envio",
+        retailerId: newRetailerId,
+        original_qty: qty,
+        MF: 0,
+        shippingCost: shippingFinal,
+        shippingMode,
+        commission,
+        reservationId: newReservationRef.id,
+        lotId,
+      },
+      back_urls: {
+        success: `${baseUrl}/success`,
+        failure: `${baseUrl}/failure`,
+        pending: `${baseUrl}/pending`,
+      },
+      factoryMPUserId,
+      shippingCost: shippingFinal,
+      productTotal: productSubtotal,
+      commission,
+    });
+    if (preference.init_point) paymentLink = preference.init_point;
+  } catch (prefErr) {
+    console.error("❌ Error creando preferencia para Nivel 1:", prefErr);
+  }
+
+  await newReservationRef.set({
+    retailerId: newRetailerId,
+    retailerName: newRetailerName,
+    retailerEmail: newRetailerEmail,
+    retailerAddress: newRetailerAddress,
+    postalCode: newPostalCode,
+    productId,
+    productName,
+    factoryId,
+    factoryName: params.factoryName,
+    qty,
+    shippingMode,
+    shippingCostEstimated,
+    shippingCostFinal: shippingFinal,
+    commission,
+    productSubtotal,
+    totalFinal,
+    lotId,
+    status: "lot_closed",
+    paymentLink,
+    lotClosedAt: FieldValue.serverTimestamp(),
+    enteredClosedLot: true, // marca que entró por desplazamiento
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  // 7. Email al nuevo Nivel 1 con link de pago
+  const htmlNew = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f5f5f5;}
+  .container{background:white;border-radius:8px;padding:30px;box-shadow:0 2px 4px rgba(0,0,0,.1);}
+  .header{text-align:center;border-bottom:3px solid #16a34a;padding-bottom:20px;margin-bottom:30px;}
+  .header h1{color:#16a34a;margin:0;font-size:24px;}
+  .section{margin:25px 0;padding:20px;background:#f9fafb;border-radius:6px;border-left:4px solid #16a34a;}
+  .row{margin:10px 0;}.label{font-weight:600;color:#6b7280;}.value{font-weight:600;color:#111827;}
+  .cta{display:block;background:#16a34a;color:white;text-align:center;padding:18px 24px;border-radius:8px;text-decoration:none;font-size:18px;font-weight:700;margin:24px 0;}
+  .badge{background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:10px 16px;font-size:13px;color:#15803d;margin-bottom:16px;}
+  .warning{background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:12px;margin:16px 0;font-size:13px;}
+  .footer{text-align:center;color:#6b7280;font-size:12px;margin-top:30px;}
+</style></head>
+<body><div class="container">
+  <div class="header"><h1>🌟 ¡Entraste al lote como Nivel 1!</h1></div>
+  <div class="badge">✅ Tu historial de pagos te dio prioridad para entrar a este lote cerrado.</div>
+  <p>Tu reserva para <strong>${productName}</strong> fue confirmada. Completá el pago para asegurar tu lugar.</p>
+  <div class="section">
+    <h3 style="margin-top:0;">🧾 Tu pedido</h3>
+    <div class="row"><span class="label">Producto:</span> <span class="value">${productName}</span></div>
+    <div class="row"><span class="label">Cantidad:</span> <span class="value">${qty} unidades</span></div>
+    <div class="row"><span class="label">Subtotal producto:</span> <span class="value">$${productSubtotal.toLocaleString("es-AR")}</span></div>
+    <div class="row"><span class="label">Comisión (12%):</span> <span class="value">$${commission.toLocaleString("es-AR")}</span></div>
+    <div class="row"><span class="label">Envío:</span> <span class="value">${isPickup ? "Retiro en fábrica (Gratis)" : `$${shippingFinal.toLocaleString("es-AR")}`}</span></div>
+    <div class="row" style="border-top:2px solid #e5e7eb;padding-top:10px;margin-top:10px;">
+      <span class="label" style="font-size:15px;">TOTAL A PAGAR:</span>
+      <span class="value" style="font-size:22px;color:#16a34a;">$${totalFinal.toLocaleString("es-AR")}</span>
+    </div>
+  </div>
+  <div class="warning"><strong>⏰ Importante:</strong> Tenés <strong>72 horas</strong> para completar el pago.</div>
+  <a href="${paymentLink}" class="cta">💳 Pagar ahora — $${totalFinal.toLocaleString("es-AR")}</a>
+  <div class="footer"><p><strong>Mayorista Móvil</strong></p></div>
+</div></body></html>`;
+
+  try {
+    await sendEmail({
+      to: newRetailerEmail,
+      subject: `🌟 ¡Entraste al lote de ${productName}! Completá tu pago`,
+      html: htmlNew,
+    });
+  } catch (emailErr) {
+    console.error("❌ Error enviando email al nuevo Nivel 1:", emailErr);
+  }
+
+  return { success: true, message: "Desplazamiento exitoso." };
+}
+
+/* ====================================================
    HANDLER PRINCIPAL
 ==================================================== */
 export async function POST(req: Request) {
@@ -300,6 +526,11 @@ export async function POST(req: Request) {
       );
     }
 
+    // ✅ NUEVO: Leer nivel de confianza del retailer
+    // Si no tiene historial o el campo no existe → nivel 2 (beneficio de la duda)
+    const retailerLevel: number = retailerSnap.data()?.paymentLevel ?? 2;
+    const retailerScore: number = retailerSnap.data()?.reliabilityScore ?? 0.6;
+
     /* ── 4. PRODUCTO Y FÁBRICA ──────────────────────── */
     const productSnap = await db.collection("products").doc(productId).get();
     if (!productSnap.exists) {
@@ -310,8 +541,6 @@ export async function POST(req: Request) {
     const factoryId = productData.factoryId;
     const minimumOrder = productData.minimumOrder || 0;
 
-    // ✅ BUG 6 FIX: Si minimumOrder es 0, cualquier reserva cierra el lote al instante.
-    // Esto indica un producto mal configurado — rechazarlo con error claro.
     if (!minimumOrder || minimumOrder <= 0) {
       return NextResponse.json(
         { error: "Este producto no tiene un mínimo de compra configurado. Contactá al administrador." },
@@ -321,7 +550,19 @@ export async function POST(req: Request) {
     const productPrice = productData.price || 0;
     const productName = productData.name || "Producto";
     const productSubtotal = productPrice * Number(qty);
-    const commission = Math.round(productSubtotal * 0.12);
+
+    // ✅ NUEVO: Comisión diferenciada por nivel
+    // Nivel 1 → 10% | Nivel 2 → 11% | Nivel 3 → 12% | Nivel 4 → 14%
+    const commissionRateByLevel: Record<number, number> = { 1: 0.10, 2: 0.11, 3: 0.12, 4: 0.14 };
+    let commissionRate = commissionRateByLevel[retailerLevel] ?? 0.12;
+
+    // ✅ NUEVO: Descuento milestone — 1% extra si tiene descuento disponible
+    const hasMilestoneDiscount = retailerSnap.data()?.nextMilestoneDiscount === true;
+    if (hasMilestoneDiscount) {
+      commissionRate = Math.max(0.05, commissionRate - 0.01); // mínimo 5%
+    }
+
+    const commission = Math.round(productSubtotal * commissionRate);
 
     const factorySnap = await db.collection("manufacturers").doc(factoryId).get();
     if (!factorySnap.exists) {
@@ -368,6 +609,106 @@ export async function POST(req: Request) {
     const activeLotDoc = allLotDocs.find((d) => targetTypes.has(d.data().type));
     const activeLotId = activeLotDoc ? activeLotDoc.id : null;
 
+    // ✅ NUEVO: Verificar progreso del lote y aplicar restricciones por nivel
+    if (activeLotDoc) {
+      const currentQty = activeLotDoc.data().accumulatedQty || 0;
+      const progress = minimumOrder > 0 ? currentQty / minimumOrder : 0;
+      const isAbove80 = progress >= 0.8;
+
+      // Nivel 3 y 4 no pueden entrar a lotes ≥ 80%
+      if (isAbove80 && retailerLevel >= 3) {
+        return NextResponse.json(
+          {
+            error: `Este lote está casi lleno (${Math.round(progress * 100)}%). Solo revendedores de Nivel 1 o 2 pueden unirse en esta etapa. Mejorá tu historial de pagos para acceder.`,
+            levelRestriction: true,
+            currentLevel: retailerLevel,
+            lotProgress: Math.round(progress * 100),
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // ✅ NUEVO: Si no hay lote activo, buscar lote CERRADO para desplazamiento (solo Nivel 1)
+    if (!activeLotDoc) {
+      const closedLotSnap = await db
+        .collection("lots")
+        .where("productId", "==", productId)
+        .where("status", "==", "closed")
+        .limit(1)
+        .get();
+
+      if (!closedLotSnap.empty) {
+        const closedLot = closedLotSnap.docs[0];
+        const closedLotId = closedLot.id;
+
+        // Solo Nivel 1 puede intentar entrar a un lote cerrado
+        if (retailerLevel !== 1) {
+          return NextResponse.json(
+            {
+              error: "Este lote ya cerró. Solo revendedores de Nivel 1 pueden ingresar a lotes cerrados. Mejorá tu historial de pagos para acceder.",
+              levelRestriction: true,
+              currentLevel: retailerLevel,
+              lotClosed: true,
+            },
+            { status: 403 }
+          );
+        }
+
+        // Verificar que no tenga ya una reserva en este lote
+        const dupSnap = await db
+          .collection("reservations")
+          .where("retailerId", "==", retailerId)
+          .where("lotId", "==", closedLotId)
+          .where("status", "in", ["lot_closed", "paid"])
+          .limit(1)
+          .get();
+
+        if (!dupSnap.empty) {
+          return NextResponse.json(
+            { error: "Ya tenés una reserva activa para este producto en este lote.", alreadyReserved: true },
+            { status: 409 }
+          );
+        }
+
+        // Intentar desplazamiento
+        const displacement = await processDisplacement({
+          lotId: closedLotId,
+          productId,
+          productName,
+          factoryId,
+          factoryName,
+          newRetailerId: retailerId,
+          newRetailerEmail: retailerEmail,
+          newRetailerName: retailerName,
+          newRetailerAddress: retailerAddressText,
+          newPostalCode: postalCode,
+          qty: Number(qty),
+          shippingMode,
+          shippingCostEstimated,
+          productSubtotal,
+          commission,
+        });
+
+        if (!displacement.success) {
+          return NextResponse.json(
+            {
+              error: "El lote ya cerró y no hay lugares disponibles para desplazamiento (todos los compradores son Nivel 1).",
+              levelRestriction: true,
+              lotFull: true,
+            },
+            { status: 409 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          displaced: true,
+          message: "¡Entraste al lote! Te mandamos el link de pago a tu email.",
+        });
+      }
+    }
+
     /* ── 8. VERIFICAR DUPLICADO ─────────────────────── */
     if (activeLotId) {
       const dupSnap = await db
@@ -408,9 +749,22 @@ export async function POST(req: Request) {
       productSubtotal,
       lotId: activeLotId,
       status: "pending_lot",
+      // ✅ NUEVO: guardar nivel y score en la reserva para poder hacer consultas de desplazamiento
+      paymentLevel: retailerLevel,
+      reliabilityScore: retailerScore,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+
+    // ✅ NUEVO: Consumir descuento milestone si se aplicó
+    if (hasMilestoneDiscount) {
+      try {
+        await consumeMilestoneDiscount(retailerId);
+        console.log(`✅ Descuento milestone consumido para retailer: ${retailerId}`);
+      } catch (err) {
+        console.error("⚠️ Error consumiendo descuento milestone:", err);
+      }
+    }
 
     /* ── 10. ACTUALIZAR / CREAR LOTE ────────────────── */
     const lotType =
@@ -461,8 +815,6 @@ export async function POST(req: Request) {
     });
 
     /* ── 11. SI EL LOTE CERRÓ → PROCESAR CON AWAIT ─── */
-    // ✅ AWAIT obligatorio — sin él Next.js corta la ejecución
-    // al devolver la respuesta y los emails NUNCA se mandan
     if (lotClosed) {
       console.log(`🎉 Lote ${finalLotId} cerrado. Procesando cierre...`);
       await processLotClosure({
@@ -480,6 +832,8 @@ export async function POST(req: Request) {
       reservationId: reservationRef.id,
       lotId: finalLotId,
       lotClosed,
+      milestoneDiscountApplied: hasMilestoneDiscount,
+      commissionRate: Math.round(commissionRate * 100),
       message: shippingMode === "pickup"
         ? "Lugar reservado. Te avisaremos por email cuando el lote esté listo para pagar."
         : `Lugar reservado. Estamos buscando más compradores en tu zona${postalCode ? ` (${postalCode})` : ""}. Cuando el lote cierre, te mandamos el precio final a tu email.`,
