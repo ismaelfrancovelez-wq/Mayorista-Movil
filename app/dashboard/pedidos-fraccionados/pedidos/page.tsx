@@ -223,7 +223,7 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
               streak_top:       "👑 Elite Privada",
             };
             const MILESTONE_LABELS: Record<string, string> = {
-              milestone_first:    "🥉 Primer Eslabon",
+              milestone_first:    "🥉 Primer vinculo",
               milestone_solid:    "🥈 Revendedor Tallado",
               milestone_operator: "🥇 Maestro del Sector",
               milestone_founding: "🏆 Socio Fundador de MayoristaMovil",
