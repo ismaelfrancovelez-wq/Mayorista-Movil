@@ -398,7 +398,7 @@ export default function HomePrincipal() {
                 Todas las categorías
               </Link>
               <span className="text-gray-300">|</span>
-              <Link href="/explorar" className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition">
+              <Link href="/explorar/cerrando" className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition">
                 Lotes por cerrar
               </Link>
               
@@ -486,7 +486,7 @@ export default function HomePrincipal() {
                   <p className="text-xl md:text-2xl text-white/90 mb-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     {banner.subtitle}
                   </p>
-                  <Link href="/explorar">
+                  <Link href={banner.cta === 'Ver Lotes' ? '/explorar/cerrando' : '/explorar'}>
                     <button className="px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-blue-50 transform hover:scale-105 transition-all shadow-2xl animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                       {banner.cta} →
                     </button>

@@ -32,10 +32,10 @@
 //   20 pagos consecutivos < 12h → "Comprador Distingido"
 //
 // Badges de milestone (permanentes, no se pierden):
-//   1  lote pagado  → "Primer Acuerdo"
-//   10 lotes pagados → "Trayectoria Sólida"
-//   25 lotes pagados → "Operador Mayorista"
-//   50 lotes pagados → "Socio Fundacional"
+//   1  lote pagado  → ""
+//   10 lotes pagados → ""
+//   25 lotes pagados → ""
+//   50 lotes pagados → ""
 //
 // Descuento milestone:
 //   Cada 10 lotes pagados → nextMilestoneDiscount = true

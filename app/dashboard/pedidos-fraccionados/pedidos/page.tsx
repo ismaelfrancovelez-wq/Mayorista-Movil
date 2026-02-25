@@ -22,7 +22,7 @@ type Pedido = {
   lotId?: string;
   isReservation?: boolean;
   reservationStatus?: ReservationStatus;
-  lotMates?: { name: string; paid: boolean }[];
+  lotMates?: { name: string; paid: boolean; streakBadge?: string; milestoneBadge?: string }[];
   paymentLink?: string;
   totalFinal?: number;
   status: "accumulating" | "lot_closed" | "all_paid" | "completed";
@@ -196,7 +196,7 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
     }
   });
 
-  const lotMatesMap = new Map<string, { name: string; paid: boolean }[]>();
+  const lotMatesMap = new Map<string, { name: string; paid: boolean; streakBadge?: string; milestoneBadge?: string }[]>();
   if (lotIdsNeedingMates.size > 0) {
     for (const lotId of Array.from(lotIdsNeedingMates)) {
       const allResSnap = await db
@@ -205,12 +205,47 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
         .where("status", "in", ["lot_closed", "paid"])
         .get();
 
+      // Batch fetch retailer badges for all mates
+      const retailerIds = allResSnap.docs.map((d) => d.data().retailerId).filter(Boolean);
+      const retailerBadgesMap = new Map<string, { streakBadge?: string; milestoneBadge?: string }>();
+      if (retailerIds.length > 0) {
+        for (let i = 0; i < retailerIds.length; i += 10) {
+          const chunk = retailerIds.slice(i, i + 10);
+          const retailersSnap = await db.collection("retailers").where("__name__", "in", chunk).get();
+          retailersSnap.docs.forEach((rd) => {
+            const streakBadges: string[] = rd.data().streakBadges ?? [];
+            const milestoneBadges: string[] = rd.data().milestoneBadges ?? [];
+            // Tomar el badge de mayor rango (último en el array, que está ordenado por streak/lots)
+            const STREAK_LABELS: Record<string, string> = {
+              streak_executive: "⚡ Ejecutivo Confiable",
+              streak_strategic: "🔥 Socio Estratégico",
+              streak_premium:   "💎 Inversor Premium",
+              streak_top:       "👑 Máxima Distinción",
+            };
+            const MILESTONE_LABELS: Record<string, string> = {
+              milestone_first:    "🥉 Primer Acuerdo",
+              milestone_solid:    "🥈 Trayectoria Sólida",
+              milestone_operator: "🥇 Operador Mayorista",
+              milestone_founding: "🏆 Socio Fundacional",
+            };
+            const topStreak = streakBadges.length > 0 ? STREAK_LABELS[streakBadges[streakBadges.length - 1]] : undefined;
+            const topMilestone = milestoneBadges.length > 0 ? MILESTONE_LABELS[milestoneBadges[milestoneBadges.length - 1]] : undefined;
+            retailerBadgesMap.set(rd.id, { streakBadge: topStreak, milestoneBadge: topMilestone });
+          });
+        }
+      }
+
       lotMatesMap.set(
         lotId,
-        allResSnap.docs.map((d) => ({
-          name: d.data().retailerName || "Comprador",
-          paid: d.data().status === "paid",
-        }))
+        allResSnap.docs.map((d) => {
+          const badges = retailerBadgesMap.get(d.data().retailerId) ?? {};
+          return {
+            name: d.data().retailerName || "Comprador",
+            paid: d.data().status === "paid",
+            streakBadge: badges.streakBadge,
+            milestoneBadge: badges.milestoneBadge,
+          };
+        })
       );
     }
   }
@@ -549,7 +584,21 @@ export default async function PedidosPage() {
                       <div className="space-y-2">
                         {order.lotMates.map((mate, i) => (
                           <div key={i} className="flex items-center justify-between text-sm">
-                            <span className="text-gray-700">{mate.name}</span>
+                            <span className="text-gray-700 flex items-center gap-1.5 flex-wrap">
+                              {/* Badge permanente (milestone) — antes del nombre */}
+                              {mate.milestoneBadge && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                  {mate.milestoneBadge}
+                                </span>
+                              )}
+                              {mate.name}
+                              {/* Badge de racha — después del nombre */}
+                              {mate.streakBadge && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                                  {mate.streakBadge}
+                                </span>
+                              )}
+                            </span>
                             {mate.paid ? (
                               <span className="inline-flex items-center gap-1 text-green-700 font-medium">
                                 <span>✅</span> Pagó

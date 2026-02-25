@@ -1,4 +1,4 @@
-// app/explorar/ExplorarClient.tsx - DISEÑO ORIGINAL + PAGINACIÓN
+// app/explorar/ExplorarClient.tsx - DISEÑO ORIGINAL + PAGINACIÓN + SECCIÓN LOTES POR CERRAR
 "use client";
 
 import Link from "next/link";
@@ -21,6 +21,21 @@ type Product = {
   isIntermediary?: boolean;
 };
 
+// ✅ NUEVO: tipo para lotes por cerrar
+type ClosingSoonLot = {
+  lotId: string;
+  productId: string;
+  productName: string;
+  productPrice: number;
+  minimumOrder: number;
+  accumulatedQty: number;
+  percentage: number;
+  imageUrls?: string[];
+  manufacturerName?: string;
+  manufacturerVerified?: boolean;
+  manufacturerImageUrl?: string;
+};
+
 type SortOption = "price_asc" | "price_desc" | "min_asc" | "min_desc" | "name";
 
 export default function ExplorarClient({ initialProducts }: { initialProducts: Product[] }) {
@@ -34,6 +49,10 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
   const [hasMore, setHasMore] = useState(initialProducts.length === 20); // si vinieron 20, puede haber más
   const [loadingMore, setLoadingMore] = useState(false);
 
+  // ✅ NUEVO: estado de lotes por cerrar
+  const [closingSoon, setClosingSoon] = useState<ClosingSoonLot[]>([]);
+  const [loadingClosing, setLoadingClosing] = useState(true);
+
   // 🔍 Estados de filtros
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | "all">("all");
@@ -43,6 +62,23 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
   const [maxOrder, setMaxOrder] = useState("");
   const [onlyFeatured, setOnlyFeatured] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("name");
+
+  // ✅ NUEVO: cargar lotes por cerrar al montar
+  useEffect(() => {
+    async function fetchClosingSoon() {
+      try {
+        const res = await fetch("/api/lots/closing-soon");
+        if (!res.ok) return;
+        const data = await res.json();
+        setClosingSoon(data.lots || []);
+      } catch (err) {
+        console.error("Error cargando lotes por cerrar:", err);
+      } finally {
+        setLoadingClosing(false);
+      }
+    }
+    fetchClosingSoon();
+  }, []);
 
   // 🔄 Aplicar filtros sobre TODOS los productos cargados
   useEffect(() => {
@@ -175,6 +211,118 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
             Comprá directo o participá en pedidos fraccionados
           </p>
         </div>
+
+        {/* ✅ NUEVO: SECCIÓN LOTES A PUNTO DE CERRAR */}
+        {(loadingClosing || closingSoon.length > 0) && (
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🔥</span>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Lotes a punto de cerrar
+                </h2>
+                <span className="bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                  ≥ 80% completado
+                </span>
+              </div>
+              <Link
+                href="/explorar/cerrando"
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+              >
+                Ver todos →
+              </Link>
+            </div>
+
+            {loadingClosing ? (
+              <div className="flex gap-4 overflow-x-auto pb-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="min-w-[260px] h-64 bg-gray-200 rounded-2xl animate-pulse flex-shrink-0" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+                {closingSoon.slice(0, 8).map((lot) => {
+                  const urgencyColor =
+                    lot.percentage >= 95 ? "bg-red-500"
+                    : lot.percentage >= 90 ? "bg-orange-500"
+                    : "bg-amber-500";
+                  const badgeColor =
+                    lot.percentage >= 95 ? "bg-red-100 text-red-800"
+                    : lot.percentage >= 90 ? "bg-orange-100 text-orange-800"
+                    : "bg-amber-100 text-amber-800";
+                  const remainingUnits = lot.minimumOrder - lot.accumulatedQty;
+
+                  return (
+                    <Link
+                      key={lot.lotId}
+                      href={`/explorar/${lot.productId}`}
+                      className="min-w-[260px] max-w-[260px] flex-shrink-0 snap-start bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col border border-gray-100 hover:border-blue-200"
+                    >
+                      {/* Imagen */}
+                      <div className="relative h-36 bg-gray-100 overflow-hidden">
+                        {lot.imageUrls && lot.imageUrls.length > 0 ? (
+                          <img
+                            src={lot.imageUrls[0]}
+                            alt={lot.productName}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        )}
+                        <div className="absolute top-2 left-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badgeColor}`}>
+                            🔥 {lot.percentage}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Info */}
+                      <div className="p-4 flex flex-col flex-grow">
+                        {lot.manufacturerName && (
+                          <p className="text-xs text-gray-400 mb-1 truncate">{lot.manufacturerName}</p>
+                        )}
+                        <p className="text-sm font-semibold text-gray-900 line-clamp-2 mb-2">
+                          {lot.productName}
+                        </p>
+
+                        {/* Barra de progreso */}
+                        <div className="mb-2">
+                          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${urgencyColor}`}
+                              style={{ width: `${lot.percentage}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Faltan <strong>{remainingUnits}</strong> u. para cerrar
+                          </p>
+                        </div>
+
+                        <p className="text-xs font-bold text-gray-900 mt-auto">
+                          ${lot.productPrice.toLocaleString("es-AR")} / u.
+                        </p>
+                      </div>
+                    </Link>
+                  );
+                })}
+
+                {/* Card "Ver todos" al final del scroll */}
+                <Link
+                  href="/explorar/cerrando"
+                  className="min-w-[140px] flex-shrink-0 snap-start bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl flex flex-col items-center justify-center gap-2 text-blue-600 hover:bg-blue-100 transition p-6 text-center"
+                >
+                  <span className="text-3xl">→</span>
+                  <span className="text-sm font-semibold">Ver todos</span>
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid lg:grid-cols-4 gap-6">
           

@@ -16,6 +16,12 @@
 //    - Lotes ≥ 80% solo accesibles para Nivel 1 y 2
 //    - Comisión diferenciada por nivel (10%, 11%, 12%, 14%)
 //    - Descuento milestone 1% extra cada 10 lotes pagados
+//
+// ✅ NUEVO: Ventana de 2h post-cierre para Nivel 1.
+//    Cuando un lote alcanza el mínimo → status "closed" + level1WindowExpiresAt.
+//    Durante 2h, SOLO Nivel 1 puede sumarse al lote.
+//    El cron /api/cron/process-lots procesa el cierre real cuando vence la ventana.
+//    processLotClosure ya NO se llama desde acá.
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -306,8 +312,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ NUEVO: Leer nivel y descuento milestone del retailer
-    // Si no tiene historial → nivel 2 y comisión 11% por defecto
+    // ✅ NUEVO: Leer nivel, score y descuento milestone del retailer
+    // Si no tiene historial o el campo no existe → nivel 2 (beneficio de la duda)
     const retailerLevel: number = retailerSnap.data()?.paymentLevel ?? 2;
     const retailerScore: number = retailerSnap.data()?.reliabilityScore ?? 0.6;
     const hasMilestoneDiscount: boolean = retailerSnap.data()?.nextMilestoneDiscount === true;
@@ -335,13 +341,8 @@ export async function POST(req: Request) {
     const productSubtotal = productPrice * Number(qty);
 
     // ✅ NUEVO: Comisión diferenciada por nivel
-    // Nivel 1 → 11% | Nivel 2 → 12% | Nivel 3 → 13% | Nivel 4 → 14%
-    const commissionRateByLevel: Record<number, number> = {
-      1: 0.11,
-      2: 0.12,
-      3: 0.13,
-      4: 0.14,
-    };
+    // Nivel 1 → 10% | Nivel 2 → 11% | Nivel 3 → 12% | Nivel 4 → 14%
+    const commissionRateByLevel: Record<number, number> = { 1: 0.10, 2: 0.11, 3: 0.12, 4: 0.14 };
     let commissionRate = commissionRateByLevel[retailerLevel] ?? 0.12;
 
     // ✅ NUEVO: Descuento milestone — 1% extra si tiene descuento disponible
@@ -415,6 +416,121 @@ export async function POST(req: Request) {
       }
     }
 
+    // ✅ NUEVO: Ventana de 2h post-cierre — solo Nivel 1 puede entrar a lotes "closed"
+    // Si no hay lote activo (accumulating/open), buscar si hay uno "closed" dentro de la ventana
+    if (!activeLotDoc) {
+      const closedLotSnap = await db
+        .collection("lots")
+        .where("productId", "==", productId)
+        .where("status", "==", "closed")
+        .where("type", "in", [...targetTypes])
+        .limit(1)
+        .get();
+
+      if (!closedLotSnap.empty) {
+        const closedLotDoc = closedLotSnap.docs[0];
+        const closedLotData = closedLotDoc.data();
+        const windowExpiresAt = closedLotData.level1WindowExpiresAt?.toMillis?.() ?? 0;
+        const now = Date.now();
+        const windowOpen = windowExpiresAt > now;
+
+        if (!windowOpen) {
+          // La ventana ya cerró — el cron ya procesó o está por procesar este lote
+          return NextResponse.json(
+            {
+              error: "Este lote ya cerró. El próximo lote estará disponible en breve.",
+              lotClosed: true,
+            },
+            { status: 409 }
+          );
+        }
+
+        // Ventana abierta pero no es Nivel 1
+        if (retailerLevel !== 1) {
+          const minutosRestantes = Math.ceil((windowExpiresAt - now) / 60000);
+          return NextResponse.json(
+            {
+              error: `Este lote cerró y está en ventana exclusiva para revendedores Nivel 1 (${minutosRestantes} min restantes). Mejorá tu historial de pagos para acceder a esta ventana.`,
+              levelRestriction: true,
+              currentLevel: retailerLevel,
+              windowMinutesLeft: minutosRestantes,
+            },
+            { status: 403 }
+          );
+        }
+
+        // ✅ Nivel 1 dentro de la ventana — verificar duplicado en ese lote cerrado
+        const dupClosedSnap = await db
+          .collection("reservations")
+          .where("retailerId", "==", retailerId)
+          .where("lotId", "==", closedLotDoc.id)
+          .where("status", "in", ["pending_lot", "lot_closed", "paid"])
+          .limit(1)
+          .get();
+
+        if (!dupClosedSnap.empty) {
+          return NextResponse.json(
+            { error: "Ya tenés una reserva activa en este lote.", alreadyReserved: true },
+            { status: 409 }
+          );
+        }
+
+        // ✅ Guardar reserva como pending_lot en el lote cerrado
+        const level1ReservationRef = db.collection("reservations").doc();
+        await level1ReservationRef.set({
+          retailerId,
+          retailerName,
+          retailerEmail,
+          retailerAddress: retailerAddressText,
+          postalCode: postalCode || null,
+          productId,
+          productName,
+          factoryId,
+          factoryName,
+          qty: Number(qty),
+          shippingMode,
+          shippingCostEstimated,
+          commission,
+          productSubtotal,
+          lotId: closedLotDoc.id,
+          status: "pending_lot",
+          paymentLevel: retailerLevel,
+          reliabilityScore: retailerScore,
+          enteredDuringWindow: true, // marca que entró en la ventana de 2h
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        // ✅ Sumar qty al lote cerrado (puede superar el mínimo, es correcto)
+        await db.collection("lots").doc(closedLotDoc.id).update({
+          accumulatedQty: FieldValue.increment(Number(qty)),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        // ✅ Consumir descuento milestone si aplica
+        if (hasMilestoneDiscount) {
+          try {
+            await consumeMilestoneDiscount(retailerId);
+          } catch (err) {
+            console.error("⚠️ Error consumiendo descuento milestone (ventana):", err);
+          }
+        }
+
+        console.log(`🌟 Nivel 1 entró en ventana post-cierre. Lote: ${closedLotDoc.id}, Retailer: ${retailerId}`);
+
+        return NextResponse.json({
+          success: true,
+          reservationId: level1ReservationRef.id,
+          lotId: closedLotDoc.id,
+          lotClosed: true,
+          enteredWindow: true,
+          milestoneDiscountApplied: hasMilestoneDiscount,
+          commissionRate: Math.round(commissionRate * 100),
+          message: "¡Entraste al lote! Cuando se procese el cierre, te mandamos el link de pago a tu email.",
+        });
+      }
+    }
+
     /* ── 8. VERIFICAR DUPLICADO ─────────────────────── */
     if (activeLotId) {
       const dupSnap = await db
@@ -455,7 +571,7 @@ export async function POST(req: Request) {
       productSubtotal,
       lotId: activeLotId,
       status: "pending_lot",
-      // ✅ NUEVO: guardar nivel y score para consultas futuras
+      // ✅ NUEVO: guardar nivel y score en la reserva para consultas futuras
       paymentLevel: retailerLevel,
       reliabilityScore: retailerScore,
       createdAt: FieldValue.serverTimestamp(),
@@ -520,18 +636,20 @@ export async function POST(req: Request) {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    /* ── 11. SI EL LOTE CERRÓ → PROCESAR CON AWAIT ─── */
-    // ✅ AWAIT obligatorio — sin él Next.js corta la ejecución
-    // al devolver la respuesta y los emails NUNCA se mandan
+    /* ── 11. SI EL LOTE CERRÓ → GUARDAR VENTANA 2H (el cron procesa después) ─── */
+    // ✅ CAMBIO CLAVE: Ya NO se llama processLotClosure inmediatamente.
+    // Se guarda level1WindowExpiresAt = ahora + 2h.
+    // El cron /api/cron/process-lots corre cada 15min, detecta lotes
+    // con la ventana vencida y recién ahí llama processLotClosure.
+    // Esto permite que Nivel 1 se sume durante esas 2h antes de que
+    // se calculen los grupos de envío y se manden los links de pago.
     if (lotClosed) {
-      console.log(`🎉 Lote ${finalLotId} cerrado. Procesando cierre...`);
-      await processLotClosure({
-        lotId: finalLotId,
-        productId,
-        productName,
-        factoryId,
-        factoryName,
+      const level1WindowExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // +2h
+      await db.collection("lots").doc(finalLotId).update({
+        level1WindowExpiresAt,
+        updatedAt: FieldValue.serverTimestamp(),
       });
+      console.log(`🔒 Lote ${finalLotId} cerrado. Ventana Nivel 1 hasta: ${level1WindowExpiresAt.toISOString()}`);
     }
 
     /* ── 12. RESPUESTA ──────────────────────────────── */
@@ -543,8 +661,12 @@ export async function POST(req: Request) {
       milestoneDiscountApplied: hasMilestoneDiscount,
       commissionRate: Math.round(commissionRate * 100),
       message: shippingMode === "pickup"
-        ? "Lugar reservado. Te avisaremos por email cuando el lote esté listo para pagar."
-        : `Lugar reservado. Estamos buscando más compradores en tu zona${postalCode ? ` (${postalCode})` : ""}. Cuando el lote cierre, te mandamos el precio final a tu email.`,
+        ? lotClosed
+          ? "¡Completaste el lote! Te avisaremos por email en las próximas horas cuando esté listo para pagar."
+          : "Lugar reservado. Te avisaremos por email cuando el lote esté listo para pagar."
+        : lotClosed
+          ? `¡Completaste el lote! Calculamos los envíos y te mandamos el link de pago a tu email en las próximas horas.`
+          : `Lugar reservado. Estamos buscando más compradores en tu zona${postalCode ? ` (${postalCode})` : ""}. Cuando el lote cierre, te mandamos el precio final a tu email.`,
     });
   } catch (error: any) {
     console.error("❌ Error en reserve/route.ts:", error);
