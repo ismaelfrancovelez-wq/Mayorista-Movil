@@ -239,19 +239,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                   <div key={i} className="min-w-[260px] h-64 bg-gray-200 rounded-2xl animate-pulse flex-shrink-0" />
                 ))}
               </div>
-            ) : closingSoon.length === 0 ? (
-              <div className="flex items-center gap-4 p-5 bg-orange-50 border border-orange-100 rounded-2xl">
-                <span className="text-3xl">🔥</span>
-                <div>
-                  <p className="font-semibold text-gray-800">No hay lotes a punto de cerrar en este momento</p>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    Cuando un lote llegue al 80%, aparecerá acá.{" "}
-                    <Link href="/explorar/cerrando" className="text-blue-600 hover:underline font-medium">
-                      Ver página completa →
-                    </Link>
-                  </p>
-                </div>
-              </div>
             ) : (
               <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
                 {closingSoon.slice(0, 8).map((lot) => {
