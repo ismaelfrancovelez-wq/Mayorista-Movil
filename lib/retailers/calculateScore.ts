@@ -26,10 +26,10 @@
 //   Nivel 4 → 14%
 //
 // Badges de racha (se pierden si se rompe la racha):
-//   3  pagos consecutivos < 12h → "Ejecutivo Confiable"
-//   5  pagos consecutivos < 12h → "Socio Estratégico"
-//   10 pagos consecutivos < 12h → "Inversor Premium"
-//   20 pagos consecutivos < 12h → "Máxima Distinción"
+//   3  pagos consecutivos < 12h → "Comprador Inicial"
+//   5  pagos consecutivos < 12h → "Comprador Recurrente"
+//   10 pagos consecutivos < 12h → "Comprador de Confianza"
+//   20 pagos consecutivos < 12h → "Comprador Distingido"
 //
 // Badges de milestone (permanentes, no se pierden):
 //   1  lote pagado  → "Primer Acuerdo"
@@ -47,18 +47,18 @@ export type PaymentLevel = 1 | 2 | 3 | 4;
 
 // ── Badges de racha (se pierden al romper la racha) ─────────────
 export const STREAK_BADGES: { streak: number; id: string; label: string }[] = [
-  { streak: 3,  id: "streak_executive",  label: "Ejecutivo Confiable"  },
-  { streak: 5,  id: "streak_strategic",  label: "Socio Estratégico"    },
-  { streak: 10, id: "streak_premium",    label: "Inversor Premium"     },
-  { streak: 20, id: "streak_top",        label: "Máxima Distinción"    },
+  { streak: 3,  id: "streak_executive",  label: "Camino al Siguente Nivel"  },
+  { streak: 5,  id: "streak_strategic",  label: "Revendedor Consolidado"    },
+  { streak: 10, id: "streak_premium",    label: "Racha Activa"     },
+  { streak: 20, id: "streak_top",        label: "Elite Privada"    },
 ];
 
 // ── Badges de milestone (permanentes) ───────────────────────────
 export const MILESTONE_BADGES: { lots: number; id: string; label: string }[] = [
-  { lots: 1,  id: "milestone_first",      label: "Primer Acuerdo"       },
-  { lots: 10, id: "milestone_solid",      label: "Trayectoria Sólida"   },
-  { lots: 25, id: "milestone_operator",   label: "Operador Mayorista"   },
-  { lots: 50, id: "milestone_founding",   label: "Socio Fundacional"    },
+  { lots: 1,  id: "milestone_first",      label: "Primer Eslabon"       },
+  { lots: 10, id: "milestone_solid",      label: "Revendedor Tallado"   },
+  { lots: 25, id: "milestone_operator",   label: "Maestro del Sector"   },
+  { lots: 50, id: "milestone_founding",   label: "Socio Fundador de MayoristaMovil"    },
 ];
 
 export interface RetailerScore {
@@ -94,9 +94,9 @@ function scoreToLevel(score: number, hasHistory: boolean): PaymentLevel {
 
 function levelToCommission(level: PaymentLevel): number {
   switch (level) {
-    case 1: return 10;
-    case 2: return 11;
-    case 3: return 12;
+    case 1: return 11;
+    case 2: return 12;
+    case 3: return 13;
     case 4: return 14;
   }
 }

@@ -12,7 +12,7 @@
 //   - totalBuyers: total de compradores en el lote
 //
 // ─── FÓRMULA DE ENVÍO (igual que lib/shipping.ts) ─────────────────
-//   costo = (kmBase→Fábrica + kmFábrica→Retailer) × 2 × $85 + $3500
+//   costo = (kmBase→Fábrica + kmFábrica→Retailer) × 2 × $85 + $3000
 //   BASE = "Poeta Romildo Risso 3244, William Morris, Hurlingham"
 // ──────────────────────────────────────────────────────────────────
 //

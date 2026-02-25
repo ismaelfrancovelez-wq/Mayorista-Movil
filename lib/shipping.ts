@@ -8,7 +8,7 @@ const BASE_ADDRESS =
   "Poeta Romildo Risso 3244, William Morris, Hurlingham, Buenos Aires, Argentina";
 
 const PRECIO_POR_KM = 85;
-const FIJO_CONDUCTOR = 3500;
+const FIJO_CONDUCTOR = 3000;
 
 // ✅ FIX ERROR 12: Costo fijo de fallback cuando no hay API key de Google Maps.
 // Antes la función lanzaba una excepción que podía romper páginas enteras.

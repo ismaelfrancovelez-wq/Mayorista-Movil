@@ -335,11 +335,11 @@ export async function POST(req: Request) {
     const productSubtotal = productPrice * Number(qty);
 
     // ✅ NUEVO: Comisión diferenciada por nivel
-    // Nivel 1 → 10% | Nivel 2 → 11% | Nivel 3 → 12% | Nivel 4 → 14%
+    // Nivel 1 → 11% | Nivel 2 → 12% | Nivel 3 → 13% | Nivel 4 → 14%
     const commissionRateByLevel: Record<number, number> = {
-      1: 0.10,
-      2: 0.11,
-      3: 0.12,
+      1: 0.11,
+      2: 0.12,
+      3: 0.13,
       4: 0.14,
     };
     let commissionRate = commissionRateByLevel[retailerLevel] ?? 0.12;
