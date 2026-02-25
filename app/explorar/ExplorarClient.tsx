@@ -212,8 +212,8 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
           </p>
         </div>
 
-        {/* ✅ NUEVO: SECCIÓN LOTES A PUNTO DE CERRAR */}
-        {(loadingClosing || closingSoon.length > 0) && (
+        {/* ✅ NUEVO: SECCIÓN LOTES A PUNTO DE CERRAR — siempre visible */}
+        {(true) && (
           <div className="mb-10">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -238,6 +238,19 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="min-w-[260px] h-64 bg-gray-200 rounded-2xl animate-pulse flex-shrink-0" />
                 ))}
+              </div>
+            ) : closingSoon.length === 0 ? (
+              <div className="flex items-center gap-4 p-5 bg-orange-50 border border-orange-100 rounded-2xl">
+                <span className="text-3xl">🔥</span>
+                <div>
+                  <p className="font-semibold text-gray-800">No hay lotes a punto de cerrar en este momento</p>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Cuando un lote llegue al 80%, aparecerá acá.{" "}
+                    <Link href="/explorar/cerrando" className="text-blue-600 hover:underline font-medium">
+                      Ver página completa →
+                    </Link>
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">

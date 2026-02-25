@@ -432,7 +432,7 @@ export default function ProductPurchaseClient({
       {usesReserveFlow && !loadingShipping && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
           <p className="text-sm text-blue-800">
-            <strong>💡 El envío podría ser menos.</strong> Buscamos otros
+            <strong>💡 El envío podría ser menor.</strong> Buscamos otros
             compradores en tu zona para dividir el costo. Si se suman, pagás
             menos de{" "}
             <strong>${formatNumber(shippingCost)}</strong>.
@@ -477,7 +477,7 @@ export default function ProductPurchaseClient({
             ? "No disponible — el fabricante no configuró su dirección"
             : mpConnected === false
             ? "Producto no disponible"
-            : "Reservar lugar — te avisamos cuando cierre el lote"}
+            : "Reservar tu lugar — te avisamos cuando cierre el lote"}
         </button>
       ) : (
         <button
