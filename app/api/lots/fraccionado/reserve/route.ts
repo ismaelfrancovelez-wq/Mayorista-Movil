@@ -418,7 +418,8 @@ export async function POST(req: Request) {
 
     // ✅ NUEVO: Ventana de 2h post-cierre — solo Nivel 1 puede entrar a lotes "closed"
     // Si no hay lote activo (accumulating/open), buscar si hay uno "closed" dentro de la ventana
-    if (!activeLotDoc) {
+    // IMPORTANTE: solo se busca si es Nivel 1 — los demás niveles crean lote nuevo directamente
+    if (!activeLotDoc && retailerLevel === 1) {
       const closedLotSnap = await db
         .collection("lots")
         .where("productId", "==", productId)
@@ -434,100 +435,81 @@ export async function POST(req: Request) {
         const now = Date.now();
         const windowOpen = windowExpiresAt > now;
 
+        // Si la ventana ya venció, ignorar este lote cerrado y caer al flujo normal
+        // que crea un lote nuevo en el paso 10
         if (!windowOpen) {
-          // La ventana ya cerró — el cron ya procesó o está por procesar este lote
-          return NextResponse.json(
-            {
-              error: "Este lote ya cerró. El próximo lote estará disponible en breve.",
-              lotClosed: true,
-            },
-            { status: 409 }
-          );
-        }
+          // no hacer nada — continúa al paso 8 y luego crea lote nuevo en paso 10
+        } else {
+          // ✅ Nivel 1 dentro de la ventana — verificar duplicado en ese lote cerrado
+          const dupClosedSnap = await db
+            .collection("reservations")
+            .where("retailerId", "==", retailerId)
+            .where("lotId", "==", closedLotDoc.id)
+            .where("status", "in", ["pending_lot", "lot_closed", "paid"])
+            .limit(1)
+            .get();
 
-        // Ventana abierta pero no es Nivel 1
-        if (retailerLevel !== 1) {
-          const minutosRestantes = Math.ceil((windowExpiresAt - now) / 60000);
-          return NextResponse.json(
-            {
-              error: `Este lote cerró y está en ventana exclusiva para revendedores Nivel 1 (${minutosRestantes} min restantes). Mejorá tu historial de pagos para acceder a esta ventana.`,
-              levelRestriction: true,
-              currentLevel: retailerLevel,
-              windowMinutesLeft: minutosRestantes,
-            },
-            { status: 403 }
-          );
-        }
-
-        // ✅ Nivel 1 dentro de la ventana — verificar duplicado en ese lote cerrado
-        const dupClosedSnap = await db
-          .collection("reservations")
-          .where("retailerId", "==", retailerId)
-          .where("lotId", "==", closedLotDoc.id)
-          .where("status", "in", ["pending_lot", "lot_closed", "paid"])
-          .limit(1)
-          .get();
-
-        if (!dupClosedSnap.empty) {
-          return NextResponse.json(
-            { error: "Ya tenés una reserva activa en este lote.", alreadyReserved: true },
-            { status: 409 }
-          );
-        }
-
-        // ✅ Guardar reserva como pending_lot en el lote cerrado
-        const level1ReservationRef = db.collection("reservations").doc();
-        await level1ReservationRef.set({
-          retailerId,
-          retailerName,
-          retailerEmail,
-          retailerAddress: retailerAddressText,
-          postalCode: postalCode || null,
-          productId,
-          productName,
-          factoryId,
-          factoryName,
-          qty: Number(qty),
-          shippingMode,
-          shippingCostEstimated,
-          commission,
-          productSubtotal,
-          lotId: closedLotDoc.id,
-          status: "pending_lot",
-          paymentLevel: retailerLevel,
-          reliabilityScore: retailerScore,
-          enteredDuringWindow: true, // marca que entró en la ventana de 2h
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-
-        // ✅ Sumar qty al lote cerrado (puede superar el mínimo, es correcto)
-        await db.collection("lots").doc(closedLotDoc.id).update({
-          accumulatedQty: FieldValue.increment(Number(qty)),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-
-        // ✅ Consumir descuento milestone si aplica
-        if (hasMilestoneDiscount) {
-          try {
-            await consumeMilestoneDiscount(retailerId);
-          } catch (err) {
-            console.error("⚠️ Error consumiendo descuento milestone (ventana):", err);
+          if (!dupClosedSnap.empty) {
+            return NextResponse.json(
+              { error: "Ya tenés una reserva activa en este lote.", alreadyReserved: true },
+              { status: 409 }
+            );
           }
+
+          // ✅ Guardar reserva como pending_lot en el lote cerrado
+          const level1ReservationRef = db.collection("reservations").doc();
+          await level1ReservationRef.set({
+            retailerId,
+            retailerName,
+            retailerEmail,
+            retailerAddress: retailerAddressText,
+            postalCode: postalCode || null,
+            productId,
+            productName,
+            factoryId,
+            factoryName,
+            qty: Number(qty),
+            shippingMode,
+            shippingCostEstimated,
+            commission,
+            productSubtotal,
+            lotId: closedLotDoc.id,
+            status: "pending_lot",
+            paymentLevel: retailerLevel,
+            reliabilityScore: retailerScore,
+            enteredDuringWindow: true,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+
+          // ✅ Sumar qty al lote cerrado
+          await db.collection("lots").doc(closedLotDoc.id).update({
+            accumulatedQty: FieldValue.increment(Number(qty)),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+
+          // ✅ Consumir descuento milestone si aplica
+          if (hasMilestoneDiscount) {
+            try {
+              await consumeMilestoneDiscount(retailerId);
+            } catch (err) {
+              console.error("⚠️ Error consumiendo descuento milestone (ventana):", err);
+            }
+          }
+
+          console.log(`🌟 Nivel 1 entró en ventana post-cierre. Lote: ${closedLotDoc.id}, Retailer: ${retailerId}`);
+
+          return NextResponse.json({
+            success: true,
+            reservationId: level1ReservationRef.id,
+            lotId: closedLotDoc.id,
+            lotClosed: true,
+            enteredWindow: true,
+            milestoneDiscountApplied: hasMilestoneDiscount,
+            commissionRate: Math.round(commissionRate * 100),
+            message: "¡Entraste al lote! Cuando se procese el cierre, te mandamos el link de pago a tu email.",
+          });
         }
-
-        console.log(`🌟 Nivel 1 entró en ventana post-cierre. Lote: ${closedLotDoc.id}, Retailer: ${retailerId}`);
-
-        return NextResponse.json({
-          success: true,
-          reservationId: level1ReservationRef.id,
-          lotId: closedLotDoc.id,
-          lotClosed: true,
-          enteredWindow: true,
-          milestoneDiscountApplied: hasMilestoneDiscount,
-          commissionRate: Math.round(commissionRate * 100),
-          message: "¡Entraste al lote! Cuando se procese el cierre, te mandamos el link de pago a tu email.",
-        });
       }
     }
 

@@ -217,16 +217,16 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
             const milestoneBadges: string[] = rd.data().milestoneBadges ?? [];
             // Tomar el badge de mayor rango (último en el array, que está ordenado por streak/lots)
             const STREAK_LABELS: Record<string, string> = {
-              streak_executive: "⚡ Camino al Siguente Nivel",
+              streak_executive: "⚡ Camino al Siguente nivel",
               streak_strategic: "💎 Revendedor Consolidado",
               streak_premium:   "🔥 Racha Activa",
               streak_top:       "👑 Elite Privada",
             };
             const MILESTONE_LABELS: Record<string, string> = {
-              milestone_first:    "🥉 Primer vinculo",
+              milestone_first:    "🥉 Primer Vinculo",
               milestone_solid:    "🥈 Revendedor Tallado",
-              milestone_operator: "🥇 Maestro del Sector",
-              milestone_founding: "🏆 Socio Fundador de MayoristaMovil",
+              milestone_operator: "🥇 Maestro del Rubro",
+              milestone_founding: "🏆 Socio fundador de MayoristaMovil",
             };
             const topStreak = streakBadges.length > 0 ? STREAK_LABELS[streakBadges[streakBadges.length - 1]] : undefined;
             const topMilestone = milestoneBadges.length > 0 ? MILESTONE_LABELS[milestoneBadges[milestoneBadges.length - 1]] : undefined;
