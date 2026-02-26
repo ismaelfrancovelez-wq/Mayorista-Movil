@@ -237,38 +237,57 @@ export async function POST(req: Request) {
     }
 
     /* ===============================
-       🔍 VERIFICAR SI ES PRIMERA COMPRA DEL LOTE
+       🔍 VERIFICAR SI ESTE RETAILER YA PAGÓ ENVÍO EN ESTE LOTE
+       
+       Lógica correcta:
+       - Cada persona paga envío la PRIMERA VEZ que se suma al lote
+       - Si la misma persona quiere agregar más unidades al mismo lote,
+         NO paga envío de nuevo (ya lo pagó antes)
+       - Personas distintas siempre pagan su propio envío
     =============================== */
-    
-    // Buscar lote activo para este producto
-    const lotsSnap = await db
-      .collection("lots")
-      .where("productId", "==", productId)
-      .where("status", "==", "accumulating")
-      .limit(1)
-      .get();
 
+    // Buscar lote activo para este producto (cubre estados legacy y nuevo)
+    const [accumulatingSnap, openSnap] = await Promise.all([
+      db.collection("lots").where("productId", "==", productId).where("status", "==", "accumulating").limit(1).get(),
+      db.collection("lots").where("productId", "==", productId).where("status", "==", "open").limit(1).get(),
+    ]);
+
+    const activeLotDoc = !accumulatingSnap.empty
+      ? accumulatingSnap.docs[0]
+      : !openSnap.empty
+      ? openSnap.docs[0]
+      : null;
+
+    // Por defecto cobra envío — solo se omite si este retailer YA está en el lote
     let isFirstPurchase = true;
 
-    if (!lotsSnap.empty) {
-      const lotDoc = lotsSnap.docs[0];
-      const lotId = lotDoc.id;
+    if (activeLotDoc) {
+      const lotId = activeLotDoc.id;
 
-      // Verificar si hay payments previos en este lote
-      const paymentsSnap = await db
-        .collection("payments")
-        .where("lotId", "==", lotId)
-        .limit(1)
-        .get();
+      // Verificar si ESTE retailer específico ya tiene actividad en este lote
+      const [myPaymentSnap, myReservationSnap] = await Promise.all([
+        db.collection("payments")
+          .where("lotId", "==", lotId)
+          .where("buyerId", "==", retailerId)
+          .limit(1)
+          .get(),
+        db.collection("reservations")
+          .where("lotId", "==", lotId)
+          .where("retailerId", "==", retailerId)
+          .where("status", "in", ["pending_lot", "lot_closed", "paid"])
+          .limit(1)
+          .get(),
+      ]);
 
-      if (!paymentsSnap.empty) {
+      if (!myPaymentSnap.empty || !myReservationSnap.empty) {
+        // Este retailer ya está en el lote → no cobra envío de nuevo
         isFirstPurchase = false;
-        console.log("⚠️  Lote ya tiene compras previas, envío = $0");
+        console.log(`⚠️ Retailer ${retailerId} ya tiene actividad en lote ${lotId} → envío $0`);
       } else {
-        console.log("✅ Primera compra del lote, se cobrará envío completo");
+        console.log(`✅ Retailer ${retailerId} es nuevo en lote ${lotId} → cobra envío`);
       }
     } else {
-      console.log("✅ Lote nuevo, se cobrará envío completo");
+      console.log("✅ Lote nuevo → cobra envío");
     }
 
     /* ===============================
