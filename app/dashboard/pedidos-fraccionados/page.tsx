@@ -281,537 +281,124 @@ async function DashboardRevendedorContent() {
 
   /* ── UI ── */
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
-        fontFamily: "'DM Sans', 'Sora', sans-serif",
-      }}
-    >
-      {/* Ambient glow effects */}
-      <div
-        style={{
-          position: "fixed",
-          top: "-10%",
-          right: "-5%",
-          width: "500px",
-          height: "500px",
-          background: "radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
-      <div
-        style={{
-          position: "fixed",
-          bottom: "10%",
-          left: "-5%",
-          width: "400px",
-          height: "400px",
-          background: "radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 70%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-8 max-w-6xl mx-auto">
 
-      <div className="relative p-6 md:p-10 max-w-6xl mx-auto" style={{ zIndex: 1 }}>
-
-        {/* ── HEADER ── */}
-        <div className="flex justify-between items-start mb-12">
+        {/* HEADER */}
+        <div className="flex justify-between items-center mb-10">
           <div>
-            {/* Eyebrow label */}
-            <div className="flex items-center gap-2 mb-3">
-              <div
-                style={{
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  background: "#10b981",
-                  boxShadow: "0 0 8px #10b981",
-                  animation: "pulse 2s infinite",
-                }}
-              />
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  letterSpacing: "0.15em",
-                  textTransform: "uppercase",
-                  color: "#10b981",
-                }}
-              >
-                Panel activo
-              </span>
-            </div>
-            <h1
-              style={{
-                fontSize: "clamp(1.8rem, 4vw, 2.6rem)",
-                fontWeight: 800,
-                color: "#f8fafc",
-                letterSpacing: "-0.03em",
-                lineHeight: 1.1,
-              }}
-            >
-              Dashboard del
-              <br />
-              <span
-                style={{
-                  background: "linear-gradient(90deg, #818cf8, #a78bfa)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
-              >
-                revendedor
-              </span>
-            </h1>
-            <p style={{ color: "#94a3b8", marginTop: "8px", fontSize: "0.95rem" }}>
-              Gestioná tus compras y pedidos
-            </p>
+            <h1 className="text-3xl font-semibold">Dashboard del revendedor</h1>
+            <p className="text-gray-600 mt-1">Gestioná tus compras y pedidos</p>
           </div>
+          {/* ✅ NUEVO: reemplaza <ActiveRoleBadge /> + <SwitchRoleButton targetRole="manufacturer" /> */}
+          <UserRoleHeader
+            userEmail={userEmail}
+            activeRole="retailer"
+          />
+        </div>
 
-          {/* UserRoleHeader — sin cambios funcionales */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: "14px",
-              padding: "4px",
-              backdropFilter: "blur(12px)",
-            }}
-          >
-            <UserRoleHeader userEmail={userEmail} activeRole="retailer" />
+        {/* KPIs */}
+        <div className="grid md:grid-cols-3 gap-6 mb-12">
+          <div className="bg-white p-6 rounded-xl shadow">
+            <p className="text-sm text-gray-500">Pedidos totales</p>
+            <p className="text-3xl font-semibold mt-2">{pedidosTotalesCount}</p>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow">
+            <p className="text-sm text-gray-500">En proceso</p>
+            <p className="text-3xl font-semibold mt-2">{pedidosEnProcesoCount}</p>
+          </div>
+          <div className="bg-white p-6 rounded-xl shadow">
+            <p className="text-sm text-gray-500">Total invertido</p>
+            <p className="text-3xl font-semibold mt-2">{formatCurrency(totalInvertido)}</p>
           </div>
         </div>
 
-        {/* ── KPIs ── */}
-        <div className="grid md:grid-cols-3 gap-5 mb-12">
-          {/* KPI 1 */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: "20px",
-              padding: "28px",
-              backdropFilter: "blur(20px)",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "3px",
-                background: "linear-gradient(90deg, #818cf8, #a78bfa)",
-                borderRadius: "20px 20px 0 0",
-              }}
-            />
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-              <div
-                style={{
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "10px",
-                  background: "rgba(129,140,248,0.15)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "18px",
-                }}
-              >
-                📦
-              </div>
-              <span style={{ color: "#94a3b8", fontSize: "0.82rem", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                Pedidos totales
-              </span>
-            </div>
-            <p
-              style={{
-                fontSize: "3rem",
-                fontWeight: 800,
-                color: "#f8fafc",
-                letterSpacing: "-0.04em",
-                lineHeight: 1,
-              }}
-            >
-              {pedidosTotalesCount}
-            </p>
-          </div>
-
-          {/* KPI 2 */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: "20px",
-              padding: "28px",
-              backdropFilter: "blur(20px)",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "3px",
-                background: "linear-gradient(90deg, #f59e0b, #fbbf24)",
-                borderRadius: "20px 20px 0 0",
-              }}
-            />
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-              <div
-                style={{
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "10px",
-                  background: "rgba(245,158,11,0.15)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "18px",
-                }}
-              >
-                ⚡
-              </div>
-              <span style={{ color: "#94a3b8", fontSize: "0.82rem", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                En proceso
-              </span>
-            </div>
-            <p
-              style={{
-                fontSize: "3rem",
-                fontWeight: 800,
-                color: "#f8fafc",
-                letterSpacing: "-0.04em",
-                lineHeight: 1,
-              }}
-            >
-              {pedidosEnProcesoCount}
-            </p>
-          </div>
-
-          {/* KPI 3 */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: "20px",
-              padding: "28px",
-              backdropFilter: "blur(20px)",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "3px",
-                background: "linear-gradient(90deg, #10b981, #34d399)",
-                borderRadius: "20px 20px 0 0",
-              }}
-            />
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-              <div
-                style={{
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "10px",
-                  background: "rgba(16,185,129,0.15)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "18px",
-                }}
-              >
-                💰
-              </div>
-              <span style={{ color: "#94a3b8", fontSize: "0.82rem", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                Total invertido
-              </span>
-            </div>
-            <p
-              style={{
-                fontSize: "2.2rem",
-                fontWeight: 800,
-                color: "#f8fafc",
-                letterSpacing: "-0.04em",
-                lineHeight: 1,
-              }}
-            >
-              {formatCurrency(totalInvertido)}
-            </p>
-          </div>
-        </div>
-
-        {/* ── LOTES EN CURSO ── */}
-        <div
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.07)",
-            borderRadius: "24px",
-            padding: "32px",
-            backdropFilter: "blur(20px)",
-            marginBottom: "32px",
-          }}
-        >
-          {/* Section header */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "28px" }}>
-            <div
-              style={{
-                width: "4px",
-                height: "24px",
-                background: "linear-gradient(180deg, #818cf8, #a78bfa)",
-                borderRadius: "4px",
-              }}
-            />
-            <h2
-              style={{
-                fontSize: "1.15rem",
-                fontWeight: 700,
-                color: "#f1f5f9",
-                letterSpacing: "-0.01em",
-              }}
-            >
-              Pedidos fraccionados en curso
-            </h2>
-            {activeLots.length > 0 && (
-              <span
-                style={{
-                  marginLeft: "auto",
-                  background: "rgba(129,140,248,0.15)",
-                  color: "#818cf8",
-                  border: "1px solid rgba(129,140,248,0.3)",
-                  borderRadius: "999px",
-                  padding: "2px 10px",
-                  fontSize: "0.78rem",
-                  fontWeight: 700,
-                }}
-              >
-                {activeLots.length} activos
-              </span>
-            )}
-          </div>
+        {/* LOTES EN CURSO */}
+        <div className="bg-white rounded-xl shadow p-6 mb-12">
+          <h2 className="text-lg font-semibold mb-4">Pedidos fraccionados en curso</h2>
 
           {activeLots.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "48px 24px",
-                color: "#64748b",
-              }}
-            >
-              <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>📭</div>
-              <p style={{ fontSize: "0.95rem" }}>No tenés pedidos fraccionados en proceso actualmente.</p>
-            </div>
+            <p className="text-gray-500 text-sm">
+              No tenés pedidos fraccionados en proceso actualmente.
+            </p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div className="space-y-5">
               {activeLots.map((lot) => {
                 const progressPercent = Math.round(lot.progress);
                 const isNearComplete = progressPercent >= 80;
 
                 return (
-                  <div
-                    key={lot.id}
-                    style={{
-                      background: "rgba(255,255,255,0.04)",
-                      border: lot.lotClosed
-                        ? "1px solid rgba(99,102,241,0.25)"
-                        : "1px solid rgba(255,255,255,0.07)",
-                      borderRadius: "16px",
-                      padding: "20px 22px",
-                      transition: "border-color 0.2s, background 0.2s",
-                    }}
-                  >
-                    {/* Row 1: nombre + badges + qty + ocultar */}
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                        <span
-                          style={{
-                            fontWeight: 700,
-                            color: "#f1f5f9",
-                            fontSize: "1rem",
-                            letterSpacing: "-0.01em",
-                          }}
-                        >
-                          {lot.productName}
-                        </span>
+                  <div key={lot.id} className="border border-gray-100 rounded-lg p-4">
 
-                        {/* Badge: Reserva */}
+                    {/* Nombre + badges + botón ocultar */}
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-900">{lot.productName}</span>
+
+                        {/* Badge de estado */}
                         {lot.isReservation && lot.isPendingLot && (
-                          <span
-                            style={{
-                              padding: "2px 10px",
-                              background: "rgba(251,146,60,0.15)",
-                              color: "#fb923c",
-                              border: "1px solid rgba(251,146,60,0.3)",
-                              borderRadius: "999px",
-                              fontSize: "0.72rem",
-                              fontWeight: 700,
-                              letterSpacing: "0.04em",
-                              textTransform: "uppercase",
-                            }}
-                          >
+                          <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded font-medium">
                             Reserva
                           </span>
                         )}
-                        {/* Badge: Esperando tu pago */}
                         {lot.isReservation && lot.lotClosed && (
-                          <span
-                            style={{
-                              padding: "2px 10px",
-                              background: "rgba(99,102,241,0.15)",
-                              color: "#818cf8",
-                              border: "1px solid rgba(99,102,241,0.3)",
-                              borderRadius: "999px",
-                              fontSize: "0.72rem",
-                              fontWeight: 700,
-                              letterSpacing: "0.04em",
-                              textTransform: "uppercase",
-                            }}
-                          >
+                          <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-medium">
                             Esperando tu pago
                           </span>
                         )}
-                        {/* Badge: A la espera de pagos */}
                         {!lot.isReservation && lot.lotClosed && (
-                          <span
-                            style={{
-                              padding: "2px 10px",
-                              background: "rgba(245,158,11,0.12)",
-                              color: "#fbbf24",
-                              border: "1px solid rgba(245,158,11,0.25)",
-                              borderRadius: "999px",
-                              fontSize: "0.72rem",
-                              fontWeight: 700,
-                              letterSpacing: "0.04em",
-                              textTransform: "uppercase",
-                            }}
-                          >
+                          <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded font-medium">
                             A la espera de pagos
                           </span>
                         )}
                       </div>
 
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <span
-                          style={{
-                            fontSize: "0.82rem",
-                            color: "#64748b",
-                            background: "rgba(255,255,255,0.05)",
-                            border: "1px solid rgba(255,255,255,0.08)",
-                            borderRadius: "8px",
-                            padding: "3px 10px",
-                            fontVariantNumeric: "tabular-nums",
-                          }}
-                        >
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-gray-500">
                           {lot.accumulatedQty} / {lot.minimumOrder} uds.
                         </span>
+                        {/* Ocultar lote del dashboard (solo completados o pagados) */}
                         {!lot.isPendingLot && !lot.lotClosed && (
                           <HideOrderButton itemId={lot.id} label="Ocultar" />
                         )}
                       </div>
                     </div>
 
-                    {/* Subtext: tu pedido */}
-                    <p
-                      style={{
-                        fontSize: "0.8rem",
-                        color: "#64748b",
-                        marginBottom: "14px",
-                      }}
-                    >
-                      Tu pedido:{" "}
-                      <span style={{ color: "#94a3b8", fontWeight: 600 }}>
-                        {lot.userQty} unidades
-                      </span>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Tu pedido: {lot.userQty} unidades
                       {!lot.isReservation && lot.userPayments > 1 &&
                         ` en ${lot.userPayments} compras`}
                     </p>
 
-                    {/* Barra de progreso */}
+                    {/* Barra de progreso solo si NO cerró */}
                     {!lot.lotClosed && (
                       <>
-                        <div
-                          style={{
-                            width: "100%",
-                            background: "rgba(255,255,255,0.07)",
-                            borderRadius: "999px",
-                            height: "8px",
-                            overflow: "hidden",
-                          }}
-                        >
+                        <div className="w-full bg-gray-200 rounded-full h-3">
                           <div
-                            style={{
-                              height: "100%",
-                              width: `${progressPercent}%`,
-                              borderRadius: "999px",
-                              background: isNearComplete
-                                ? "linear-gradient(90deg, #10b981, #34d399)"
-                                : "linear-gradient(90deg, #6366f1, #818cf8)",
-                              boxShadow: isNearComplete
-                                ? "0 0 12px rgba(16,185,129,0.5)"
-                                : "0 0 12px rgba(99,102,241,0.4)",
-                              transition: "width 0.6s ease",
-                            }}
+                            className={`h-3 rounded-full transition-all ${isNearComplete ? "bg-green-600" : "bg-blue-600"}`}
+                            style={{ width: `${progressPercent}%` }}
                           />
                         </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "6px" }}>
-                          {isNearComplete ? (
-                            <p style={{ fontSize: "0.75rem", color: "#10b981", fontWeight: 600 }}>
-                              ✦ ¡Cerca de completarse!
-                            </p>
-                          ) : (
-                            <span style={{ fontSize: "0.72rem", color: "#475569" }}>
-                              {progressPercent}% completado
-                            </span>
-                          )}
-                          {lot.isReservation && lot.isPendingLot && (
-                            <p style={{ fontSize: "0.75rem", color: "#fb923c", fontWeight: 500 }}>
-                              🔖 Te avisamos cuando el lote esté completo
-                            </p>
-                          )}
-                        </div>
+                        {isNearComplete && (
+                          <p className="text-xs text-green-600 mt-1">¡Cerca de completarse!</p>
+                        )}
+                        {lot.isReservation && lot.isPendingLot && (
+                          <p className="text-xs text-orange-600 mt-1">
+                            🔖 Cuando el lote se complete, te mandamos el link de pago por email
+                          </p>
+                        )}
                       </>
                     )}
 
                     {/* Lote cerró + tiene link de pago (reserva) */}
                     {lot.lotClosed && lot.isReservation && lot.paymentLink && (
-                      <div
-                        style={{
-                          marginTop: "14px",
-                          padding: "16px",
-                          background: "rgba(99,102,241,0.08)",
-                          border: "1px solid rgba(99,102,241,0.2)",
-                          borderRadius: "12px",
-                        }}
-                      >
-                        <p style={{ fontSize: "0.82rem", color: "#a5b4fc", marginBottom: "12px", fontWeight: 500 }}>
+                      <div className="mt-2">
+                        <p className="text-xs text-blue-700 mb-2">
                           ✅ El lote alcanzó el mínimo. Completá tu pago para confirmar la compra.
                         </p>
                         <a
                           href={lot.paymentLink}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "8px",
-                            background: "linear-gradient(135deg, #6366f1, #818cf8)",
-                            color: "#ffffff",
-                            fontSize: "0.9rem",
-                            fontWeight: 700,
-                            padding: "10px 22px",
-                            borderRadius: "10px",
-                            textDecoration: "none",
-                            boxShadow: "0 4px 20px rgba(99,102,241,0.4)",
-                            transition: "opacity 0.2s, transform 0.2s",
-                          }}
+                          className="inline-block bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
                         >
                           💳 Pagar ahora — {formatCurrency(lot.totalFinal ?? 0)}
                         </a>
@@ -820,46 +407,22 @@ async function DashboardRevendedorContent() {
 
                     {/* Lote cerró + pago normal (esperando otros) */}
                     {lot.lotClosed && !lot.isReservation && (
-                      <div
-                        style={{
-                          marginTop: "12px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          padding: "10px 14px",
-                          background: "rgba(245,158,11,0.08)",
-                          border: "1px solid rgba(245,158,11,0.15)",
-                          borderRadius: "10px",
-                        }}
-                      >
-                        <span style={{ fontSize: "0.82rem", color: "#fbbf24", fontWeight: 500 }}>
-                          ⏳ Tu pago está confirmado — esperando que los demás compradores del lote paguen
-                        </span>
-                      </div>
+                      <p className="text-xs text-yellow-700 mt-1">
+                        ⏳ Tu pago está confirmado — esperando que los demás compradores del lote paguen
+                      </p>
                     )}
 
-                    {/* Botón dar de baja */}
+                    {/* ── BOTÓN DAR DE BAJA (solo si pending_lot) ── */}
                     {lot.isReservation && lot.isPendingLot && lot.reservationDocId && (
-                      <div style={{ marginTop: "14px" }}>
-                        <CancelReservationButton
-                          reservationId={lot.reservationDocId}
-                          productName={lot.productName}
-                        />
-                      </div>
+                      <CancelReservationButton
+                        reservationId={lot.reservationDocId}
+                        productName={lot.productName}
+                      />
                     )}
 
-                    {/* Bloqueado si quiere cancelar en lot_closed */}
+                    {/* ── BLOQUEADO si quiere cancelar en lot_closed ── */}
                     {lot.isReservation && lot.lotClosed && (
-                      <p
-                        style={{
-                          fontSize: "0.75rem",
-                          color: "#475569",
-                          marginTop: "12px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                        }}
-                      >
+                      <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
                         <span>🔒</span>
                         <span>El lote cerró — no es posible darse de baja en esta etapa</span>
                       </p>
@@ -871,84 +434,19 @@ async function DashboardRevendedorContent() {
           )}
         </div>
 
-        {/* ── EXPLORAR ── */}
+        {/* EXPLORAR */}
         <div className="grid md:grid-cols-1 gap-6 mb-12">
           <Link
             href="/explorar"
-            style={{
-              display: "block",
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: "24px",
-              padding: "32px",
-              backdropFilter: "blur(20px)",
-              textDecoration: "none",
-              transition: "background 0.2s, border-color 0.2s, transform 0.2s",
-              position: "relative",
-              overflow: "hidden",
-            }}
+            className="bg-white p-8 rounded-xl shadow hover:shadow-lg transition"
           >
-            {/* Decorative corner gradient */}
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                right: 0,
-                width: "200px",
-                height: "200px",
-                background: "radial-gradient(circle at top right, rgba(129,140,248,0.1), transparent 70%)",
-                pointerEvents: "none",
-              }}
-            />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <div
-                  style={{
-                    fontSize: "2rem",
-                    marginBottom: "12px",
-                  }}
-                >
-                  🏪
-                </div>
-                <h2
-                  style={{
-                    fontSize: "1.3rem",
-                    fontWeight: 700,
-                    color: "#f1f5f9",
-                    letterSpacing: "-0.02em",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Explorar productos
-                </h2>
-                <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-                  Comprá directo o fraccionado
-                </p>
-              </div>
-              <span
-                style={{
-                  fontSize: "1.5rem",
-                  color: "#818cf8",
-                  fontWeight: 300,
-                  lineHeight: 1,
-                }}
-              >
-                →
-              </span>
-            </div>
+            <h2 className="text-xl font-semibold mb-2">Explorar productos</h2>
+            <p className="text-gray-600 mb-4">Comprá directo o fraccionado</p>
+            <span className="text-blue-600 font-medium">Ver productos →</span>
           </Link>
         </div>
 
       </div>
-
-      {/* Pulse animation for the green dot */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.3); }
-        }
-      `}</style>
     </div>
   );
 }

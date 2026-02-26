@@ -20,9 +20,9 @@
 //   score <  0.25 → nivel 4
 //
 // Comisión por nivel:
-//   Nivel 1 → 10%
-//   Nivel 2 → 11%
-//   Nivel 3 → 12%
+//   Nivel 1 → 11%
+//   Nivel 2 → 12%
+//   Nivel 3 → 13%
 //   Nivel 4 → 14%
 //
 // Badges de racha (se pierden si se rompe la racha):
