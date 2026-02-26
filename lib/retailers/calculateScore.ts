@@ -55,9 +55,9 @@ export const STREAK_BADGES: { streak: number; id: string; label: string }[] = [
 
 // ── Badges de milestone (permanentes) ───────────────────────────
 export const MILESTONE_BADGES: { lots: number; id: string; label: string }[] = [
-  { lots: 1,  id: "milestone_first",      label: "Primer Eslabon"       },
+  { lots: 1,  id: "milestone_first",      label: "Primer Vinculo"       },
   { lots: 10, id: "milestone_solid",      label: "Revendedor Tallado"   },
-  { lots: 25, id: "milestone_operator",   label: "Maestro del Sector"   },
+  { lots: 25, id: "milestone_operator",   label: "Maestro del Rubro"   },
   { lots: 50, id: "milestone_founding",   label: "Socio Fundador de MayoristaMovil"    },
 ];
 

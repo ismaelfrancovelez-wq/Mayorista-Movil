@@ -7,10 +7,10 @@ type Role = "manufacturer" | "retailer";
 
 // ── Badge definitions (mirrors calculateScore.ts) ────────────────
 const MILESTONE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string; border: string }> = {
-  milestone_first:    { label: "Primer Eslabón",   icon: "🥉", color: "#92400e", bg: "#fef3c7", border: "#fcd34d" },
-  milestone_solid:    { label: "Rev. Tallado",      icon: "🥈", color: "#374151", bg: "#f3f4f6", border: "#d1d5db" },
-  milestone_operator: { label: "Maestro del Sector",icon: "🥇", color: "#78350f", bg: "#fff7ed", border: "#fb923c" },
-  milestone_founding: { label: "Socio Fundador",    icon: "🏆", color: "#1e3a5f", bg: "#eff6ff", border: "#60a5fa" },
+  milestone_first:    { label: "Primer Vinculo",   icon: "🥉", color: "#92400e", bg: "#fef3c7", border: "#fcd34d" },
+  milestone_solid:    { label: "Revendedor Tallado",      icon: "🥈", color: "#374151", bg: "#f3f4f6", border: "#d1d5db" },
+  milestone_operator: { label: "Maestro del Rubro",icon: "🥇", color: "#78350f", bg: "#fff7ed", border: "#fb923c" },
+  milestone_founding: { label: "Socio Fundador de MayoristaMovil",    icon: "🏆", color: "#1e3a5f", bg: "#eff6ff", border: "#60a5fa" },
 };
 
 const STREAK_CONFIG: Record<string, { label: string; icon: string; description: string; gradient: string; textColor: string; accentColor: string }> = {
