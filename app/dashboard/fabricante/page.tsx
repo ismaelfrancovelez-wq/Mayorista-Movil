@@ -19,9 +19,11 @@ async function DashboardFabricanteContent() {
 
   // ✅ NUEVO: leer email desde cookie; si no existe (sesión previa), buscarlo en Firestore
   let userEmail = cookies().get("userEmail")?.value || "";
-  if (!userEmail) {
+  let userName = cookies().get("userName")?.value || "";
+  if (!userEmail || !userName) {
     const userSnap = await db.collection("users").doc(userId).get();
-    userEmail = userSnap.data()?.email || "";
+    userEmail = userEmail || userSnap.data()?.email || "";
+    userName = userName || userSnap.data()?.name || userEmail.split("@")[0] || "fabricante";
   }
 
   /* ===============================
@@ -157,7 +159,7 @@ async function DashboardFabricanteContent() {
         <div className="flex justify-between items-start mb-12">
           <div>
             <h1 className="text-3xl font-semibold text-gray-900">
-              Panel del fabricante
+              ¡Bienvenido de nuevo, {userName}!
             </h1>
             <p className="text-gray-500 mt-1">
               Resumen general de tu actividad y tus ingresos
@@ -168,6 +170,7 @@ async function DashboardFabricanteContent() {
           <UserRoleHeader
             userEmail={userEmail}
             activeRole="manufacturer"
+            userName={userName}
           />
         </div>
 

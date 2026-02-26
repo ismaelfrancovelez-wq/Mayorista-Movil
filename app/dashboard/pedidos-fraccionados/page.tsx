@@ -2,7 +2,7 @@
 
 import { db } from "../../../lib/firebase-admin";
 import { cookies } from "next/headers";
-import UserRoleHeader from "../../../components/UserRoleHeader"; // ✅ NUEVO (reemplaza ActiveRoleBadge + SwitchRoleButton)
+import UserRoleHeader from "../../../components/UserRoleHeader";
 import Link from "next/link";
 import { formatCurrency } from "../../../lib/utils";
 import { Suspense } from "react";
@@ -14,8 +14,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 10;
 
 type ActiveLot = {
-  id: string;               // id para la lista (y para el botón hide)
-  reservationDocId?: string; // id real del doc reserva (para cancel)
+  id: string;
+  reservationDocId?: string;
   productId: string;
   productName: string;
   type: string;
@@ -25,8 +25,8 @@ type ActiveLot = {
   progress: number;
   userPayments: number;
   isReservation: boolean;
-  isPendingLot: boolean;    // true = pending_lot (puede dar de baja)
-  lotClosed: boolean;       // true = cerró y esperando pagos
+  isPendingLot: boolean;
+  lotClosed: boolean;
   paymentLink?: string;
   totalFinal?: number;
 };
@@ -56,11 +56,15 @@ async function DashboardRevendedorContent() {
     ...d.data(),
   })) as any[];
 
-  // IDs ocultos por el usuario
   const hiddenIds: string[] = userSnap.data()?.hiddenOrders || [];
 
-  // ✅ NUEVO: leer email desde cookie; si no existe (sesión previa), usar el de Firestore (ya cargado)
   const userEmail = cookies().get("userEmail")?.value || userSnap.data()?.email || "";
+  // ✅ NUEVO: nombre real del usuario para el saludo
+  const userName =
+    cookies().get("userName")?.value ||
+    userSnap.data()?.name ||
+    userEmail.split("@")[0] ||
+    "revendedor";
 
   /* ── 2. ESTADO REAL DE LOTES DESDE FIRESTORE ── */
   const allLotIds = new Set<string>();
@@ -287,13 +291,14 @@ async function DashboardRevendedorContent() {
         {/* HEADER */}
         <div className="flex justify-between items-center mb-10">
           <div>
-            <h1 className="text-3xl font-semibold">Dashboard del revendedor</h1>
+            {/* ✅ CORREGIDO: muestra el nombre real del usuario */}
+            <h1 className="text-3xl font-semibold">¡Bienvenido de nuevo, {userName}!</h1>
             <p className="text-gray-600 mt-1">Gestioná tus compras y pedidos</p>
           </div>
-          {/* ✅ NUEVO: reemplaza <ActiveRoleBadge /> + <SwitchRoleButton targetRole="manufacturer" /> */}
           <UserRoleHeader
             userEmail={userEmail}
             activeRole="retailer"
+            userName={userName}
           />
         </div>
 
@@ -335,7 +340,6 @@ async function DashboardRevendedorContent() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-900">{lot.productName}</span>
 
-                        {/* Badge de estado */}
                         {lot.isReservation && lot.isPendingLot && (
                           <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded font-medium">
                             Reserva
@@ -357,7 +361,6 @@ async function DashboardRevendedorContent() {
                         <span className="text-sm text-gray-500">
                           {lot.accumulatedQty} / {lot.minimumOrder} uds.
                         </span>
-                        {/* Ocultar lote del dashboard (solo completados o pagados) */}
                         {!lot.isPendingLot && !lot.lotClosed && (
                           <HideOrderButton itemId={lot.id} label="Ocultar" />
                         )}
@@ -370,7 +373,6 @@ async function DashboardRevendedorContent() {
                         ` en ${lot.userPayments} compras`}
                     </p>
 
-                    {/* Barra de progreso solo si NO cerró */}
                     {!lot.lotClosed && (
                       <>
                         <div className="w-full bg-gray-200 rounded-full h-3">
@@ -390,7 +392,6 @@ async function DashboardRevendedorContent() {
                       </>
                     )}
 
-                    {/* Lote cerró + tiene link de pago (reserva) */}
                     {lot.lotClosed && lot.isReservation && lot.paymentLink && (
                       <div className="mt-2">
                         <p className="text-xs text-blue-700 mb-2">
@@ -405,14 +406,12 @@ async function DashboardRevendedorContent() {
                       </div>
                     )}
 
-                    {/* Lote cerró + pago normal (esperando otros) */}
                     {lot.lotClosed && !lot.isReservation && (
                       <p className="text-xs text-yellow-700 mt-1">
                         ⏳ Tu pago está confirmado — esperando que los demás compradores del lote paguen
                       </p>
                     )}
 
-                    {/* ── BOTÓN DAR DE BAJA (solo si pending_lot) ── */}
                     {lot.isReservation && lot.isPendingLot && lot.reservationDocId && (
                       <CancelReservationButton
                         reservationId={lot.reservationDocId}
@@ -420,7 +419,6 @@ async function DashboardRevendedorContent() {
                       />
                     )}
 
-                    {/* ── BLOQUEADO si quiere cancelar en lot_closed ── */}
                     {lot.isReservation && lot.lotClosed && (
                       <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
                         <span>🔒</span>
