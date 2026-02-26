@@ -1,4 +1,3 @@
-
 import { db } from "../../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import { formatCurrency } from "../../../../lib/utils";
@@ -376,7 +375,17 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
   for (const [lotId, group] of fractionalGrouped.entries()) {
     const fp = group.payments[0];
     const lotData = lotsMap.get(lotId);
-    const status: Pedido["status"] = lotData?.status === "fully_paid" ? "all_paid" : "accumulating";
+    // ✅ FIX: mapear todos los estados del lote correctamente
+    // closed / processing / processed_pending_payment → el lote llegó al mínimo, esperando que todos paguen
+    // fully_paid → todos pagaron
+    // accumulating → todavía juntando
+    const CLOSED_STATUSES = new Set(["closed", "processing", "processed_pending_payment"]);
+    const status: Pedido["status"] =
+      lotData?.status === "fully_paid"
+        ? "all_paid"
+        : CLOSED_STATUSES.has(lotData?.status ?? "")
+        ? "lot_closed"
+        : "accumulating";
 
     fraccionadoOrders.push({
       id: lotId,
@@ -395,6 +404,7 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       createdAt: new Date(group.oldestDate).toLocaleDateString("es-AR"),
       createdAtTimestamp: group.latestDate,
       lotProgress: buildLotProgress(lotId),
+      lotClosedAt: lotsMap.get(lotId)?.closedAt,
     });
   }
 
