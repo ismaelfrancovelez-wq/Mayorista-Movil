@@ -66,13 +66,17 @@ export async function POST(req: Request) {
     const tokenData = await tokenResponse.json();
     console.log("✅ Token obtenido exitosamente");
 
-    // Guardar token y limpiar el code_verifier temporal
+    // ✅ Calcular fecha de expiración real
+    const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+
+    // ✅ Guardar token con fecha de expiración y limpiar el code_verifier temporal
     await db.collection("manufacturers").doc(userId).set({
       mercadopago: {
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         user_id: tokenData.user_id,
         public_key: tokenData.public_key,
+        expires_at: expiresAt,
         connected_at: new Date(),
       },
       mpOAuth: null, // ✅ Limpiar datos temporales

@@ -51,6 +51,9 @@ export default function ProductPurchaseClient({
 
   const usesReserveFlow = isFraccionado && selectedShipping === "platform";
 
+  // ✅ NUEVO: porcentaje real de comisión del usuario (se actualiza desde la API)
+  const [commissionRate, setCommissionRate] = useState<number>(12); // default 12% mientras carga
+
   /* ─── Chequeo MP ─── */
   useEffect(() => {
     async function checkFactoryMPStatus() {
@@ -143,7 +146,8 @@ export default function ProductPurchaseClient({
 
   /* ─── Totales ─── */
   const productSubtotal = price * qty;
-  const commission = isFraccionado ? Math.round(productSubtotal * 0.12) : 0;
+  // ✅ CORREGIDO: usa el porcentaje real del usuario en vez de 0.12 hardcodeado
+  const commission = isFraccionado ? Math.round(productSubtotal * (commissionRate / 100)) : 0;
   const totalToCharge = useMemo(
     () => productSubtotal + commission + shippingCost,
     [productSubtotal, commission, shippingCost]
@@ -186,6 +190,11 @@ export default function ProductPurchaseClient({
           setReserveError(data.error || "Error al reservar. Intentá de nuevo.");
         }
         return;
+      }
+
+      // ✅ NUEVO: guardar el commissionRate real devuelto por la API
+      if (typeof data.commissionRate === "number") {
+        setCommissionRate(data.commissionRate);
       }
 
       setReserved(true);
@@ -420,7 +429,7 @@ export default function ProductPurchaseClient({
       <div className="border rounded p-4 text-sm mb-4 bg-gray-50">
         <p>Subtotal producto: $ {formatNumber(productSubtotal)}</p>
         {commission > 0 && (
-          <p>Comisión (12%): $ {formatNumber(commission)}</p>
+          <p>Comisión ({commissionRate}%): $ {formatNumber(commission)}</p>
         )}
         <p>Envío: $ {formatNumber(shippingCost)}</p>
         <p className="font-semibold mt-2 text-base">

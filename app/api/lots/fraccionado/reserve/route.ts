@@ -182,6 +182,10 @@ async function processLotClosure(params: {
       });
 
       // Mandar email
+      // ✅ CORREGIDO: calcular el porcentaje real de comisión desde el nivel guardado en la reserva
+      const commissionRateByLevel: Record<number, number> = { 1: 0.10, 2: 0.11, 3: 0.12, 4: 0.14 };
+      const reservationLevel: number = r.paymentLevel ?? 2;
+      const commissionRateDisplay = Math.round((commissionRateByLevel[reservationLevel] ?? 0.12) * 100);
       const savingsHtml =
         !isPickup && groupSize > 1
           ? `<div style="background:#d1fae5;border:2px solid #10b981;border-radius:8px;padding:16px;margin:20px 0;text-align:center;">
@@ -216,7 +220,7 @@ async function processLotClosure(params: {
     <div class="row"><span class="label">Producto:</span> <span class="value">${productName}</span></div>
     <div class="row"><span class="label">Cantidad:</span> <span class="value">${r.qty} unidades</span></div>
     <div class="row"><span class="label">Subtotal producto:</span> <span class="value">$${r.productSubtotal.toLocaleString("es-AR")}</span></div>
-    <div class="row"><span class="label">Comisión (12%):</span> <span class="value">$${r.commission.toLocaleString("es-AR")}</span></div>
+    <div class="row"><span class="label">Comisión (${commissionRateDisplay}%):</span> <span class="value">$${r.commission.toLocaleString("es-AR")}</span></div>
     <div class="row"><span class="label">Envío:</span>
       <span class="value">${isPickup ? "Retiro en fábrica (Gratis)" : `$${shippingFinal.toLocaleString("es-AR")}${groupSize > 1 ? ` (dividido entre ${groupSize} compradores de tu zona)` : ""}`}</span>
     </div>

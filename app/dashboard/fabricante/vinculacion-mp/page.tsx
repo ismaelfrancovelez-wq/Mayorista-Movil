@@ -18,13 +18,37 @@ function VinculacionContent() {
     checkConnection();
   }, []);
 
-  // Procesar código de autorización (cuando vuelve de MP)
+  // Procesar resultado del callback de MP
   useEffect(() => {
     if (!searchParams) return;
     
     const code = searchParams.get('code');
     const state = searchParams.get('state');
-    
+    const success = searchParams.get('success');
+    const errorParam = searchParams.get('error');
+
+    // ✅ Nuevo flujo: el callback ya procesó todo server-side, solo refrescar estado
+    if (success === 'true') {
+      checkConnection();
+      router.replace('/dashboard/fabricante/vinculacion-mp');
+      return;
+    }
+
+    // ✅ Mostrar error si vino del callback
+    if (errorParam) {
+      const errorMessages: Record<string, string> = {
+        missing_params: 'Faltan parámetros en la respuesta de Mercado Pago.',
+        invalid_state: 'Error de seguridad en la solicitud. Intentá nuevamente.',
+        session_expired: 'La sesión expiró. Iniciá el proceso de vinculación nuevamente.',
+        token_error: 'Error al obtener el token de Mercado Pago. Intentá nuevamente.',
+        callback_error: 'Error procesando la respuesta de Mercado Pago.',
+      };
+      setError(errorMessages[errorParam] || `Error: ${errorParam}`);
+      router.replace('/dashboard/fabricante/vinculacion-mp');
+      return;
+    }
+
+    // Flujo legacy: por si llega con code y state (compatibilidad)
     if (code && state) {
       processAuthorization(code);
     }
@@ -161,7 +185,7 @@ function VinculacionContent() {
           </h2>
 
           <p className="text-gray-600 mb-6">
-            Al hacer clic en "Vincular cuenta", serás redirigido a Mercado Pago
+            Al hacer clic en &quot;Vincular cuenta&quot;, serás redirigido a Mercado Pago
             para autorizar que recibas pagos en tu cuenta.
           </p>
 

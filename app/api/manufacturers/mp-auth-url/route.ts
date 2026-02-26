@@ -40,10 +40,14 @@ export async function GET() {
     const codeVerifier = generateCodeVerifier();
     const codeChallenge = generateCodeChallenge(codeVerifier);
 
-    // ✅ Guardar code_verifier en Firestore para usarlo después en mp-connect
+    // ✅ Generar nonce para el state (protección CSRF)
+    const stateNonce = crypto.randomBytes(16).toString('hex');
+
+    // ✅ Guardar code_verifier y nonce en Firestore para validarlos en el callback
     await db.collection("manufacturers").doc(userId).set({
       mpOAuth: {
         codeVerifier,
+        stateNonce,
         createdAt: new Date(),
       }
     }, { merge: true });
@@ -54,7 +58,8 @@ export async function GET() {
     authUrl.searchParams.set('client_id', APP_ID);
     authUrl.searchParams.set('response_type', 'code');
     authUrl.searchParams.set('platform_id', 'mp');
-    authUrl.searchParams.set('state', userId);
+    // ✅ state ahora es "userId:nonce" en vez de solo userId
+    authUrl.searchParams.set('state', `${userId}:${stateNonce}`);
     authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
     authUrl.searchParams.set('code_challenge', codeChallenge);
     authUrl.searchParams.set('code_challenge_method', 'S256');
