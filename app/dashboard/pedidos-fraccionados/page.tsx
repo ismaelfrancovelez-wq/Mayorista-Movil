@@ -40,7 +40,7 @@ async function DashboardRevendedorContent() {
   }
 
   /* ── 1. CONSULTAS PARALELAS ── */
-  const [ordersSnap, reservationsSnap, userSnap] = await Promise.all([
+  const [ordersSnap, reservationsSnap, userSnap, retailerSnap] = await Promise.all([
     db.collection("payments").where("buyerId", "==", userId).limit(100).get(),
     db.collection("reservations")
       .where("retailerId", "==", userId)
@@ -48,6 +48,7 @@ async function DashboardRevendedorContent() {
       .limit(100)
       .get(),
     db.collection("users").doc(userId).get(),
+    db.collection("retailers").doc(userId).get(),
   ]);
 
   const orders = ordersSnap.docs.map((d) => d.data());
@@ -65,6 +66,12 @@ async function DashboardRevendedorContent() {
     userSnap.data()?.name ||
     userEmail.split("@")[0] ||
     "revendedor";
+
+  // ✅ BADGES: leer del doc retailers para el UserRoleHeader
+  const retailerData = retailerSnap.data() || {};
+  const milestoneBadges: string[] = retailerData.milestoneBadges ?? [];
+  const streakBadges: string[] = retailerData.streakBadges ?? [];
+  const currentStreak: number = retailerData.currentStreak ?? 0;
 
   /* ── 2. ESTADO REAL DE LOTES DESDE FIRESTORE ── */
   const allLotIds = new Set<string>();
@@ -299,6 +306,9 @@ async function DashboardRevendedorContent() {
             userEmail={userEmail}
             activeRole="retailer"
             userName={userName}
+            milestoneBadges={milestoneBadges}
+            streakBadges={streakBadges}
+            currentStreak={currentStreak}
           />
         </div>
 

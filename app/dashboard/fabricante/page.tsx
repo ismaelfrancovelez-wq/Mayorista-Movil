@@ -158,7 +158,7 @@ async function DashboardFabricanteContent() {
         {/* HEADER */}
         <div className="flex justify-between items-start mb-12">
           <div>
-            <h1 className="text-3xl font-semibold text-gray-900">
+            <h1 className="text-4xl font-semibold text-gray-900">
               ¡Bienvenido de nuevo, {userName}!
             </h1>
             <p className="text-gray-500 mt-1">
