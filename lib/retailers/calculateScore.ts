@@ -55,16 +55,16 @@ export const STREAK_BADGES: { streak: number; id: string; label: string }[] = [
 
 // ── Badges de milestone (permanentes) ───────────────────────────
 export const MILESTONE_BADGES: { lots: number; id: string; label: string }[] = [
-  { lots: 1,  id: "milestone_first",      label: "Primer Vinculo"       },
+  { lots: 1,  id: "milestone_first",      label: "Primer Eslabon"       },
   { lots: 10, id: "milestone_solid",      label: "Revendedor Tallado"   },
-  { lots: 25, id: "milestone_operator",   label: "Maestro del Rubro"   },
+  { lots: 25, id: "milestone_operator",   label: "Maestro del Sector"   },
   { lots: 50, id: "milestone_founding",   label: "Socio Fundador de MayoristaMovil"    },
 ];
 
 export interface RetailerScore {
   score: number;
   level: PaymentLevel;
-  commission: number;             // porcentaje a aplicar (10, 11, 12 o 14)
+  commission: number;             // porcentaje a aplicar (11, 12, 13 o 14)
   totalReservations: number;
   completedReservations: number;
   currentStreak: number;          // racha actual de pagos < 12h consecutivos
@@ -114,18 +114,39 @@ function computeMilestoneBadges(totalPaid: number): string[] {
 }
 
 // ── Cálculo principal ─────────────────────────────────────────────
+//
+// ARQUITECTURA INCREMENTAL (Bug 2 fix):
+//
+// En vez de leer TODAS las reservas del usuario en cada pago
+// (costoso: 200 lecturas para usuario con 200 lotes),
+// guardamos un agregado pre-computado en retailers/<id>.scoreAggregate:
+//
+//   {
+//     totalReservations: number,     // total procesadas
+//     completedReservations: number, // pagadas
+//     totalSpeedSum: number,         // suma de speedScore de cada pago
+//     speedCount: number,            // cantidad con timestamps válidos
+//     currentStreak: number,
+//     longestStreak: number,
+//   }
+//
+// updateRetailerScoreIncremental (llamada desde el webhook) recibe el
+// paidAt y lotClosedAt de la reserva recién pagada y actualiza el
+// agregado con UNA sola lectura + UNA escritura.
+//
+// calculateRetailerScore (full recalc) se mantiene para:
+//   - Reconstruir el agregado si no existe (migración / primer uso)
+//   - Recálculos manuales / admin
 
 export async function calculateRetailerScore(retailerId: string): Promise<RetailerScore> {
   // Leer datos existentes para preservar longestStreak y milestoneBadges
   const existingSnap = await db.collection("retailers").doc(retailerId).get();
   const existing = existingSnap.data() || {};
-  const previousLongestStreak: number  = existing.longestStreak ?? 0;
+  const previousLongestStreak: number     = existing.longestStreak ?? 0;
   const previousMilestoneBadges: string[] = existing.milestoneBadges ?? [];
-  const previousPaid: number           = existing.completedReservations ?? 0;
+  const previousPaid: number              = existing.completedReservations ?? 0;
 
-  // Traer todas las reservas cerradas
-  // Sin orderBy para evitar requerir índice compuesto en Firestore
-  // El orden cronológico se aplica en memoria a continuación
+  // Traer todas las reservas cerradas (full recalc — solo se usa en migración o admin)
   const snap = await db
     .collection("reservations")
     .where("retailerId", "==", retailerId)
@@ -136,7 +157,7 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
     return {
       score: 0.6,
       level: 2,
-      commission: 11,
+      commission: 12,  // nivel 2 = 12% (consistente con levelToCommission)
       totalReservations: 0,
       completedReservations: 0,
       currentStreak: 0,
@@ -147,7 +168,7 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
     };
   }
 
-  // Ordenar cronológicamente en memoria por lotClosedAt para calcular rachas correctamente
+  // Ordenar cronológicamente en memoria por lotClosedAt para calcular rachas
   const sortedDocs = snap.docs.slice().sort((a, b) => {
     const aMs = a.data().lotClosedAt?.toMillis?.() ?? 0;
     const bMs = b.data().lotClosedAt?.toMillis?.() ?? 0;
@@ -183,7 +204,6 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
         hours = 24;
       }
 
-      // Racha: solo si pagó en < 12h
       if (hours <= 12) {
         currentStreak++;
         if (currentStreak > longestStreak) longestStreak = currentStreak;
@@ -191,7 +211,6 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
         currentStreak = 0;
       }
     } else {
-      // cancelled → rompe la racha
       currentStreak = 0;
     }
   }
@@ -205,11 +224,26 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
   const streakBadges    = computeStreakBadges(currentStreak);
   const milestoneBadges = computeMilestoneBadges(paid);
 
-  // Descuento milestone: se activa cada vez que paid cruza un múltiplo de 10
   const crossedMilestone = paid > 0 && paid % 10 === 0 && previousPaid < paid;
-  // Si ya tenía descuento pendiente sin usar, lo conservamos
   const nextMilestoneDiscount =
     crossedMilestone || (existing.nextMilestoneDiscount === true);
+
+  // ✅ Reconstruir el agregado en Firestore para que los próximos pagos
+  // puedan usar el camino incremental (sin leer todas las reservas)
+  await db.collection("retailers").doc(retailerId).set(
+    {
+      scoreAggregate: {
+        totalReservations: total,
+        completedReservations: paid,
+        totalSpeedSum: totalSpeed,
+        speedCount,
+        currentStreak,
+        longestStreak,
+        rebuiltAt: new Date(),
+      },
+    },
+    { merge: true }
+  );
 
   return {
     score,
@@ -221,6 +255,122 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
     longestStreak,
     streakBadges,
     milestoneBadges,
+    nextMilestoneDiscount,
+  };
+}
+
+// ── Actualización incremental (llamada desde el webhook) ──────────
+//
+// Recibe los datos de la reserva recién pagada y actualiza el agregado
+// con UNA sola lectura de Firestore (el doc del retailer) + UNA escritura.
+// Para usuarios con 200 lotes: costo = 2 operaciones (vs 200 antes).
+//
+// Parámetros:
+//   retailerId   — id del retailer
+//   paidAt       — timestamp en ms del pago (Date.now() o webhook timestamp)
+//   lotClosedAt  — timestamp en ms del cierre del lote
+//   wasCancelled — si la reserva fue cancelada (rompe racha, no suma paid)
+
+export async function updateRetailerScoreIncremental(params: {
+  retailerId: string;
+  paidAt: number;
+  lotClosedAt: number;
+  wasCancelled?: boolean;
+}): Promise<RetailerScore> {
+  const { retailerId, paidAt, lotClosedAt, wasCancelled = false } = params;
+
+  const retailerRef  = db.collection("retailers").doc(retailerId);
+  const retailerSnap = await retailerRef.get();
+  const existing     = retailerSnap.data() || {};
+  const agg          = existing.scoreAggregate as Record<string, number> | undefined;
+
+  // Si no hay agregado previo → hacer full recalc para construirlo,
+  // luego volver a leer el agregado ya construido
+  if (!agg || typeof agg.totalReservations !== "number") {
+    console.log(`[score] No hay agregado para ${retailerId} → full recalc`);
+    return updateRetailerScore(retailerId);
+  }
+
+  // ── Calcular speed de este pago ─────────────────────────────────
+  let hours = 999;
+  let speed = 0.5; // fallback si no hay timestamps
+  if (lotClosedAt > 0 && paidAt > lotClosedAt) {
+    hours = (paidAt - lotClosedAt) / (1000 * 60 * 60);
+    speed = speedScore(hours);
+  }
+
+  // ── Actualizar agregado ─────────────────────────────────────────
+  const prevTotal         = agg.totalReservations;
+  const prevPaid          = agg.completedReservations;
+  const prevSpeedSum      = agg.totalSpeedSum ?? 0;
+  const prevSpeedCount    = agg.speedCount ?? 0;
+  const prevStreak        = agg.currentStreak ?? 0;
+  const prevLongest       = agg.longestStreak ?? (existing.longestStreak ?? 0);
+  const previousPaid      = existing.completedReservations ?? prevPaid;
+
+  const newTotal      = prevTotal + 1;
+  const newPaid       = wasCancelled ? prevPaid : prevPaid + 1;
+  const newSpeedSum   = wasCancelled ? prevSpeedSum : prevSpeedSum + speed;
+  const newSpeedCount = wasCancelled ? prevSpeedCount : prevSpeedCount + 1;
+
+  let newStreak  = wasCancelled ? 0 : (hours <= 12 ? prevStreak + 1 : 0);
+  let newLongest = Math.max(prevLongest, newStreak);
+
+  // ── Recalcular score con el agregado actualizado ────────────────
+  const completionRate = newTotal > 0 ? newPaid / newTotal : 0;
+  const speedAvg       = newSpeedCount > 0 ? newSpeedSum / newSpeedCount : 0;
+  const score          = (speedAvg * 0.5) + (completionRate * 0.5);
+  const level          = scoreToLevel(score, newTotal > 0);
+  const commission     = levelToCommission(level);
+
+  const streakBadges    = computeStreakBadges(newStreak);
+  const milestoneBadges = computeMilestoneBadges(newPaid);
+
+  // Preservar milestones permanentes ya ganados
+  const existingMilestones: string[] = existing.milestoneBadges ?? [];
+  const mergedMilestones = Array.from(new Set([...existingMilestones, ...milestoneBadges]));
+
+  const crossedMilestone = newPaid > 0 && newPaid % 10 === 0 && previousPaid < newPaid;
+  const nextMilestoneDiscount =
+    crossedMilestone || (existing.nextMilestoneDiscount === true);
+
+  // ── Escribir en Firestore (una sola operación) ──────────────────
+  await retailerRef.set(
+    {
+      reliabilityScore:      score,
+      paymentLevel:          level,
+      commission,
+      totalReservations:     newTotal,
+      completedReservations: newPaid,
+      currentStreak:         newStreak,
+      longestStreak:         newLongest,
+      streakBadges,
+      milestoneBadges:       mergedMilestones,
+      nextMilestoneDiscount,
+      scoreUpdatedAt:        new Date(),
+      scoreAggregate: {
+        totalReservations:   newTotal,
+        completedReservations: newPaid,
+        totalSpeedSum:       newSpeedSum,
+        speedCount:          newSpeedCount,
+        currentStreak:       newStreak,
+        longestStreak:       newLongest,
+        lastUpdatedAt:       new Date(),
+      },
+    },
+    { merge: true }
+  );
+
+  return {
+    score,
+    level,
+    commission,
+    totalReservations: newTotal,
+    completedReservations: newPaid,
+    currentStreak:   newStreak,
+    longestStreak:   newLongest,
+    streakBadges,
+    milestoneBadges: mergedMilestones,
     nextMilestoneDiscount,
   };
 }

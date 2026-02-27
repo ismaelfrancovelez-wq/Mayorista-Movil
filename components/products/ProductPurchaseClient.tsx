@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 
 type Props = {
   price: number;
@@ -10,6 +10,7 @@ type Props = {
   allowPickup: boolean;
   allowFactoryShipping: boolean;
   hasFactoryAddress: boolean;
+  initialCommissionRate?: number; // ✅ NUEVO: viene del servidor, porcentaje real del usuario
 };
 
 type ShippingMode = "pickup" | "factory" | "platform";
@@ -26,6 +27,7 @@ export default function ProductPurchaseClient({
   allowPickup,
   allowFactoryShipping,
   hasFactoryAddress,
+  initialCommissionRate = 12,
 }: Props) {
   const [qty, setQty] = useState(1);
   const isFraccionado = qty < MF;
@@ -36,6 +38,10 @@ export default function ProductPurchaseClient({
     if (allowFactoryShipping) return "factory";
     return "platform";
   });
+  // Ref para leer selectedShipping dentro de useEffect sin que sea una dependencia
+  // (evita que el efecto se re-ejecute en cada cambio de modo de envío)
+  const selectedShippingRef = useRef(selectedShipping);
+  useEffect(() => { selectedShippingRef.current = selectedShipping; }, [selectedShipping]);
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingKm, setShippingKm] = useState<number | null>(null);
   const [loadingShipping, setLoadingShipping] = useState(false);
@@ -49,10 +55,11 @@ export default function ProductPurchaseClient({
   const [reserved, setReserved] = useState(false);
   const [reserveError, setReserveError] = useState<string | null>(null);
 
-  const usesReserveFlow = isFraccionado && selectedShipping === "platform";
+  // ✅ FIX: tanto pickup como platform usan el flujo de reserva cuando son fraccionados
+  const usesReserveFlow = isFraccionado && (selectedShipping === "platform" || selectedShipping === "pickup");
 
-  // ✅ NUEVO: porcentaje real de comisión del usuario (se actualiza desde la API)
-  const [commissionRate, setCommissionRate] = useState<number>(12); // default 12% mientras carga
+  // ✅ CORREGIDO: inicializa con el valor real del servidor (sin esperar ninguna llamada)
+  const [commissionRate, setCommissionRate] = useState<number>(initialCommissionRate);
 
   /* ─── Chequeo MP ─── */
   useEffect(() => {
@@ -108,7 +115,11 @@ export default function ProductPurchaseClient({
   /* ─── Cálculo de envío directo (fábrica) ─── */
   useEffect(() => {
     if (isFraccionado) {
-      calculatePlatformShipping();
+      // Solo calcular envío de plataforma si el usuario tiene "platform" seleccionado.
+      // Si tiene "pickup", no hace falta calcular nada — el costo es $0.
+      if (selectedShippingRef.current === "platform") {
+        calculatePlatformShipping();
+      }
       return;
     }
 
@@ -177,7 +188,7 @@ export default function ProductPurchaseClient({
       const res = await fetch("/api/lots/fraccionado/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, qty, shippingMode: "platform" }),
+        body: JSON.stringify({ productId, qty, shippingMode: selectedShipping }),
       });
       const data = await res.json();
 
@@ -265,16 +276,26 @@ export default function ProductPurchaseClient({
           <h3 className="text-lg font-bold text-green-800 mb-2">
             ¡Lugar reservado!
           </h3>
-          <p className="text-sm text-green-700">
-            Estamos buscando más compradores en tu zona para dividir el envío.
-            Cuando el lote alcance el mínimo, te mandamos un email con el precio
-            final y el link de pago.
-          </p>
-          <p className="text-xs text-green-600 mt-3">
-            El envío estimado es{" "}
-            <strong>${formatNumber(shippingCost)}</strong> si pagás solo. Si
-            se suman más personas de tu zona, ese precio baja.
-          </p>
+          {selectedShipping === "pickup" ? (
+            <p className="text-sm text-green-700">
+              Tu lugar en el lote está confirmado. Cuando el lote alcance el mínimo,
+              te mandamos un email con el link de pago para confirmar tu compra.
+              El retiro es en fábrica — sin costo de envío.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-green-700">
+                Estamos buscando más compradores en tu zona para dividir el envío.
+                Cuando el lote alcance el mínimo, te mandamos un email con el precio
+                final y el link de pago.
+              </p>
+              <p className="text-xs text-green-600 mt-3">
+                El envío estimado es{" "}
+                <strong>${formatNumber(shippingCost)}</strong> si pagás solo. Si
+                se suman más personas de tu zona, ese precio baja.
+              </p>
+            </>
+          )}
         </div>
       </div>
     );
@@ -437,8 +458,8 @@ export default function ProductPurchaseClient({
         </p>
       </div>
 
-      {/* AVISO: fraccionado + plataforma */}
-      {usesReserveFlow && !loadingShipping && (
+      {/* AVISO: fraccionado + plataforma (envío dividido) */}
+      {usesReserveFlow && selectedShipping === "platform" && !loadingShipping && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
           <p className="text-sm text-blue-800">
             <strong>💡 El envío podría ser menor.</strong> Buscamos otros
@@ -446,6 +467,16 @@ export default function ProductPurchaseClient({
             menos de{" "}
             <strong>${formatNumber(shippingCost)}</strong>.
             El precio final lo ves en el email cuando el lote cierre.
+          </p>
+        </div>
+      )}
+      {/* AVISO: fraccionado + retiro */}
+      {usesReserveFlow && selectedShipping === "pickup" && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <p className="text-sm text-green-800">
+            <strong>📦 Retiro en fábrica — sin costo de envío.</strong>{" "}
+            Reservá tu lugar. Cuando el lote alcance el mínimo, te mandamos
+            el link de pago por email para confirmar la compra.
           </p>
         </div>
       )}
@@ -473,7 +504,7 @@ export default function ProductPurchaseClient({
             loadingMPStatus ||
             mpConnected === false ||
             reserving ||
-            loadingShipping ||
+            (loadingShipping && selectedShipping === "platform") ||
             blockedByAddress
           }
           className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -486,6 +517,8 @@ export default function ProductPurchaseClient({
             ? "No disponible — el fabricante no configuró su dirección"
             : mpConnected === false
             ? "Producto no disponible"
+            : selectedShipping === "pickup"
+            ? "Reservar lugar — retiro en fábrica sin costo"
             : "Reservar tu lugar — te avisamos cuando cierre el lote"}
         </button>
       ) : (

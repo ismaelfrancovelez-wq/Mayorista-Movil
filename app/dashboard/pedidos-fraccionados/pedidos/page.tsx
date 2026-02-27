@@ -478,7 +478,8 @@ export default async function PedidosPage() {
                 estadoLabel = "En proceso";
                 estadoColor = "bg-yellow-100 text-yellow-800";
               } else if (order.status === "lot_closed") {
-                estadoLabel = "A la espera de pagos";
+                const isPickupLot = order.lotType === "fractional_pickup" || order.lotType === "fraccionado_retiro";
+                estadoLabel = isPickupLot ? "Lote completo — pendiente de pago" : "A la espera de pagos";
                 estadoColor = "bg-blue-100 text-blue-800";
               }
 
@@ -688,7 +689,11 @@ export default async function PedidosPage() {
                     {order.status === "lot_closed" && !userAlreadyPaid && (
                       <p className="text-xs text-blue-600 mt-3 flex items-center gap-1">
                         <span>💳</span>
-                        <span>El lote se completó — pagá antes de que se venza el plazo para no perder tu lugar</span>
+                        <span>
+                          {order.lotType === "fractional_pickup" || order.lotType === "fraccionado_retiro"
+                            ? "El lote se completó — revisá tu email para confirmar el pago de retiro en fábrica"
+                            : "El lote se completó — pagá antes de que se venza el plazo para no perder tu lugar"}
+                        </span>
                       </p>
                     )}
                     {order.status === "lot_closed" && userAlreadyPaid && (

@@ -10,7 +10,7 @@ import { db } from "../../../../lib/firebase-admin";
 import { sendEmail } from "../../../../lib/email/client";
 import { getOrCreateOpenLot } from "../../../../lib/lots/getOrCreateOpenLot";
 import { FieldValue } from "firebase-admin/firestore";
-import { updateRetailerScore, STREAK_BADGES, MILESTONE_BADGES } from "../../../../lib/retailers/calculateScore";
+import { updateRetailerScore, updateRetailerScoreIncremental, STREAK_BADGES, MILESTONE_BADGES } from "../../../../lib/retailers/calculateScore";
 
 const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || "";
 
@@ -285,9 +285,18 @@ export async function POST(req: NextRequest) {
       let updatedScore: Awaited<ReturnType<typeof updateRetailerScore>> | null = null;
       if (reservation.retailerId) {
         try {
-          updatedScore = await updateRetailerScore(reservation.retailerId);
+          // ✅ FIX Bug 2: actualización incremental — solo 2 ops de Firestore
+          // en vez de leer todas las reservas del usuario (N lecturas)
+          const paidAtMs    = Date.now(); // el pago acaba de confirmarse
+          const closedAtMs  = reservation.lotClosedAt?.toMillis?.() ?? 0;
+          updatedScore = await updateRetailerScoreIncremental({
+            retailerId:  reservation.retailerId,
+            paidAt:      paidAtMs,
+            lotClosedAt: closedAtMs,
+            wasCancelled: false,
+          });
           console.log(
-            `✅ Score actualizado — Nivel: ${updatedScore.level} | ` +
+            `✅ Score actualizado (incremental) — Nivel: ${updatedScore.level} | ` +
             `Racha: ${updatedScore.currentStreak} | ` +
             `Comisión: ${updatedScore.commission}%`
           );
