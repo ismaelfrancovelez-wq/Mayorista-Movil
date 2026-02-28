@@ -31,6 +31,7 @@ export default function EditarProductoPage() {
   const [minimumOrder, setMinimumOrder] = useState<number | "">("");
   const [netProfitPerUnit, setNetProfitPerUnit] = useState<number | "">("");
   const [category, setCategory] = useState<ProductCategory>("otros");
+  const [unitLabel, setUnitLabel] = useState(""); // ej: "500g", "1kg", "750ml"
 
   /* ===============================
       🖼️ IMÁGENES DEL PRODUCTO (múltiples)
@@ -93,6 +94,7 @@ export default function EditarProductoPage() {
         setMinimumOrder(product.minimumOrder || "");
         setNetProfitPerUnit(product.netProfitPerUnit ?? "");
         setCategory(product.category || "otros");
+        setUnitLabel(product.unitLabel || "");
 
         // Imágenes existentes
         if (Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
@@ -363,6 +365,7 @@ export default function EditarProductoPage() {
           minimumOrder: Number(minimumOrder),
           netProfitPerUnit: Number(netProfitPerUnit),
           category,
+          unitLabel: unitLabel.trim() || undefined,
           shipping,
           imageUrls: finalImageUrls,
         }),
@@ -463,6 +466,29 @@ export default function EditarProductoPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Unidad del producto */}
+          <div>
+            <label className="block text-sm mb-1">
+              Unidad de medida{" "}
+              <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              placeholder="Ej: 500g · 1kg · 750ml · 1 litro · pack x6"
+              className="w-full border rounded px-3 py-2"
+              value={unitLabel}
+              onChange={(e) => setUnitLabel(e.target.value)}
+              maxLength={20}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Se muestra junto al precio. Dejalo vacío si vendés por pieza/unidad simple.
+            </p>
+            {unitLabel && (
+              <p className="text-xs text-blue-600 mt-1">
+                Vista previa: <strong>$ {price ? Number(price).toLocaleString("es-AR") : "0"} / {unitLabel}</strong>
+              </p>
+            )}
           </div>
 
           {/* IMÁGENES */}
