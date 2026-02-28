@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // ✅ Actualizar cookie
+  // ✅ Actualizar cookiee
   cookies().set("activeRole", role, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
