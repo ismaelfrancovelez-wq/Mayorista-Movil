@@ -174,7 +174,7 @@ export default function NuevoProductoPage() {
     setError(null);
 
     const sanitizedName = sanitizeText(name, 100);
-    const sanitizedDescription = sanitizeText(description, 500);
+    const sanitizedDescription = sanitizeText(description, 1000);
     const sanitizedUnitLabel = sanitizeText(unitLabel, 20);
 
     if (sanitizedName.length < 3) {
@@ -375,10 +375,10 @@ export default function NuevoProductoPage() {
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              maxLength={500}
+              maxLength={1000}
             />
             <p className="text-xs text-gray-400 mt-1">
-              {description.length}/500 caracteres · mínimo 10
+              {description.length}/1000 caracteres · mínimo 10
             </p>
           </div>
 

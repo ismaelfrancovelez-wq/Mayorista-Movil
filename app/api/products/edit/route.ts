@@ -118,7 +118,7 @@ export async function POST(req: Request) {
     =============================== */
     await productRef.update({
       name: body.name.trim().substring(0, 100),
-      description: body.description.trim().substring(0, 500),
+      description: body.description.trim().substring(0, 1000),
       price: body.price,
       minimumOrder: body.minimumOrder,
       netProfitPerUnit: body.netProfitPerUnit,
