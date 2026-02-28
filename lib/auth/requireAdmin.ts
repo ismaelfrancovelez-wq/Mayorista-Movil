@@ -1,40 +1,45 @@
-// lib/auth/requireAdmin.ts
-
 import { cookies } from "next/headers";
 import { db } from "../firebase-admin";
 
-/**
- * Verifica que el usuario sea administrador
- * @returns userId si es admin, lanza error si no
- */
-export async function requireAdmin(): Promise<string> {
+export async function requireRole(
+  role: "manufacturer" | "retailer"
+): Promise<string> {
   const userId = cookies().get("userId")?.value;
   const activeRole = cookies().get("activeRole")?.value;
 
-  if (!userId) {
-    throw new Error("No autorizado - no hay sesión");
+  // ❌ Validación básica de cookies
+  if (!userId || activeRole !== role) {
+    throw new Error("No autorizado");
   }
 
-  // Verificar en base de datos
+  // ✅ VALIDAR EN BASE DE DATOS
   try {
     const userSnap = await db.collection("users").doc(userId).get();
 
     if (!userSnap.exists) {
-      throw new Error("Usuario no encontrado");
+      throw new Error("Usuario no encontrado en la base de datos");
     }
 
     const userData = userSnap.data();
 
-    // Verificar rol de admin
-    const isAdmin = userData?.isAdmin === true || userData?.role === 'admin';
+    const userType = userData?.usertype;
+    const activeRoleDB = userData?.activeRole; // ✅ también leer activeRole de Firestore
+    const roles = userData?.roles || [];
 
-    if (!isAdmin) {
-      throw new Error("No autorizado - requiere privilegios de administrador");
+    // ✅ Validar rol: acepta usertype, activeRole de Firestore, "both", o array roles
+    const hasRole =
+      userType === role ||
+      userType === "both" ||
+      activeRoleDB === role ||
+      roles.includes(role);
+
+    if (!hasRole) {
+      throw new Error(`Usuario no tiene el rol '${role}' asignado`);
     }
 
     return userId;
   } catch (error) {
-    console.error("❌ Error en requireAdmin:", error);
-    throw new Error("No autorizado");
+    console.error("❌ Error en requireRole:", error);
+    throw new Error("No autorizado - validación de rol falló");
   }
 }

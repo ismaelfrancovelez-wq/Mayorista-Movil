@@ -376,7 +376,7 @@ export default function NuevoProductoPage() {
               maxLength={1000}
             />
             <p className="text-xs text-gray-400 mt-1">
-              {description.length}/500 caracteres · mínimo 10
+              {description.length}/1000 caracteres · mínimo 10
             </p>
           </div>
 
