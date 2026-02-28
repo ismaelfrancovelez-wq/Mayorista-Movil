@@ -1,7 +1,9 @@
+// app/api/reservations/cancel/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { updateRetailerScoreIncremental } from "../../../../lib/retailers/calculateScore";
 
 export const dynamic = "force-dynamic";
 
@@ -65,11 +67,9 @@ export async function POST(req: Request) {
         const newQty = Math.max((lot.accumulatedQty || 0) - (reservation.qty || 0), 0);
 
         if (newQty === 0) {
-          // No quedan reservas activas → eliminar el lote
           await lotRef.delete();
           console.log(`🗑️ Lote ${reservation.lotId} eliminado (sin reservas activas)`);
         } else {
-          // Actualizar qty acumulada
           await lotRef.update({
             accumulatedQty: newQty,
             updatedAt: FieldValue.serverTimestamp(),
@@ -77,6 +77,20 @@ export async function POST(req: Request) {
           console.log(`✅ Lote ${reservation.lotId} actualizado: ${lot.accumulatedQty} → ${newQty}`);
         }
       }
+    }
+
+    // ── 8. BLOQUE 1 — Actualizar racha: -1 punto al cancelar ─────────────
+    // Se hace en try/catch para que un fallo en el score no rompa la cancelación.
+    try {
+      await updateRetailerScoreIncremental({
+        retailerId:   userId,
+        paidAt:       Date.now(),
+        lotClosedAt:  0,
+        wasCancelled: true,
+      });
+      console.log(`✅ Score actualizado (cancelación -1 pt racha): retailer ${userId}`);
+    } catch (scoreErr) {
+      console.error("⚠️ Error actualizando score al cancelar:", scoreErr);
     }
 
     console.log(`✅ Reserva ${reservationId} cancelada por usuario ${userId}`);

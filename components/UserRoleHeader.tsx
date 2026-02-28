@@ -5,57 +5,113 @@ import { useState } from "react";
 
 type Role = "manufacturer" | "retailer";
 
-// ── Badge definitions (mirrors calculateScore.ts) ────────────────
-const MILESTONE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string; border: string }> = {
-  milestone_first:    { label: "Primer Vinculo",   icon: "🥉", color: "#92400e", bg: "#fef3c7", border: "#fcd34d" },
-  milestone_solid:    { label: "Revendedor Tallado",      icon: "🥈", color: "#374151", bg: "#f3f4f6", border: "#d1d5db" },
-  milestone_operator: { label: "Maestro del Rubro",icon: "🥇", color: "#78350f", bg: "#fff7ed", border: "#fb923c" },
-  milestone_founding: { label: "Socio Fundador de MayoristaMovil",    icon: "🏆", color: "#1e3a5f", bg: "#eff6ff", border: "#60a5fa" },
-};
-
-const STREAK_CONFIG: Record<string, { label: string; icon: string; description: string; gradient: string; textColor: string; accentColor: string }> = {
-  streak_executive: {
-    label: "Camino al Siguiente Nivel",
-    icon: "⚡",
-    description: "3 pagos consecutivos en menos de 12 h",
+// ── BLOQUE 1 — Badges de racha (dinámicos, se pierden al cancelar) ────────────
+// Mirrors STREAK_BADGES en calculateScore.ts
+const STREAK_CONFIG: Record<string, {
+  label: string;
+  icon: string;
+  description: string;
+  gradient: string;
+  textColor: string;
+  accentColor: string;
+}> = {
+  streak_start: {
+    label: "Primer Vínculo",
+    icon: "🔗",
+    description: "1 reserva activa",
+    gradient: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+    textColor: "#14532d",
+    accentColor: "#16a34a",
+  },
+  streak_explorer: {
+    label: "Explorador",
+    icon: "🧭",
+    description: "3 reservas — 25% de descuento en envío",
+    gradient: "linear-gradient(135deg, #ecfdf5, #d1fae5)",
+    textColor: "#065f46",
+    accentColor: "#059669",
+  },
+  streak_steady: {
+    label: "Constante",
+    icon: "📌",
+    description: "6 reservas — 30% de descuento en envío",
+    gradient: "linear-gradient(135deg, #eff6ff, #dbeafe)",
+    textColor: "#1e40af",
+    accentColor: "#2563eb",
+  },
+  streak_committed: {
+    label: "Comprometido",
+    icon: "💪",
+    description: "10 reservas — 35% de descuento en envío",
     gradient: "linear-gradient(135deg, #fef9c3, #fef3c7)",
     textColor: "#92400e",
     accentColor: "#d97706",
   },
-  streak_strategic: {
-    label: "Revendedor Consolidado",
-    icon: "💎",
-    description: "5 pagos consecutivos en menos de 12 h",
+  streak_unstop: {
+    label: "Imparable",
+    icon: "⚡",
+    description: "14 reservas — 40% de descuento en envío",
     gradient: "linear-gradient(135deg, #ede9fe, #ddd6fe)",
     textColor: "#4c1d95",
     accentColor: "#7c3aed",
   },
-  streak_premium: {
-    label: "Racha Activa",
-    icon: "🔥",
-    description: "10 pagos consecutivos en menos de 12 h",
+  streak_vip_b: {
+    label: "VIP Bronce",
+    icon: "🥉",
+    description: "20 reservas — 45% de descuento en envío",
     gradient: "linear-gradient(135deg, #fff7ed, #ffedd5)",
     textColor: "#7c2d12",
     accentColor: "#ea580c",
   },
-  streak_top: {
-    label: "Elite Privada",
-    icon: "👑",
-    description: "20 pagos consecutivos en menos de 12 h",
+  streak_vip_s: {
+    label: "VIP Plata",
+    icon: "🥈",
+    description: "27 reservas — 50% de descuento en envío",
+    gradient: "linear-gradient(135deg, #f8fafc, #f1f5f9)",
+    textColor: "#1e293b",
+    accentColor: "#64748b",
+  },
+  streak_vip_g: {
+    label: "VIP Oro",
+    icon: "🥇",
+    description: "40 reservas — 55% de descuento en envío",
     gradient: "linear-gradient(135deg, #fefce8, #fef9c3)",
     textColor: "#713f12",
     accentColor: "#ca8a04",
   },
+  streak_legend: {
+    label: "Leyenda",
+    icon: "🌟",
+    description: "50 reservas — ¡Lote completamente GRATIS!",
+    gradient: "linear-gradient(135deg, #fdf4ff, #fae8ff)",
+    textColor: "#581c87",
+    accentColor: "#9333ea",
+  },
+};
+
+// ── Badges de milestone (permanentes, nunca se pierden) ────────────────────
+// Mirrors MILESTONE_BADGES en calculateScore.ts
+const MILESTONE_CONFIG: Record<string, {
+  label: string;
+  icon: string;
+  color: string;
+  bg: string;
+  border: string;
+}> = {
+  milestone_first:      { label: "Primer Vinculo",                   icon: "🥉", color: "#92400e", bg: "#fef3c7", border: "#fcd34d" },
+  milestone_solid:      { label: "Revendedor Tallado",               icon: "🥈", color: "#374151", bg: "#f3f4f6", border: "#d1d5db" },
+  milestone_operator:   { label: "Maestro del Sector",               icon: "🥇", color: "#78350f", bg: "#fff7ed", border: "#fb923c" },
+  milestone_strategic:  { label: "Socio Estratégico",                icon: "🤝", color: "#1e40af", bg: "#dbeafe", border: "#93c5fd" }, // NUEVO
+  milestone_founding:   { label: "Socio Fundador de MayoristaMovil", icon: "🏆", color: "#1e3a5f", bg: "#eff6ff", border: "#60a5fa" },
 };
 
 interface UserRoleHeaderProps {
   userEmail?: string;
   activeRole: Role;
   userName?: string;
-  // ── Badge props (solo para rol retailer) ──
-  milestoneBadges?: string[];   // IDs permanentes: "milestone_first", etc.
-  streakBadges?: string[];      // IDs de racha activa: "streak_executive", etc.
-  currentStreak?: number;       // número de pagos en racha
+  milestoneBadges?: string[];   // IDs permanentes
+  streakBadges?: string[];      // IDs de racha activa (dinámicos)
+  currentStreak?: number;       // puntos de racha actuales
 }
 
 export default function UserRoleHeader({
@@ -80,10 +136,10 @@ export default function UserRoleHeader({
     ? userEmail.slice(0, 2).toUpperCase()
     : "?";
 
-  // Top streak badge (the highest earned one)
+  // Badge de racha más alto activo
   const topStreakId = streakBadges.length > 0 ? streakBadges[streakBadges.length - 1] : null;
   const topStreak = topStreakId ? STREAK_CONFIG[topStreakId] : null;
-  const hasActiveStreak = isRetailer && topStreak !== null && currentStreak >= 3;
+  const hasActiveStreak = isRetailer && topStreak !== null && streakBadges.length > 0;
 
   const handleSwitch = async () => {
     setSwitching(true);
@@ -193,15 +249,15 @@ export default function UserRoleHeader({
             Rol activo: {currentLabel}
           </span>
 
-          {/* ── MILESTONE BADGES (solo retailer, solo si tiene alguno) ── */}
+          {/* ── MILESTONE BADGES (permanentes) — solo el más alto ── */}
           {isRetailer && milestoneBadges.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-              {milestoneBadges.map((id) => {
-                const cfg = MILESTONE_CONFIG[id];
+              {(() => {
+                const topMilestoneId = milestoneBadges[milestoneBadges.length - 1];
+                const cfg = MILESTONE_CONFIG[topMilestoneId];
                 if (!cfg) return null;
                 return (
                   <span
-                    key={id}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -220,7 +276,7 @@ export default function UserRoleHeader({
                     {cfg.icon} {cfg.label}
                   </span>
                 );
-              })}
+              })()}
             </div>
           )}
         </div>
@@ -273,7 +329,7 @@ export default function UserRoleHeader({
         </button>
       </div>
 
-      {/* ── STREAK PANEL — solo visible cuando hay racha activa ── */}
+      {/* ── STREAK PANEL — visible cuando hay racha activa ── */}
       {hasActiveStreak && topStreak && (
         <div
           style={{
@@ -344,7 +400,7 @@ export default function UserRoleHeader({
                 {currentStreak}
               </span>
               <span style={{ fontSize: 9, fontWeight: 600, color: topStreak.textColor, opacity: 0.7, lineHeight: 1.2 }}>
-                en racha
+                pts racha
               </span>
             </div>
           </div>

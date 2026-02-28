@@ -12,16 +12,19 @@
 //    En Next.js serverless, sin await la función se corta apenas
 //    se devuelve la respuesta HTTP y los emails NUNCA se mandan.
 //
-// ✅ NUEVO: Sistema de niveles de confianza.
+// ✅ Sistema de niveles de confianza.
 //    - Lotes ≥ 80% solo accesibles para Nivel 1 y 2
-//    - Comisión diferenciada por nivel (10%, 11%, 12%, 14%)
-//    - Descuento milestone 1% extra cada 10 lotes pagados
+//    - Comisión diferenciada por nivel (9%, 12%, 14%, 16%)
 //
-// ✅ NUEVO: Ventana de 2h post-cierre para Nivel 1.
+// ✅ BLOQUE 1 — Descuentos por racha.
+//    La racha del revendedor genera descuentos sobre el envío y la comisión.
+//    Estos descuentos se calculan y guardan en la reserva.
+//    En 50 pts de racha → envío + comisión = 0 (lote gratis).
+//
+// ✅ Ventana de 2h post-cierre para Nivel 1.
 //    Cuando un lote alcanza el mínimo → status "closed" + level1WindowExpiresAt.
 //    Durante 2h, SOLO Nivel 1 puede sumarse al lote.
 //    El cron /api/cron/process-lots procesa el cierre real cuando vence la ventana.
-//    processLotClosure ya NO se llama desde acá.
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -31,13 +34,9 @@ import { calculateFraccionadoShipping } from "../../../../../lib/shipping";
 import { sendEmail } from "../../../../../lib/email/client";
 import { createSplitPreference } from "../../../../../lib/mercadopago-split";
 import rateLimit from "../../../../../lib/rate-limit";
-import { consumeMilestoneDiscount } from "../../../../../lib/retailers/calculateScore";
+import { getStreakDiscounts } from "../../../../../lib/retailers/calculateScore";
 
 export const dynamic = "force-dynamic";
-// ✅ BUG 4 FIX: maxDuration para lotes grandes.
-// processLotClosure tarda ~1500ms por comprador (MP preference + Firestore + email + delay 600ms).
-// Con 7+ compradores supera el default de 10s de Vercel y el request se corta.
-// 60 segundos cubre hasta ~40 compradores con margen de sobra.
 export const maxDuration = 60;
 
 const limiter = rateLimit({
@@ -56,11 +55,6 @@ function extractPostalCode(addr: string): string | null {
 
 /* ====================================================
    PROCESAR CIERRE DE LOTE
-   - Agrupa reservas por CP
-   - Calcula envío dividido
-   - Genera links de MercadoPago
-   - Actualiza cada reserva a "lot_closed" ANTES del email
-   - Manda email con link de pago
 ==================================================== */
 async function processLotClosure(params: {
   lotId: string;
@@ -128,8 +122,22 @@ async function processLotClosure(params: {
       if (!r.retailerEmail) continue;
 
       const isPickup = r.shippingMode === "pickup";
-      const shippingFinal = isPickup ? 0 : shippingPerPerson;
-      const totalFinal = r.productSubtotal + r.commission + shippingFinal;
+
+      // ── BLOQUE 1: aplicar descuento de racha guardado en la reserva ──
+      const savedShippingDiscount: number   = r.shippingDiscount ?? 0;
+      const savedCommissionDiscount: number = r.commissionDiscount ?? 0;
+
+      const rawShipping = isPickup ? 0 : shippingPerPerson;
+      const shippingFinal = isPickup
+        ? 0
+        : Math.round(rawShipping * (1 - savedShippingDiscount));
+
+      // Si hay commissionDiscount (solo en racha 50 = lote gratis)
+      const commissionFinal = savedCommissionDiscount >= 1
+        ? 0
+        : r.commission;
+
+      const totalFinal = r.productSubtotal + commissionFinal + shippingFinal;
 
       // Generar link de pago
       let paymentLink = `${baseUrl}/explorar/${productId}`;
@@ -151,7 +159,7 @@ async function processLotClosure(params: {
             MF: 0,
             shippingCost: shippingFinal,
             shippingMode: r.shippingMode,
-            commission: r.commission,
+            commission: commissionFinal,
             reservationId: reservationDoc.id,
             lotId,
           },
@@ -163,67 +171,52 @@ async function processLotClosure(params: {
           factoryMPUserId,
           shippingCost: shippingFinal,
           productTotal: r.productSubtotal,
-          commission: r.commission,
+          commission: commissionFinal,
         });
         if (preference.init_point) paymentLink = preference.init_point;
       } catch (prefErr) {
         console.error(`❌ Error creando preferencia para ${r.retailerEmail}:`, prefErr);
       }
 
-      // ✅ Actualizar a "lot_closed" ANTES del email
-      // Así aunque el email falle, el estado queda correcto en la UI
       await db.collection("reservations").doc(reservationDoc.id).update({
         status: "lot_closed",
         lotClosedAt: FieldValue.serverTimestamp(),
         shippingCostFinal: shippingFinal,
+        commissionFinal,
         totalFinal,
         paymentLink,
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Mandar email
-      const savingsHtml =
-        !isPickup && groupSize > 1
-          ? `<div style="background:#d1fae5;border:2px solid #10b981;border-radius:8px;padding:16px;margin:20px 0;text-align:center;">
-              <p style="margin:0;font-size:16px;font-weight:700;color:#065f46;">💚 ¡Ahorraste en el envío!</p>
-              <p style="margin:8px 0 0;color:#047857;font-size:14px;">
-                Estás dividiendo el envío con <strong>${groupSize - 1} persona${groupSize - 1 > 1 ? "s" : ""}</strong> de tu misma zona.<br>
-                Pagás <strong>$${shippingFinal.toLocaleString("es-AR")}</strong> en vez de <strong>$${(r.shippingCostEstimated || 0).toLocaleString("es-AR")}</strong>.
-              </p>
-            </div>`
-          : "";
+      // ── Email ────────────────────────────────────────────────────
+      const discountLine = savedShippingDiscount > 0 && !isPickup
+        ? `<div class="row" style="color:#16a34a;"><span class="label">Descuento racha envío (${Math.round(savedShippingDiscount * 100)}%):</span> <span class="value">-$${Math.round(rawShipping * savedShippingDiscount).toLocaleString("es-AR")}</span></div>`
+        : "";
+      const freeShippingNote = isPickup ? "Retiro en fábrica (Gratis)" : `$${shippingFinal.toLocaleString("es-AR")}${groupSize > 1 ? ` (dividido entre ${groupSize} compradores de tu zona)` : ""}`;
 
-      const html = `<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8">
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
-  body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f5f5f5;}
-  .container{background:white;border-radius:8px;padding:30px;box-shadow:0 2px 4px rgba(0,0,0,.1);}
-  .header{text-align:center;border-bottom:3px solid #2563eb;padding-bottom:20px;margin-bottom:30px;}
-  .header h1{color:#2563eb;margin:0;font-size:24px;}
-  .section{margin:25px 0;padding:20px;background:#f9fafb;border-radius:6px;border-left:4px solid #2563eb;}
-  .row{margin:10px 0;}.label{font-weight:600;color:#6b7280;}.value{font-weight:600;color:#111827;}
-  .cta{display:block;background:#2563eb;color:white;text-align:center;padding:18px 24px;border-radius:8px;text-decoration:none;font-size:18px;font-weight:700;margin:24px 0;}
-  .warning{background:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:15px;margin:20px 0;}
-  .footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:14px;}
-</style>
-</head><body><div class="container">
-  <div class="header"><h1>🎉 ¡Tu lote está listo — completá el pago!</h1></div>
-  <p>¡Hola <strong>${r.retailerName}</strong>!</p>
-  <p>El lote de <strong>${productName}</strong> alcanzó el mínimo. Ahora podés confirmar tu compra con el precio final.</p>
-  ${savingsHtml}
-  <div class="section">
-    <h3 style="margin-top:0;">🧾 Tu pedido</h3>
-    <div class="row"><span class="label">Producto:</span> <span class="value">${productName}</span></div>
-    <div class="row"><span class="label">Cantidad:</span> <span class="value">${r.qty} unidades</span></div>
-    <div class="row"><span class="label">Subtotal producto:</span> <span class="value">$${r.productSubtotal.toLocaleString("es-AR")}</span></div>
-    <div class="row"><span class="label">Comisión (12%):</span> <span class="value">$${r.commission.toLocaleString("es-AR")}</span></div>
-    <div class="row"><span class="label">Envío:</span>
-      <span class="value">${isPickup ? "Retiro en fábrica (Gratis)" : `$${shippingFinal.toLocaleString("es-AR")}${groupSize > 1 ? ` (dividido entre ${groupSize} compradores de tu zona)` : ""}`}</span>
-    </div>
-    <div class="row" style="border-top:2px solid #e5e7eb;padding-top:10px;margin-top:10px;">
-      <span class="label" style="font-size:15px;">TOTAL A PAGAR:</span>
-      <span class="value" style="font-size:22px;color:#2563eb;">$${totalFinal.toLocaleString("es-AR")}</span>
-    </div>
+  body{font-family:Arial,sans-serif;background:#f9fafb;margin:0;padding:20px;}
+  .card{max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:28px;box-shadow:0 2px 8px rgba(0,0,0,0.08);}
+  h2{color:#1d4ed8;margin-top:0;}
+  .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:14px;}
+  .label{color:#6b7280;}
+  .value{font-weight:600;color:#111827;}
+  .warning{background:#fef9c3;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin:16px 0;font-size:13px;}
+  .cta{display:block;background:#2563eb;color:#fff;text-align:center;padding:14px;border-radius:8px;text-decoration:none;font-weight:700;font-size:16px;margin-top:16px;}
+  .footer{text-align:center;color:#9ca3af;font-size:12px;margin-top:20px;}
+</style></head><body>
+<div class="card">
+  <h2>💳 ¡Tu lote está listo para pagar!</h2>
+  <p>El lote de <strong>${productName}</strong> alcanzó el mínimo de compra.</p>
+  <div class="row"><span class="label">Cantidad:</span> <span class="value">${r.qty} unidades</span></div>
+  <div class="row"><span class="label">Subtotal producto:</span> <span class="value">$${r.productSubtotal.toLocaleString("es-AR")}</span></div>
+  <div class="row"><span class="label">Comisión:</span> <span class="value">${commissionFinal === 0 ? "¡Gratis! 🎉" : `$${commissionFinal.toLocaleString("es-AR")}`}</span></div>
+  <div class="row"><span class="label">Envío:</span><span class="value">${freeShippingNote}</span></div>
+  ${discountLine}
+  <div class="row" style="border-top:2px solid #e5e7eb;padding-top:10px;margin-top:10px;">
+    <span class="label" style="font-size:15px;">TOTAL A PAGAR:</span>
+    <span class="value" style="font-size:22px;color:#2563eb;">$${totalFinal.toLocaleString("es-AR")}</span>
   </div>
   <div class="warning"><strong>⏰ Importante:</strong> Tenés <strong>48 horas</strong> para completar el pago o tu reserva se cancelará.</div>
   <a href="${paymentLink}" class="cta">💳 Pagar ahora — $${totalFinal.toLocaleString("es-AR")}</a>
@@ -241,10 +234,6 @@ async function processLotClosure(params: {
         console.error(`❌ Error enviando email a ${r.retailerEmail}:`, emailErr);
       }
 
-      // ✅ DELAY entre emails — Resend tiene límite de 2 emails/segundo
-      // en el plan gratuito. Sin este delay, cuando hay 3+ compradores
-      // el 3er email falla silenciosamente y nunca llega.
-      // 600ms entre envíos = máximo 1.6 emails/seg, bien dentro del límite.
       await new Promise((resolve) => setTimeout(resolve, 600));
     }
   }
@@ -291,8 +280,6 @@ export async function POST(req: Request) {
     }
 
     /* ── 3. DIRECCIÓN DEL RETAILER ──────────────────── */
-    // Para pickup no se necesita dirección (no hay envío que calcular)
-    // Para platform sí es obligatoria para calcular km y agrupar por zona
     const retailerSnap = await db.collection("retailers").doc(retailerId).get();
     let retailerAddressText: string | null = null;
     let postalCode: string | null = null;
@@ -314,11 +301,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ NUEVO: Leer nivel, score y descuento milestone del retailer
-    // Si no tiene historial o el campo no existe → nivel 2 (beneficio de la duda)
+    // Leer nivel y score del retailer
     const retailerLevel: number = retailerSnap.data()?.paymentLevel ?? 2;
     const retailerScore: number = retailerSnap.data()?.reliabilityScore ?? 0.6;
-    const hasMilestoneDiscount: boolean = retailerSnap.data()?.nextMilestoneDiscount === true;
+
+    // ── BLOQUE 1: leer puntos de racha y calcular descuentos ──────────────
+    const currentStreak: number = retailerSnap.data()?.currentStreak ?? 0;
+    const { shippingDiscount, commissionDiscount } = getStreakDiscounts(currentStreak);
 
     /* ── 4. PRODUCTO Y FÁBRICA ──────────────────────── */
     const productSnap = await db.collection("products").doc(productId).get();
@@ -330,8 +319,6 @@ export async function POST(req: Request) {
     const factoryId = productData.factoryId;
     const minimumOrder = productData.minimumOrder || 0;
 
-    // ✅ BUG 6 FIX: Si minimumOrder es 0, cualquier reserva cierra el lote al instante.
-    // Esto indica un producto mal configurado — rechazarlo con error claro.
     if (!minimumOrder || minimumOrder <= 0) {
       return NextResponse.json(
         { error: "Este producto no tiene un mínimo de compra configurado. Contactá al administrador." },
@@ -342,20 +329,18 @@ export async function POST(req: Request) {
     const productName = productData.name || "Producto";
     const productSubtotal = productPrice * Number(qty);
 
-    // ✅ NUEVO: Comisión diferenciada por nivel
-    // Nivel 1 → 10% | Nivel 2 → 11% | Nivel 3 → 12% | Nivel 4 → 14%
-    // ✅ FIX: tabla unificada con calculateScore.ts (levelToCommission)
-    // Nivel 1 → 11% | Nivel 2 → 12% | Nivel 3 → 13% | Nivel 4 → 14%
-    const commissionRateByLevel: Record<number, number> = { 1: 0.11, 2: 0.12, 3: 0.13, 4: 0.14 };
-    let commissionRate = commissionRateByLevel[retailerLevel] ?? 0.12;
+    // ── BLOQUE 2 impl 4 — Comisión diferenciada por nivel con spread amplio ──
+    // Nivel 1 Verde   → 9%  (privilegio real, por debajo del estándar anterior)
+    // Nivel 2 Amarillo → 12% (base)
+    // Nivel 3 Naranja  → 14%
+    // Nivel 4 Rojo     → 16% (diferencia de $35 sobre lote de $500 vs nivel 1)
+    const commissionRateByLevel: Record<number, number> = { 1: 0.09, 2: 0.12, 3: 0.14, 4: 0.16 };
+    const baseCommissionRate = commissionRateByLevel[retailerLevel] ?? 0.12;
 
-    // ✅ NUEVO: Descuento milestone — 1% extra si tiene descuento disponible
-    // Se consume al guardar la reserva (una sola vez)
-    if (hasMilestoneDiscount) {
-      commissionRate = Math.max(0.05, commissionRate - 0.01); // mínimo 5%
-    }
-
-    const commission = Math.round(productSubtotal * commissionRate);
+    // ── BLOQUE 1: aplicar descuento de comisión por racha ────────────────
+    // En racha 50 pts → commissionDiscount = 1.0 → comisión = 0 (lote gratis)
+    const effectiveCommissionRate = Math.max(0, baseCommissionRate * (1 - commissionDiscount));
+    const commission = Math.round(productSubtotal * effectiveCommissionRate);
 
     const factorySnap = await db.collection("manufacturers").doc(factoryId).get();
     if (!factorySnap.exists) {
@@ -402,8 +387,7 @@ export async function POST(req: Request) {
     const activeLotDoc = allLotDocs.find((d) => targetTypes.has(d.data().type));
     const activeLotId = activeLotDoc ? activeLotDoc.id : null;
 
-    // ✅ NUEVO: Restricción de acceso por nivel cuando el lote supera el 80%
-    // Nivel 3 y 4 no pueden unirse a lotes que ya están casi llenos
+    // Restricción de acceso por nivel cuando el lote supera el 80%
     if (activeLotDoc) {
       const currentQty = activeLotDoc.data().accumulatedQty || 0;
       const progress = minimumOrder > 0 ? currentQty / minimumOrder : 0;
@@ -420,9 +404,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // ✅ NUEVO: Ventana de 2h post-cierre — solo Nivel 1 puede entrar a lotes "closed"
-    // Si no hay lote activo (accumulating/open), buscar si hay uno "closed" dentro de la ventana
-    // IMPORTANTE: solo se busca si es Nivel 1 — los demás niveles crean lote nuevo directamente
+    // Ventana de 2h post-cierre — solo Nivel 1 puede entrar a lotes "closed"
     if (!activeLotDoc && retailerLevel === 1) {
       const closedLotSnap = await db
         .collection("lots")
@@ -439,12 +421,7 @@ export async function POST(req: Request) {
         const now = Date.now();
         const windowOpen = windowExpiresAt > now;
 
-        // Si la ventana ya venció, ignorar este lote cerrado y caer al flujo normal
-        // que crea un lote nuevo en el paso 10
-        if (!windowOpen) {
-          // no hacer nada — continúa al paso 8 y luego crea lote nuevo en paso 10
-        } else {
-          // ✅ Nivel 1 dentro de la ventana — verificar duplicado en ese lote cerrado
+        if (windowOpen) {
           const dupClosedSnap = await db
             .collection("reservations")
             .where("retailerId", "==", retailerId)
@@ -460,7 +437,6 @@ export async function POST(req: Request) {
             );
           }
 
-          // ✅ Guardar reserva como pending_lot en el lote cerrado
           const level1ReservationRef = db.collection("reservations").doc();
           await level1ReservationRef.set({
             retailerId,
@@ -477,6 +453,10 @@ export async function POST(req: Request) {
             shippingCostEstimated,
             commission,
             productSubtotal,
+            // BLOQUE 1: guardar descuentos de racha en la reserva
+            shippingDiscount,
+            commissionDiscount,
+            streakPointsAtReservation: currentStreak,
             lotId: closedLotDoc.id,
             status: "pending_lot",
             paymentLevel: retailerLevel,
@@ -486,20 +466,10 @@ export async function POST(req: Request) {
             updatedAt: FieldValue.serverTimestamp(),
           });
 
-          // ✅ Sumar qty al lote cerrado
           await db.collection("lots").doc(closedLotDoc.id).update({
             accumulatedQty: FieldValue.increment(Number(qty)),
             updatedAt: FieldValue.serverTimestamp(),
           });
-
-          // ✅ Consumir descuento milestone si aplica
-          if (hasMilestoneDiscount) {
-            try {
-              await consumeMilestoneDiscount(retailerId);
-            } catch (err) {
-              console.error("⚠️ Error consumiendo descuento milestone (ventana):", err);
-            }
-          }
 
           console.log(`🌟 Nivel 1 entró en ventana post-cierre. Lote: ${closedLotDoc.id}, Retailer: ${retailerId}`);
 
@@ -509,8 +479,8 @@ export async function POST(req: Request) {
             lotId: closedLotDoc.id,
             lotClosed: true,
             enteredWindow: true,
-            milestoneDiscountApplied: hasMilestoneDiscount,
-            commissionRate: Math.round(commissionRate * 100),
+            commissionRate: Math.round(effectiveCommissionRate * 100),
+            shippingDiscountPct: Math.round(shippingDiscount * 100),
             message: "¡Entraste al lote! Cuando se procese el cierre, te mandamos el link de pago a tu email.",
           });
         }
@@ -555,24 +525,17 @@ export async function POST(req: Request) {
       shippingCostEstimated,
       commission,
       productSubtotal,
+      // BLOQUE 1: guardar descuentos de racha en la reserva para usarlos al cerrar el lote
+      shippingDiscount,
+      commissionDiscount,
+      streakPointsAtReservation: currentStreak,
       lotId: activeLotId,
       status: "pending_lot",
-      // ✅ NUEVO: guardar nivel y score en la reserva para consultas futuras
       paymentLevel: retailerLevel,
       reliabilityScore: retailerScore,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
-
-    // ✅ NUEVO: Consumir descuento milestone si se aplicó en esta reserva
-    if (hasMilestoneDiscount) {
-      try {
-        await consumeMilestoneDiscount(retailerId);
-        console.log(`✅ Descuento milestone consumido para retailer: ${retailerId}`);
-      } catch (err) {
-        console.error("⚠️ Error consumiendo descuento milestone:", err);
-      }
-    }
 
     /* ── 10. ACTUALIZAR / CREAR LOTE ────────────────── */
     const lotType =
@@ -616,21 +579,14 @@ export async function POST(req: Request) {
       });
     }
 
-    // Actualizar reserva con el lotId definitivo
     await reservationRef.update({
       lotId: finalLotId,
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    /* ── 11. SI EL LOTE CERRÓ → GUARDAR VENTANA 2H (el cron procesa después) ─── */
-    // ✅ CAMBIO CLAVE: Ya NO se llama processLotClosure inmediatamente.
-    // Se guarda level1WindowExpiresAt = ahora + 2h.
-    // El cron /api/cron/process-lots corre cada 15min, detecta lotes
-    // con la ventana vencida y recién ahí llama processLotClosure.
-    // Esto permite que Nivel 1 se sume durante esas 2h antes de que
-    // se calculen los grupos de envío y se manden los links de pago.
+    /* ── 11. SI EL LOTE CERRÓ → GUARDAR VENTANA 2H ─── */
     if (lotClosed) {
-      const level1WindowExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // +2h
+      const level1WindowExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
       await db.collection("lots").doc(finalLotId).update({
         level1WindowExpiresAt,
         updatedAt: FieldValue.serverTimestamp(),
@@ -639,13 +595,21 @@ export async function POST(req: Request) {
     }
 
     /* ── 12. RESPUESTA ──────────────────────────────── */
+    // BLOQUE 2 impl 5 — datos de saliencia: cuánto paga de más vs nivel 1
+    const level1Rate = 0.09;
+    const savingsVsLevel1 = retailerLevel > 1
+      ? Math.round(productSubtotal * (baseCommissionRate - level1Rate))
+      : 0;
+
     return NextResponse.json({
       success: true,
       reservationId: reservationRef.id,
       lotId: finalLotId,
       lotClosed,
-      milestoneDiscountApplied: hasMilestoneDiscount,
-      commissionRate: Math.round(commissionRate * 100),
+      commissionRate: Math.round(effectiveCommissionRate * 100),
+      shippingDiscountPct: Math.round(shippingDiscount * 100),
+      retailerLevel,
+      savingsVsLevel1,
       message: shippingMode === "pickup"
         ? lotClosed
           ? "¡Completaste el lote! Te avisaremos por email en las próximas horas cuando esté listo para pagar."

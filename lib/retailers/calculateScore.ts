@@ -20,61 +20,121 @@
 //   score <  0.25 → nivel 4
 //
 // Comisión por nivel:
-//   Nivel 1 → 11%
+//   Nivel 1 → 9%
 //   Nivel 2 → 12%
-//   Nivel 3 → 13%
-//   Nivel 4 → 14%
+//   Nivel 3 → 14%
+//   Nivel 4 → 16%
 //
-// Badges de racha (se pierden si se rompe la racha):
-//   3  pagos consecutivos < 12h → "Comprador Inicial"
-//   5  pagos consecutivos < 12h → "Comprador Recurrente"
-//   10 pagos consecutivos < 12h → "Comprador de Confianza"
-//   20 pagos consecutivos < 12h → "Comprador Distingido"
+// ── BLOQUE 1 — Sistema de puntos de racha ──────────────────────────────────
+// Hace una reserva (paga)  → +1 punto de racha
+// Cancela / se baja        → -1 punto de racha (mínimo 0)
+// Los badges de racha se asignan por puntos acumulados (DINÁMICOS, se pierden):
+//   1  pt → "Primer Vínculo"
+//   3  pt → "Explorador"
+//   6  pt → "Constante"
+//   10 pt → "Comprometido"
+//   14 pt → "Imparable"
+//   20 pt → "VIP Bronce"
+//   27 pt → "VIP Plata"
+//   40 pt → "VIP Oro"
+//   50 pt → "Leyenda"
 //
-// Badges de milestone (permanentes, no se pierden):
-//   1  lote pagado  → ""
-//   10 lotes pagados → ""
-//   25 lotes pagados → ""
-//   50 lotes pagados → ""
+// ── Descuentos en envío por puntos de racha ────────────────────────────────
+//   1  pt → 10% descuento en envío
+//   3  pt → 25%
+//   6  pt → 30%
+//   10 pt → 35%
+//   14 pt → 40%
+//   20 pt → 45%
+//   27 pt → 50%
+//   40 pt → 55%
+//   50 pt → 100% descuento en comisión Y envío (lote completamente gratis)
 //
-// Descuento milestone:
-//   Cada 10 lotes pagados → nextMilestoneDiscount = true
-//   Se aplica como 1% extra de descuento en el próximo lote
+// ── Badges de milestone (PERMANENTES, nunca se pierden) ────────────────────
+//   1  lote → "Primer Vinculo"
+//   10 lotes → "Revendedor Tallado"
+//   25 lotes → "Maestro del Sector"
+//   35 lotes → "Socio Estratégico"     ← NUEVO
+//   50 lotes → "Socio Fundador de MayoristaMovil"
 
 import { db } from "../firebase-admin";
 
 export type PaymentLevel = 1 | 2 | 3 | 4;
 
-// ── Badges de racha (se pierden al romper la racha) ─────────────
+// ── BLOQUE 1 — Badges de racha (dinámicos, se pierden al cancelar/bajar) ──
+// Números que rompen el patrón esperado para activar respuesta dopaminérgica
 export const STREAK_BADGES: { streak: number; id: string; label: string }[] = [
-  { streak: 3,  id: "streak_executive",  label: "Camino al Exito"  },
-  { streak: 5,  id: "streak_strategic",  label: "Revendedor Consolidado"    },
-  { streak: 10, id: "streak_premium",    label: "Racha Activa"     },
-  { streak: 20, id: "streak_top",        label: "Elite Privada"    },
+  { streak: 1,  id: "streak_start",     label: "Primer Vínculo"  },
+  { streak: 3,  id: "streak_explorer",  label: "Explorador"      },
+  { streak: 6,  id: "streak_steady",    label: "Constante"       },
+  { streak: 10, id: "streak_committed", label: "Comprometido"    },
+  { streak: 14, id: "streak_unstop",    label: "Imparable"       },
+  { streak: 20, id: "streak_vip_b",     label: "VIP Bronce"      },
+  { streak: 27, id: "streak_vip_s",     label: "VIP Plata"       },
+  { streak: 40, id: "streak_vip_g",     label: "VIP Oro"         },
+  { streak: 50, id: "streak_legend",    label: "Leyenda"         },
 ];
 
-// ── Badges de milestone (permanentes) ───────────────────────────
+// ── Descuentos por puntos de racha ─────────────────────────────────────────
+// shippingDiscount: fracción de descuento sobre el costo de envío (0.0 - 1.0)
+// commissionDiscount: fracción de descuento sobre la comisión (0.0 - 1.0)
+// En 50 puntos: lote completamente gratis (envío + comisión = 0)
+export const STREAK_SHIPPING_DISCOUNTS: {
+  streak: number;
+  shippingDiscount: number;
+  commissionDiscount: number;
+}[] = [
+  { streak: 1,  shippingDiscount: 0.10, commissionDiscount: 0    },
+  { streak: 3,  shippingDiscount: 0.25, commissionDiscount: 0    },
+  { streak: 6,  shippingDiscount: 0.30, commissionDiscount: 0    },
+  { streak: 10, shippingDiscount: 0.35, commissionDiscount: 0    },
+  { streak: 14, shippingDiscount: 0.40, commissionDiscount: 0    },
+  { streak: 20, shippingDiscount: 0.45, commissionDiscount: 0    },
+  { streak: 27, shippingDiscount: 0.50, commissionDiscount: 0    },
+  { streak: 40, shippingDiscount: 0.55, commissionDiscount: 0    },
+  { streak: 50, shippingDiscount: 1.00, commissionDiscount: 1.00 }, // lote gratis
+];
+
+/** Dado un puntaje de racha, devuelve los descuentos activos */
+export function getStreakDiscounts(streakPoints: number): {
+  shippingDiscount: number;
+  commissionDiscount: number;
+} {
+  let shippingDiscount = 0;
+  let commissionDiscount = 0;
+  for (const tier of STREAK_SHIPPING_DISCOUNTS) {
+    if (streakPoints >= tier.streak) {
+      shippingDiscount = tier.shippingDiscount;
+      commissionDiscount = tier.commissionDiscount;
+    }
+  }
+  return { shippingDiscount, commissionDiscount };
+}
+
+// ── Badges de milestone (PERMANENTES, nunca se pierden) ─────────────────────
 export const MILESTONE_BADGES: { lots: number; id: string; label: string }[] = [
-  { lots: 1,  id: "milestone_first",      label: "Primer Vinculo"       },
-  { lots: 10, id: "milestone_solid",      label: "Revendedor Tallado"   },
-  { lots: 25, id: "milestone_operator",   label: "Maestro del Sector"   },
-  { lots: 50, id: "milestone_founding",   label: "Socio Fundador de MayoristaMovil"    },
+  { lots: 1,  id: "milestone_first",      label: "Primer Vinculo"                   },
+  { lots: 10, id: "milestone_solid",      label: "Revendedor Tallado"               },
+  { lots: 25, id: "milestone_operator",   label: "Maestro del Sector"               },
+  { lots: 35, id: "milestone_strategic",  label: "Socio Estratégico"                }, // NUEVO
+  { lots: 50, id: "milestone_founding",   label: "Socio Fundador de MayoristaMovil" },
 ];
 
 export interface RetailerScore {
   score: number;
   level: PaymentLevel;
-  commission: number;             // porcentaje a aplicar (11, 12, 13 o 14)
+  commission: number;              // porcentaje a aplicar (11, 12, 13 o 14)
   totalReservations: number;
   completedReservations: number;
-  currentStreak: number;          // racha actual de pagos < 12h consecutivos
-  longestStreak: number;          // racha histórica más larga (nunca baja)
-  streakBadges: string[];         // badges de racha activos (ids)
-  milestoneBadges: string[];      // badges de milestone ganados (ids permanentes)
-  nextMilestoneDiscount: boolean; // si tiene descuento disponible para el próximo lote
+  currentStreak: number;           // puntos de racha actuales (sube/baja)
+  longestStreak: number;           // máximo histórico de puntos (nunca baja)
+  streakBadges: string[];          // badges de racha activos (dinámicos)
+  milestoneBadges: string[];       // badges de milestone ganados (permanentes)
+  shippingDiscount: number;        // descuento activo en envío (0.0 - 1.0)
+  commissionDiscount: number;      // descuento activo en comisión (0.0 - 1.0)
 }
 
-// ── Helpers ──────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────
 
 function speedScore(hoursToPayment: number): number {
   if (hoursToPayment <= 12) return 1.0;
@@ -94,16 +154,16 @@ function scoreToLevel(score: number, hasHistory: boolean): PaymentLevel {
 
 function levelToCommission(level: PaymentLevel): number {
   switch (level) {
-    case 1: return 11;
+    case 1: return 9;
     case 2: return 12;
-    case 3: return 13;
-    case 4: return 14;
+    case 3: return 14;
+    case 4: return 16;
   }
 }
 
-function computeStreakBadges(streak: number): string[] {
+function computeStreakBadges(streakPoints: number): string[] {
   return STREAK_BADGES
-    .filter((b) => streak >= b.streak)
+    .filter((b) => streakPoints >= b.streak)
     .map((b) => b.id);
 }
 
@@ -113,40 +173,21 @@ function computeMilestoneBadges(totalPaid: number): string[] {
     .map((b) => b.id);
 }
 
-// ── Cálculo principal ─────────────────────────────────────────────
-//
-// ARQUITECTURA INCREMENTAL (Bug 2 fix):
-//
-// En vez de leer TODAS las reservas del usuario en cada pago
-// (costoso: 200 lecturas para usuario con 200 lotes),
-// guardamos un agregado pre-computado en retailers/<id>.scoreAggregate:
-//
-//   {
-//     totalReservations: number,     // total procesadas
-//     completedReservations: number, // pagadas
-//     totalSpeedSum: number,         // suma de speedScore de cada pago
-//     speedCount: number,            // cantidad con timestamps válidos
-//     currentStreak: number,
-//     longestStreak: number,
-//   }
-//
-// updateRetailerScoreIncremental (llamada desde el webhook) recibe el
-// paidAt y lotClosedAt de la reserva recién pagada y actualiza el
-// agregado con UNA sola lectura + UNA escritura.
-//
-// calculateRetailerScore (full recalc) se mantiene para:
-//   - Reconstruir el agregado si no existe (migración / primer uso)
-//   - Recálculos manuales / admin
+/** Aplica delta de racha, clampea entre 0 e Infinity */
+export function applyStreakDelta(currentPoints: number, delta: number): number {
+  return Math.max(0, currentPoints + delta);
+}
+
+// ── Cálculo principal (full recalc) ──────────────────────────────
+// Se usa solo en migración / recálculo manual de admin.
+// Los pagos normales usan updateRetailerScoreIncremental (2 ops Firestore).
 
 export async function calculateRetailerScore(retailerId: string): Promise<RetailerScore> {
-  // Leer datos existentes para preservar longestStreak y milestoneBadges
   const existingSnap = await db.collection("retailers").doc(retailerId).get();
   const existing = existingSnap.data() || {};
   const previousLongestStreak: number     = existing.longestStreak ?? 0;
   const previousMilestoneBadges: string[] = existing.milestoneBadges ?? [];
-  const previousPaid: number              = existing.completedReservations ?? 0;
 
-  // Traer todas las reservas cerradas (full recalc — solo se usa en migración o admin)
   const snap = await db
     .collection("reservations")
     .where("retailerId", "==", retailerId)
@@ -157,18 +198,18 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
     return {
       score: 0.6,
       level: 2,
-      commission: 12,  // nivel 2 = 12% (consistente con levelToCommission)
+      commission: 12,
       totalReservations: 0,
       completedReservations: 0,
       currentStreak: 0,
       longestStreak: previousLongestStreak,
       streakBadges: [],
       milestoneBadges: previousMilestoneBadges,
-      nextMilestoneDiscount: false,
+      shippingDiscount: 0,
+      commissionDiscount: 0,
     };
   }
 
-  // Ordenar cronológicamente en memoria por lotClosedAt para calcular rachas
   const sortedDocs = snap.docs.slice().sort((a, b) => {
     const aMs = a.data().lotClosedAt?.toMillis?.() ?? 0;
     const bMs = b.data().lotClosedAt?.toMillis?.() ?? 0;
@@ -179,7 +220,7 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
   let speedCount    = 0;
   let paid          = 0;
   let total         = 0;
-  let currentStreak = 0;
+  let streakPoints  = 0;
   let longestStreak = previousLongestStreak;
 
   for (const doc of sortedDocs) {
@@ -188,30 +229,23 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
 
     if (r.status === "paid") {
       paid++;
+      // Reserva pagada → +1 punto de racha
+      streakPoints = applyStreakDelta(streakPoints, 1);
+      if (streakPoints > longestStreak) longestStreak = streakPoints;
 
       const closedAt: number = r.lotClosedAt?.toMillis?.() ?? 0;
       const paidAt: number   = r.paidAt?.toMillis?.() ?? 0;
 
-      let hours = 999;
       if (closedAt && paidAt && paidAt > closedAt) {
-        hours = (paidAt - closedAt) / (1000 * 60 * 60);
-        totalSpeed += speedScore(hours);
+        totalSpeed += speedScore((paidAt - closedAt) / (1000 * 60 * 60));
         speedCount++;
       } else {
-        // Sin timestamps precisos → velocidad media, fuera de racha
         totalSpeed += 0.5;
         speedCount++;
-        hours = 24;
-      }
-
-      if (hours <= 12) {
-        currentStreak++;
-        if (currentStreak > longestStreak) longestStreak = currentStreak;
-      } else {
-        currentStreak = 0;
       }
     } else {
-      currentStreak = 0;
+      // Cancelación / baja → -1 punto de racha
+      streakPoints = applyStreakDelta(streakPoints, -1);
     }
   }
 
@@ -221,15 +255,11 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
   const level          = scoreToLevel(score, total > 0);
   const commission     = levelToCommission(level);
 
-  const streakBadges    = computeStreakBadges(currentStreak);
+  const streakBadges    = computeStreakBadges(streakPoints);
   const milestoneBadges = computeMilestoneBadges(paid);
+  const { shippingDiscount, commissionDiscount } = getStreakDiscounts(streakPoints);
 
-  const crossedMilestone = paid > 0 && paid % 10 === 0 && previousPaid < paid;
-  const nextMilestoneDiscount =
-    crossedMilestone || (existing.nextMilestoneDiscount === true);
-
-  // ✅ Reconstruir el agregado en Firestore para que los próximos pagos
-  // puedan usar el camino incremental (sin leer todas las reservas)
+  // Reconstruir agregado en Firestore
   await db.collection("retailers").doc(retailerId).set(
     {
       scoreAggregate: {
@@ -237,7 +267,7 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
         completedReservations: paid,
         totalSpeedSum: totalSpeed,
         speedCount,
-        currentStreak,
+        currentStreak: streakPoints,
         longestStreak,
         rebuiltAt: new Date(),
       },
@@ -251,25 +281,18 @@ export async function calculateRetailerScore(retailerId: string): Promise<Retail
     commission,
     totalReservations: total,
     completedReservations: paid,
-    currentStreak,
+    currentStreak: streakPoints,
     longestStreak,
     streakBadges,
     milestoneBadges,
-    nextMilestoneDiscount,
+    shippingDiscount,
+    commissionDiscount,
   };
 }
 
-// ── Actualización incremental (llamada desde el webhook) ──────────
-//
-// Recibe los datos de la reserva recién pagada y actualiza el agregado
-// con UNA sola lectura de Firestore (el doc del retailer) + UNA escritura.
-// Para usuarios con 200 lotes: costo = 2 operaciones (vs 200 antes).
-//
-// Parámetros:
-//   retailerId   — id del retailer
-//   paidAt       — timestamp en ms del pago (Date.now() o webhook timestamp)
-//   lotClosedAt  — timestamp en ms del cierre del lote
-//   wasCancelled — si la reserva fue cancelada (rompe racha, no suma paid)
+// ── Actualización incremental (llamada desde el webhook al pagar) ──────────
+// También se llama al cancelar desde /api/reservations/cancel
+// +1 punto al pagar, -1 punto al cancelar
 
 export async function updateRetailerScoreIncremental(params: {
   retailerId: string;
@@ -284,39 +307,34 @@ export async function updateRetailerScoreIncremental(params: {
   const existing     = retailerSnap.data() || {};
   const agg          = existing.scoreAggregate as Record<string, number> | undefined;
 
-  // Si no hay agregado previo → hacer full recalc para construirlo,
-  // luego volver a leer el agregado ya construido
   if (!agg || typeof agg.totalReservations !== "number") {
     console.log(`[score] No hay agregado para ${retailerId} → full recalc`);
     return updateRetailerScore(retailerId);
   }
 
-  // ── Calcular speed de este pago ─────────────────────────────────
   let hours = 999;
-  let speed = 0.5; // fallback si no hay timestamps
-  if (lotClosedAt > 0 && paidAt > lotClosedAt) {
+  let speed = 0.5;
+  if (!wasCancelled && lotClosedAt > 0 && paidAt > lotClosedAt) {
     hours = (paidAt - lotClosedAt) / (1000 * 60 * 60);
     speed = speedScore(hours);
   }
 
-  // ── Actualizar agregado ─────────────────────────────────────────
-  const prevTotal         = agg.totalReservations;
-  const prevPaid          = agg.completedReservations;
-  const prevSpeedSum      = agg.totalSpeedSum ?? 0;
-  const prevSpeedCount    = agg.speedCount ?? 0;
-  const prevStreak        = agg.currentStreak ?? 0;
-  const prevLongest       = agg.longestStreak ?? (existing.longestStreak ?? 0);
-  const previousPaid      = existing.completedReservations ?? prevPaid;
+  const prevTotal      = agg.totalReservations;
+  const prevPaid       = agg.completedReservations;
+  const prevSpeedSum   = agg.totalSpeedSum ?? 0;
+  const prevSpeedCount = agg.speedCount ?? 0;
+  const prevStreak     = agg.currentStreak ?? 0;
+  const prevLongest    = agg.longestStreak ?? (existing.longestStreak ?? 0);
 
   const newTotal      = prevTotal + 1;
   const newPaid       = wasCancelled ? prevPaid : prevPaid + 1;
   const newSpeedSum   = wasCancelled ? prevSpeedSum : prevSpeedSum + speed;
   const newSpeedCount = wasCancelled ? prevSpeedCount : prevSpeedCount + 1;
 
-  let newStreak  = wasCancelled ? 0 : (hours <= 12 ? prevStreak + 1 : 0);
-  let newLongest = Math.max(prevLongest, newStreak);
+  // BLOQUE 1: +1 al pagar, -1 al cancelar
+  const newStreak  = applyStreakDelta(prevStreak, wasCancelled ? -1 : 1);
+  const newLongest = Math.max(prevLongest, newStreak);
 
-  // ── Recalcular score con el agregado actualizado ────────────────
   const completionRate = newTotal > 0 ? newPaid / newTotal : 0;
   const speedAvg       = newSpeedCount > 0 ? newSpeedSum / newSpeedCount : 0;
   const score          = (speedAvg * 0.5) + (completionRate * 0.5);
@@ -326,15 +344,12 @@ export async function updateRetailerScoreIncremental(params: {
   const streakBadges    = computeStreakBadges(newStreak);
   const milestoneBadges = computeMilestoneBadges(newPaid);
 
-  // Preservar milestones permanentes ya ganados
+  // Milestones permanentes — nunca se pierden
   const existingMilestones: string[] = existing.milestoneBadges ?? [];
   const mergedMilestones = Array.from(new Set([...existingMilestones, ...milestoneBadges]));
 
-  const crossedMilestone = newPaid > 0 && newPaid % 10 === 0 && previousPaid < newPaid;
-  const nextMilestoneDiscount =
-    crossedMilestone || (existing.nextMilestoneDiscount === true);
+  const { shippingDiscount, commissionDiscount } = getStreakDiscounts(newStreak);
 
-  // ── Escribir en Firestore (una sola operación) ──────────────────
   await retailerRef.set(
     {
       reliabilityScore:      score,
@@ -346,7 +361,8 @@ export async function updateRetailerScoreIncremental(params: {
       longestStreak:         newLongest,
       streakBadges,
       milestoneBadges:       mergedMilestones,
-      nextMilestoneDiscount,
+      shippingDiscount,
+      commissionDiscount,
       scoreUpdatedAt:        new Date(),
       scoreAggregate: {
         totalReservations:   newTotal,
@@ -367,15 +383,16 @@ export async function updateRetailerScoreIncremental(params: {
     commission,
     totalReservations: newTotal,
     completedReservations: newPaid,
-    currentStreak:   newStreak,
-    longestStreak:   newLongest,
+    currentStreak: newStreak,
+    longestStreak: newLongest,
     streakBadges,
     milestoneBadges: mergedMilestones,
-    nextMilestoneDiscount,
+    shippingDiscount,
+    commissionDiscount,
   };
 }
 
-// ── Guardar en Firestore ──────────────────────────────────────────
+// ── Guardar en Firestore (full recalc) ────────────────────────────
 
 export async function updateRetailerScore(retailerId: string): Promise<RetailerScore> {
   const result = await calculateRetailerScore(retailerId);
@@ -391,21 +408,12 @@ export async function updateRetailerScore(retailerId: string): Promise<RetailerS
       longestStreak:         result.longestStreak,
       streakBadges:          result.streakBadges,
       milestoneBadges:       result.milestoneBadges,
-      nextMilestoneDiscount: result.nextMilestoneDiscount,
+      shippingDiscount:      result.shippingDiscount,
+      commissionDiscount:    result.commissionDiscount,
       scoreUpdatedAt:        new Date(),
     },
     { merge: true }
   );
 
   return result;
-}
-
-// ── Consumir descuento milestone ──────────────────────────────────
-// Llamar desde reserve/route.ts cuando el descuento se aplica al lote
-
-export async function consumeMilestoneDiscount(retailerId: string): Promise<void> {
-  await db.collection("retailers").doc(retailerId).set(
-    { nextMilestoneDiscount: false },
-    { merge: true }
-  );
 }

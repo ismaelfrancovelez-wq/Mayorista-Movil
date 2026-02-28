@@ -1,3 +1,4 @@
+// app/dashboard/pedidos-fraccionados/pedidos/page.tsx
 import { db } from "../../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import { formatCurrency } from "../../../../lib/utils";
@@ -10,8 +11,8 @@ export const revalidate = 10;
 type ReservationStatus = "pending_lot" | "lot_closed" | "paid" | "cancelled";
 
 type Pedido = {
-  id: string;                     // id único en la lista (para hide)
-  reservationDocId?: string;      // ID real del doc en Firestore (para cancel)
+  id: string;
+  reservationDocId?: string;
   productId: string;
   productName: string;
   factoryName: string;
@@ -32,22 +33,136 @@ type Pedido = {
   createdAt: string;
   createdAtTimestamp: number;
   purchaseCount?: number;
-  lotClosedAt?: number;           // timestamp ms del cierre del lote (para countdown)
+  lotClosedAt?: number;
   lotProgress?: {
     currentQty: number;
     targetQty: number;
     percentage: number;
     remaining: number;
   };
+  // BLOQUE 2 impl 5: datos de comisión para mostrar costo concreto
+  commissionAmount?: number;
+  commissionRate?: number;
 };
 
+// ── BLOQUE 2 impl 4 — Configuración de niveles ──────────────────────────────
+const LEVEL_CONFIG: Record<number, {
+  label: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  rate: number;        // tasa de comisión (0.09, 0.12, 0.14, 0.16)
+  pct: string;         // string para mostrar ("9%", "12%", etc.)
+  // BLOQUE 2 impl 6: framing positivo del nivel
+  framingLabel: string;
+  framingDesc: string;
+}> = {
+  1: {
+    label: "Verde",
+    color: "text-green-700",
+    bgColor: "bg-green-50",
+    borderColor: "border-green-300",
+    rate: 0.09,
+    pct: "9%",
+    framingLabel: "Nivel Verde — Máximo beneficio",
+    framingDesc: "Estás en el nivel más alto. Seguí así para mantener la comisión más baja.",
+  },
+  2: {
+    label: "Amarillo",
+    color: "text-yellow-700",
+    bgColor: "bg-yellow-50",
+    borderColor: "border-yellow-300",
+    rate: 0.12,
+    pct: "12%",
+    framingLabel: "Nivel Amarillo — En progreso",
+    framingDesc: "Podés alcanzar el Nivel Verde mejorando tu historial de pagos.",
+  },
+  3: {
+    label: "Naranja",
+    color: "text-orange-700",
+    bgColor: "bg-orange-50",
+    borderColor: "border-orange-300",
+    rate: 0.14,
+    pct: "14%",
+    framingLabel: "Nivel Naranja — Desarrollando confianza",
+    framingDesc: "Cada pago a tiempo te acerca al Nivel Amarillo y a mejores condiciones.",
+  },
+  4: {
+    label: "Rojo",
+    color: "text-red-700",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-300",
+    rate: 0.16,
+    pct: "16%",
+    framingLabel: "Revendedor en Construcción",  // IMPL 6: framing positivo
+    framingDesc: "Estás construyendo tu historial. Cada pago puntual reduce tu comisión.",
+  },
+};
+
+// ── BLOQUE 2 impl 5 — Componente de costo concreto ───────────────────────────
+// Muestra al revendedor exactamente cuánto está pagando de más vs nivel Verde.
+// Implementa Pain of Paying (Prelec & Loewenstein, 1998) y Efecto de Saliencia (Kahneman, 2011).
+function CommissionCostBanner({
+  currentLevel,
+  productSubtotal,
+  commissionAmount,
+}: {
+  currentLevel: number;
+  productSubtotal: number;
+  commissionAmount: number;
+}) {
+  if (currentLevel === 1) {
+    // Nivel Verde: ya tiene el máximo beneficio, mostrar mensaje positivo
+    return (
+      <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200 flex items-center gap-2">
+        <span className="text-lg">🟢</span>
+        <div>
+          <p className="text-xs font-semibold text-green-800">
+            Nivel Verde — Comisión 9%
+          </p>
+          <p className="text-xs text-green-700">
+            Estás pagando la comisión más baja disponible. ¡Seguí así!
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentCfg  = LEVEL_CONFIG[currentLevel] ?? LEVEL_CONFIG[4];
+  const greenCfg    = LEVEL_CONFIG[1];
+  const greenCommission = Math.round(productSubtotal * greenCfg.rate);
+  const difference  = commissionAmount - greenCommission;
+
+  if (difference <= 0) return null;
+
+  return (
+    <div className={`mb-4 p-3 rounded-lg border ${currentCfg.bgColor} ${currentCfg.borderColor}`}>
+      {/* Línea 1: qué estás pagando ahora */}
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-base">💸</span>
+        <p className={`text-xs font-semibold ${currentCfg.color}`}>
+          Pagás {currentCfg.pct} de comisión — {currentCfg.framingLabel}
+        </p>
+      </div>
+      {/* Línea 2: comparación concreta con nivel Verde */}
+      <p className="text-xs text-gray-700 ml-7">
+        Con <strong>Nivel Verde</strong> pagarías {greenCfg.pct}.
+        En este lote eso equivale a{" "}
+        <strong className="text-red-600">{formatCurrency(difference)} de diferencia</strong>.
+      </p>
+      {/* Línea 3: framing de progreso (IMPL 6) */}
+      <p className={`text-xs mt-1.5 ml-7 ${currentCfg.color}`}>
+        📈 {currentCfg.framingDesc}
+      </p>
+    </div>
+  );
+}
+
 // ── Tabla de beneficios/sanciones ────────────────────────────────────────────
-// Se muestra cuando el lote cerró y el usuario todavía no pagó
 function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
   const now = Date.now();
   const elapsed = lotClosedAtMs ? Math.floor((now - lotClosedAtMs) / (1000 * 60 * 60)) : 0;
 
-  // Calcular tiempo restante hasta las 96h
   const hoursLeft = lotClosedAtMs
     ? Math.max(0, 96 - Math.floor((now - lotClosedAtMs) / (1000 * 60 * 60)))
     : 96;
@@ -68,7 +183,7 @@ function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
       range: "Dentro de 24h",
       icon: "🌟",
       label: "RÁPIDO",
-      benefit: "+5 puntos de confianza · Prioridad garantizada en el próximo lote",
+      benefit: "+1 punto de racha · Prioridad garantizada en el próximo lote",
       color: "bg-green-50 border-green-300 text-green-800",
       iconBg: "bg-green-100",
       active: elapsed <= 24,
@@ -86,7 +201,7 @@ function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
       range: "Entre 48h y 72h",
       icon: "⚠️",
       label: "TARDÍO",
-      benefit: "−3 puntos de confianza",
+      benefit: "−1 punto de racha",
       color: "bg-yellow-50 border-yellow-300 text-yellow-800",
       iconBg: "bg-yellow-100",
       active: elapsed > 48 && elapsed <= 72,
@@ -95,7 +210,7 @@ function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
       range: "Entre 72h y 96h",
       icon: "🔴",
       label: "MUY TARDÍO",
-      benefit: "−8 puntos · Última posición en los próximos lotes",
+      benefit: "−1 punto de racha · Última posición en los próximos lotes",
       color: "bg-orange-50 border-orange-300 text-orange-800",
       iconBg: "bg-orange-100",
       active: elapsed > 72 && elapsed <= 96,
@@ -104,7 +219,7 @@ function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
       range: "Después de 96h",
       icon: "❌",
       label: "CANCELADO",
-      benefit: "Reserva cancelada automáticamente · 30 días sin poder reservar este producto",
+      benefit: "Reserva cancelada automáticamente · −1 punto de racha",
       color: "bg-red-50 border-red-300 text-red-800",
       iconBg: "bg-red-100",
       active: elapsed > 96,
@@ -113,17 +228,14 @@ function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
 
   return (
     <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-      {/* Countdown */}
       {lotClosedAtMs && (
         <div className={`text-center text-sm mb-3 ${countdownColor}`}>
           {countdownText} para pagar sin penalización
         </div>
       )}
-
       <p className="text-xs font-semibold text-blue-900 mb-2 uppercase tracking-wide">
         💡 Beneficios y sanciones según cuándo pagás
       </p>
-
       <div className="space-y-1.5">
         {tiers.map((tier) => (
           <div
@@ -144,9 +256,8 @@ function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
           </div>
         ))}
       </div>
-
       <p className="text-xs text-blue-700 mt-2.5 text-center">
-        🏆 3 pagos consecutivos dentro de 24h → badge <strong>"Comprador VIP"</strong> y acceso prioritario permanente
+        🏆 Acumulá reservas para desbloquear descuentos en envío y llegar al lote gratis
       </p>
     </div>
   );
@@ -164,12 +275,10 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       .get(),
   ]);
 
-  // Juntar todos los lotIds
   const lotIds = new Set<string>();
   paymentsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
   myReservationsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
 
-  // Estado real de los lotes
   const lotsMap = new Map<string, { status: string; accumulatedQty: number; minimumOrder: number; closedAt?: number }>();
   if (lotIds.size > 0) {
     const arr = Array.from(lotIds);
@@ -186,7 +295,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
     }
   }
 
-  // Para lotes cerrados: quién pagó y quién no
   const lotIdsNeedingMates = new Set<string>();
   myReservationsSnap.docs.forEach((d) => {
     const r = d.data();
@@ -194,6 +302,26 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       lotIdsNeedingMates.add(r.lotId);
     }
   });
+
+  // ── BLOQUE 2 impl 5 — Labels actualizados con nuevos badge IDs ──────────────
+  const STREAK_LABELS: Record<string, string> = {
+    streak_start:     "🔗 Primer Vínculo",
+    streak_explorer:  "🧭 Explorador",
+    streak_steady:    "📌 Constante",
+    streak_committed: "💪 Comprometido",
+    streak_unstop:    "⚡ Imparable",
+    streak_vip_b:     "🥉 VIP Bronce",
+    streak_vip_s:     "🥈 VIP Plata",
+    streak_vip_g:     "🥇 VIP Oro",
+    streak_legend:    "🌟 Leyenda",
+  };
+  const MILESTONE_LABELS: Record<string, string> = {
+    milestone_first:     "🥉 Primer Vinculo",
+    milestone_solid:     "🥈 Revendedor Tallado",
+    milestone_operator:  "🥇 Maestro del Sector",
+    milestone_strategic: "🤝 Socio Estratégico",
+    milestone_founding:  "🏆 Socio Fundador de MayoristaMovil",
+  };
 
   const lotMatesMap = new Map<string, { name: string; paid: boolean; streakBadge?: string; milestoneBadge?: string }[]>();
   if (lotIdsNeedingMates.size > 0) {
@@ -204,7 +332,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
         .where("status", "in", ["lot_closed", "paid"])
         .get();
 
-      // Batch fetch retailer badges for all mates
       const retailerIds = allResSnap.docs.map((d) => d.data().retailerId).filter(Boolean);
       const retailerBadgesMap = new Map<string, { streakBadge?: string; milestoneBadge?: string }>();
       if (retailerIds.length > 0) {
@@ -214,19 +341,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
           retailersSnap.docs.forEach((rd) => {
             const streakBadges: string[] = rd.data().streakBadges ?? [];
             const milestoneBadges: string[] = rd.data().milestoneBadges ?? [];
-            // Tomar el badge de mayor rango (último en el array, que está ordenado por streak/lots)
-            const STREAK_LABELS: Record<string, string> = {
-              streak_executive: "⚡ Camino al Siguente nivel",
-              streak_strategic: "💎 Revendedor Consolidado",
-              streak_premium:   "🔥 Racha Activa",
-              streak_top:       "👑 Elite Privada",
-            };
-            const MILESTONE_LABELS: Record<string, string> = {
-              milestone_first:    "🥉 Primer Vinculo",
-              milestone_solid:    "🥈 Revendedor Tallado",
-              milestone_operator: "🥇 Maestro del Rubro",
-              milestone_founding: "🏆 Socio fundador de MayoristaMovil",
-            };
             const topStreak = streakBadges.length > 0 ? STREAK_LABELS[streakBadges[streakBadges.length - 1]] : undefined;
             const topMilestone = milestoneBadges.length > 0 ? MILESTONE_LABELS[milestoneBadges[milestoneBadges.length - 1]] : undefined;
             retailerBadgesMap.set(rd.id, { streakBadge: topStreak, milestoneBadge: topMilestone });
@@ -261,7 +375,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
     };
   }
 
-  // ── PASO 1: RESERVAS (fuente de verdad para el flujo diferido) ────────────
   const reservationLotIds = new Set<string>();
   const reservationOrders: Pedido[] = [];
 
@@ -270,7 +383,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
     if (!r.lotId || r.status === "cancelled") continue;
 
     const listId = `reservation-${resDoc.id}`;
-    // Filtrar los ocultos
     if (hiddenIds.includes(listId)) continue;
 
     reservationLotIds.add(r.lotId);
@@ -314,10 +426,12 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       createdAtTimestamp: r.createdAt?.toMillis() || 0,
       lotClosedAt: r.lotClosedAt?.toMillis?.() || lotData?.closedAt || undefined,
       lotProgress: resStatus === "pending_lot" ? buildLotProgress(r.lotId) : undefined,
+      // BLOQUE 2 impl 5: datos de comisión guardados en la reserva
+      commissionAmount: r.commission || 0,
+      commissionRate: r.paymentLevel ?? 2,
     });
   }
 
-  // ── PASO 2: PAYMENTS normales ─────────────────────────────────────────────
   const fractionalGrouped = new Map<string, { payments: any[]; totalQty: number; totalAmount: number; totalShipping: number; totalTotal: number; oldestDate: number; latestDate: number }>();
   const directOrders: Pedido[] = [];
 
@@ -375,10 +489,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
   for (const [lotId, group] of fractionalGrouped.entries()) {
     const fp = group.payments[0];
     const lotData = lotsMap.get(lotId);
-    // ✅ FIX: mapear todos los estados del lote correctamente
-    // closed / processing / processed_pending_payment → el lote llegó al mínimo, esperando que todos paguen
-    // fully_paid → todos pagaron
-    // accumulating → todavía juntando
     const CLOSED_STATUSES = new Set(["closed", "processing", "processed_pending_payment"]);
     const status: Pedido["status"] =
       lotData?.status === "fully_paid"
@@ -431,11 +541,17 @@ export default async function PedidosPage() {
     );
   }
 
-  // Obtener lista de pedidos ocultos del usuario
   const userSnap = await db.collection("users").doc(userId).get();
   const hiddenIds: string[] = userSnap.data()?.hiddenOrders || [];
 
+  // BLOQUE 2 impl 5 y 6: leer nivel del retailer para mostrar banner y framing
+  const retailerSnap = await db.collection("retailers").doc(userId).get();
+  const retailerLevel: number = retailerSnap.data()?.paymentLevel ?? 2;
+
   const orders = await getRetailerOrders(userId, hiddenIds);
+
+  // BLOQUE 2 impl 6: framing del nivel actual del retailer
+  const levelCfg = LEVEL_CONFIG[retailerLevel] ?? LEVEL_CONFIG[2];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -444,6 +560,23 @@ export default async function PedidosPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Mis Pedidos</h1>
           <p className="text-gray-600">Últimos 50 pedidos (actualizado cada 10 segundos)</p>
+
+          {/* BLOQUE 2 impl 6 — Banner de nivel actual con framing positivo */}
+          <div className={`mt-4 flex items-center gap-3 p-3 rounded-lg border ${levelCfg.bgColor} ${levelCfg.borderColor}`}>
+            <span className="text-2xl">
+              {retailerLevel === 1 ? "🟢" : retailerLevel === 2 ? "🟡" : retailerLevel === 3 ? "🟠" : "🔴"}
+            </span>
+            <div>
+              <p className={`text-sm font-semibold ${levelCfg.color}`}>
+                {levelCfg.framingLabel}
+              </p>
+              <p className="text-xs text-gray-600">{levelCfg.framingDesc}</p>
+            </div>
+            <div className="ml-auto text-right">
+              <p className={`text-lg font-bold ${levelCfg.color}`}>{levelCfg.pct}</p>
+              <p className="text-xs text-gray-500">comisión actual</p>
+            </div>
+          </div>
         </div>
 
         {orders.length === 0 ? (
@@ -459,7 +592,6 @@ export default async function PedidosPage() {
               const isFraccionado = order.orderType === "fraccionado";
               const isReservaActiva = order.isReservation && order.status !== "all_paid";
 
-              // ── Badge de TIPO ────────────────────────────────────────────
               const badgeLabel = isReservaActiva
                 ? "Reserva"
                 : isFraccionado
@@ -471,7 +603,6 @@ export default async function PedidosPage() {
                 ? "bg-purple-100 text-purple-800"
                 : "bg-blue-100 text-blue-800";
 
-              // ── Badge de ESTADO ──────────────────────────────────────────
               let estadoLabel = "Completado";
               let estadoColor = "bg-green-100 text-green-800";
               if (order.status === "accumulating") {
@@ -483,7 +614,6 @@ export default async function PedidosPage() {
                 estadoColor = "bg-blue-100 text-blue-800";
               }
 
-              // ¿El usuario ya pagó pero otros no?
               const userAlreadyPaid =
                 order.isReservation &&
                 order.reservationStatus === "paid" &&
@@ -492,7 +622,7 @@ export default async function PedidosPage() {
               return (
                 <div key={order.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
 
-                  {/* Header: nombre + badges + botón ocultar */}
+                  {/* Header */}
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -510,7 +640,6 @@ export default async function PedidosPage() {
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${estadoColor}`}>
                         {estadoLabel}
                       </span>
-                      {/* Botón ocultar — disponible para completados y pagados */}
                       {(order.status === "all_paid" || order.status === "completed" || !order.isReservation) && (
                         <HideOrderButton itemId={order.id} label="Ocultar pedido" />
                       )}
@@ -559,7 +688,20 @@ export default async function PedidosPage() {
                     )}
                   </div>
 
-                  {/* ── BARRA DE PROGRESO (solo mientras acumula) ── */}
+                  {/* BLOQUE 2 impl 5 — Banner de costo concreto (solo lotes fraccionados activos) */}
+                  {isFraccionado &&
+                    order.isReservation &&
+                    order.status === "lot_closed" &&
+                    order.reservationStatus === "lot_closed" &&
+                    (order.commissionAmount ?? 0) > 0 && (
+                    <CommissionCostBanner
+                      currentLevel={retailerLevel}
+                      productSubtotal={order.amount}
+                      commissionAmount={order.commissionAmount!}
+                    />
+                  )}
+
+                  {/* Barra de progreso (solo mientras acumula) */}
                   {order.status === "accumulating" && order.lotProgress && (
                     <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
                       <div className="flex justify-between text-sm mb-2">
@@ -581,12 +723,12 @@ export default async function PedidosPage() {
                     </div>
                   )}
 
-                  {/* ── TABLA DE BENEFICIOS/SANCIONES (cuando el lote cerró y no pagó aún) ── */}
+                  {/* Tabla de beneficios/sanciones (cuando el lote cerró y no pagó aún) */}
                   {order.status === "lot_closed" && order.reservationStatus === "lot_closed" && (
                     <PaymentTiersTable lotClosedAtMs={order.lotClosedAt} />
                   )}
 
-                  {/* ── ESTADO DE PAGOS DEL LOTE ── */}
+                  {/* Estado de pagos del lote */}
                   {order.status === "lot_closed" && order.lotMates && order.lotMates.length > 0 && (
                     <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <p className="font-medium text-blue-900 text-sm mb-3">
@@ -596,14 +738,12 @@ export default async function PedidosPage() {
                         {order.lotMates.map((mate, i) => (
                           <div key={i} className="flex items-center justify-between text-sm">
                             <span className="text-gray-700 flex items-center gap-1.5 flex-wrap">
-                              {/* Badge permanente (milestone) — antes del nombre */}
                               {mate.milestoneBadge && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
                                   {mate.milestoneBadge}
                                 </span>
                               )}
                               {mate.name}
-                              {/* Badge de racha — después del nombre */}
                               {mate.streakBadge && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
                                   {mate.streakBadge}
@@ -625,7 +765,7 @@ export default async function PedidosPage() {
                     </div>
                   )}
 
-                  {/* ── BOTÓN PAGAR (solo si el usuario todavía no pagó) ── */}
+                  {/* Botón pagar */}
                   {order.status === "lot_closed" &&
                     order.reservationStatus === "lot_closed" &&
                     order.paymentLink && (
@@ -637,7 +777,7 @@ export default async function PedidosPage() {
                     </a>
                   )}
 
-                  {/* ── TOTAL ── */}
+                  {/* Total */}
                   <div className="pt-4 border-t border-gray-200">
                     <div className="flex justify-between items-center">
                       <div>
@@ -715,7 +855,7 @@ export default async function PedidosPage() {
                       </p>
                     )}
 
-                    {/* ── BOTÓN DAR DE BAJA (solo pending_lot) ── */}
+                    {/* Botón dar de baja (solo pending_lot) */}
                     {order.isReservation &&
                       order.reservationStatus === "pending_lot" &&
                       order.reservationDocId && (
@@ -725,7 +865,7 @@ export default async function PedidosPage() {
                       />
                     )}
 
-                    {/* ── MENSAJE BLOQUEADO si quiere cancelar en lot_closed ── */}
+                    {/* Mensaje bloqueado si quiere cancelar en lot_closed */}
                     {order.isReservation && order.reservationStatus === "lot_closed" && (
                       <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
                         <span>🔒</span>
