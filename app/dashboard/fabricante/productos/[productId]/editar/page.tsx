@@ -6,9 +6,6 @@ import { ProductCategory, CATEGORY_LABELS } from "../../../../../../lib/types/pr
 import { uploadImage, validateImageFile } from "../../../../../../lib/firebase-storage";
 import toast from "react-hot-toast";
 
-/* ===============================
-    🛡️ FUNCIONES DE SANITIZACIÓN
-=============================== */
 function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
 }
@@ -16,8 +13,6 @@ function sanitizeText(text: string, maxLength: number = 100): string {
 export default function EditarProductoPage() {
   const router = useRouter();
   const params = useParams();
-  
-  // ✅ Solución al error de compilación: params?.productId
   const productId = params?.productId as string;
 
   const [loadingProduct, setLoadingProduct] = useState(true);
@@ -47,6 +42,7 @@ export default function EditarProductoPage() {
   const [factoryPickup, setFactoryPickup] = useState(false);
   const [ownLogistics, setOwnLogistics] = useState(false);
   const [thirdParty, setThirdParty] = useState(false);
+  const [noShipping, setNoShipping] = useState(false); // ✅ NUEVO
 
   /* ===============================
       🚚 ENVÍO PROPIO
@@ -56,7 +52,6 @@ export default function EditarProductoPage() {
   const [roundTrip, setRoundTrip] = useState(false);
   const [zones, setZones] = useState({ z1: "", z2: "", z3: "", z4: "" });
 
-  // Envío por terceros
   const [thirdPartyPrice, setThirdPartyPrice] = useState<number | "">("");
 
   /* ===============================
@@ -69,7 +64,6 @@ export default function EditarProductoPage() {
       📥 CARGAR PRODUCTO EXISTENTE
   =============================== */
   useEffect(() => {
-    // ✅ Guarda para asegurar que el ID existe antes de cargar
     if (!productId) return;
 
     async function loadProduct() {
@@ -86,7 +80,6 @@ export default function EditarProductoPage() {
           return;
         }
 
-        // Pre-llenar formulario
         setName(product.name || "");
         setDescription(product.description || "");
         setPrice(product.price || "");
@@ -94,19 +87,18 @@ export default function EditarProductoPage() {
         setNetProfitPerUnit(product.netProfitPerUnit ?? "");
         setCategory(product.category || "otros");
 
-        // Imágenes existentes
         if (Array.isArray(product.imageUrls) && product.imageUrls.length > 0) {
           setExistingImageUrls(product.imageUrls);
           setImagePreviews(product.imageUrls);
         }
 
-        // Shipping
         const shipping = product.shipping;
         if (shipping) {
           const methods: string[] = shipping.methods || [];
           setFactoryPickup(methods.includes("factory_pickup"));
           setOwnLogistics(methods.includes("own_logistics"));
           setThirdParty(methods.includes("third_party"));
+          setNoShipping(shipping.noShipping === true); // ✅ NUEVO
 
           if (methods.includes("own_logistics") && shipping.ownLogistics) {
             const own = shipping.ownLogistics;
@@ -225,6 +217,18 @@ export default function EditarProductoPage() {
     setError(null);
   };
 
+  // ✅ NUEVO: cuando se marca noShipping, se desmarcan los demás
+  const handleNoShippingChange = (checked: boolean) => {
+    setNoShipping(checked);
+    if (checked) {
+      setFactoryPickup(false);
+      setOwnLogistics(false);
+      setThirdParty(false);
+      setOwnType("");
+    }
+    setError(null);
+  };
+
   /* ===============================
       💾 SUBMIT
   =============================== */
@@ -259,8 +263,9 @@ export default function EditarProductoPage() {
       return;
     }
 
-    if (!factoryPickup && !ownLogistics && !thirdParty) {
-      setError("Elegí al menos un método de envío");
+    // ✅ NUEVO: acepta noShipping como opción válida
+    if (!factoryPickup && !ownLogistics && !thirdParty && !noShipping) {
+      setError("Elegí al menos un método de envío o indicá que no realizás envíos");
       return;
     }
 
@@ -303,6 +308,8 @@ export default function EditarProductoPage() {
         📦 ARMADO SHIPPING
     =============================== */
     const shipping: any = { methods: [] };
+
+    if (noShipping) shipping.noShipping = true; // ✅ NUEVO
     if (factoryPickup) shipping.methods.push("factory_pickup");
 
     if (ownLogistics) {
@@ -599,18 +606,24 @@ export default function EditarProductoPage() {
             <input
               type="checkbox"
               checked={factoryPickup}
+              disabled={noShipping}
               onChange={(e) => setFactoryPickup(e.target.checked)}
             />
-            <span>Retiro en fábrica (gratis)</span>
+            <span className={noShipping ? "text-gray-400 line-through" : ""}>
+              Retiro en fábrica (gratis)
+            </span>
           </label>
 
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={ownLogistics}
+              disabled={noShipping}
               onChange={(e) => handleOwnLogisticsChange(e.target.checked)}
             />
-            <span>Envío propio</span>
+            <span className={noShipping ? "text-gray-400 line-through" : ""}>
+              Envío propio
+            </span>
           </label>
 
           {ownLogistics && (
@@ -712,9 +725,12 @@ export default function EditarProductoPage() {
             <input
               type="checkbox"
               checked={thirdParty}
+              disabled={noShipping}
               onChange={(e) => handleThirdPartyChange(e.target.checked)}
             />
-            <span>Envío por terceros (precio fijo)</span>
+            <span className={noShipping ? "text-gray-400 line-through" : ""}>
+              Envío por terceros (precio fijo)
+            </span>
           </label>
 
           {thirdParty && (
@@ -727,6 +743,23 @@ export default function EditarProductoPage() {
               min={0}
             />
           )}
+
+          {/* ✅ NUEVO: No hago envíos */}
+          <div className="border-t border-gray-200 pt-3 mt-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={noShipping}
+                onChange={(e) => handleNoShippingChange(e.target.checked)}
+              />
+              <span className="text-gray-700 font-medium">No realizo envíos</span>
+            </label>
+            {noShipping && (
+              <p className="text-xs text-gray-500 mt-1 ml-6">
+                Los compradores solo podrán hacer pedidos fraccionados por plataforma.
+              </p>
+            )}
+          </div>
         </div>
 
         <button
