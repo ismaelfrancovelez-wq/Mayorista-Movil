@@ -236,7 +236,7 @@ export default function EditarProductoPage() {
     setError(null);
 
     const sanitizedName = sanitizeText(name, 100);
-    const sanitizedDescription = sanitizeText(description, 500);
+    const sanitizedDescription = sanitizeText(description, 1000);
 
     if (sanitizedName.length < 3) {
       setError("El nombre debe tener al menos 3 caracteres");
