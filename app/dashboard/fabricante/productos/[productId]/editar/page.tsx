@@ -443,7 +443,7 @@ export default function EditarProductoPage() {
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              maxLength={500}
+              maxLength={1000}
             />
             <p className="text-xs text-gray-400 mt-1">
               {description.length}/500 caracteres · mínimo 10
