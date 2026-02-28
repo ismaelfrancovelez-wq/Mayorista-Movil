@@ -91,6 +91,7 @@ export default async function ProductDetailPage({
   const allowFactoryShipping =
     shippingMethods.includes("own_logistics") ||
     shippingMethods.includes("third_party");
+  const noShipping = product.shipping?.noShipping === true;
   const hasFactoryAddress = !!(
     manufacturerInfo?.address?.formattedAddress ||
     manufacturerInfo?.address?.lat
@@ -286,6 +287,7 @@ export default async function ProductDetailPage({
                   allowPickup={allowPickup}
                   allowFactoryShipping={allowFactoryShipping}
                   hasFactoryAddress={hasFactoryAddress}
+                  noShipping={noShipping}
                 />
               )}
 

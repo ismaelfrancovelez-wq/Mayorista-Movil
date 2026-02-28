@@ -47,7 +47,7 @@ export type PaymentLevel = 1 | 2 | 3 | 4;
 
 // ── Badges de racha (se pierden al romper la racha) ─────────────
 export const STREAK_BADGES: { streak: number; id: string; label: string }[] = [
-  { streak: 3,  id: "streak_executive",  label: "Camino al Siguente Nivel"  },
+  { streak: 3,  id: "streak_executive",  label: "Camino al Exito"  },
   { streak: 5,  id: "streak_strategic",  label: "Revendedor Consolidado"    },
   { streak: 10, id: "streak_premium",    label: "Racha Activa"     },
   { streak: 20, id: "streak_top",        label: "Elite Privada"    },
@@ -55,7 +55,7 @@ export const STREAK_BADGES: { streak: number; id: string; label: string }[] = [
 
 // ── Badges de milestone (permanentes) ───────────────────────────
 export const MILESTONE_BADGES: { lots: number; id: string; label: string }[] = [
-  { lots: 1,  id: "milestone_first",      label: "Primer Eslabon"       },
+  { lots: 1,  id: "milestone_first",      label: "Primer Vinculo"       },
   { lots: 10, id: "milestone_solid",      label: "Revendedor Tallado"   },
   { lots: 25, id: "milestone_operator",   label: "Maestro del Sector"   },
   { lots: 50, id: "milestone_founding",   label: "Socio Fundador de MayoristaMovil"    },

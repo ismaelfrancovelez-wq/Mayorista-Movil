@@ -50,6 +50,7 @@ export default function NuevoProductoPage() {
   const [factoryPickup, setFactoryPickup] = useState(false);
   const [ownLogistics, setOwnLogistics] = useState(false);
   const [thirdParty, setThirdParty] = useState(false);
+  const [noShipping, setNoShipping] = useState(false); // Fabricante no realiza envíos
 
   /* ===============================
      🚚 ENVÍO PROPIO
@@ -128,7 +129,22 @@ export default function NuevoProductoPage() {
   /* ===============================
      ✅ VALIDACIÓN DE EXCLUSIVIDAD
   =============================== */
+  const handleNoShippingChange = (checked: boolean) => {
+    if (checked) {
+      // "Sin envío" es exclusivo: deshabilita ownLogistics y thirdParty
+      setOwnLogistics(false);
+      setThirdParty(false);
+      setOwnType("");
+    }
+    setNoShipping(checked);
+    setError(null);
+  };
+
   const handleOwnLogisticsChange = (checked: boolean) => {
+    if (checked && noShipping) {
+      setError("No podés combinar envío propio con sin envío");
+      return;
+    }
     if (checked && thirdParty) {
       setError("No podés elegir envío propio y envío por terceros al mismo tiempo");
       return;
@@ -139,6 +155,10 @@ export default function NuevoProductoPage() {
   };
 
   const handleThirdPartyChange = (checked: boolean) => {
+    if (checked && noShipping) {
+      setError("No podés combinar envío por terceros con sin envío");
+      return;
+    }
     if (checked && ownLogistics) {
       setError("No podés elegir envío por terceros y envío propio al mismo tiempo");
       return;
@@ -181,8 +201,8 @@ export default function NuevoProductoPage() {
       return;
     }
 
-    if (!factoryPickup && !ownLogistics && !thirdParty) {
-      setError("Elegí al menos un método de envío");
+    if (!factoryPickup && !ownLogistics && !thirdParty && !noShipping) {
+      setError("Elegí al menos un método de envío o indicá que no realizás envíos");
       return;
     }
 
@@ -230,6 +250,7 @@ export default function NuevoProductoPage() {
     =============================== */
     const shipping: any = { methods: [] };
 
+    if (noShipping) shipping.noShipping = true;
     if (factoryPickup) shipping.methods.push("factory_pickup");
 
     if (ownLogistics) {
@@ -500,8 +521,11 @@ export default function NuevoProductoPage() {
               type="checkbox"
               checked={ownLogistics}
               onChange={(e) => handleOwnLogisticsChange(e.target.checked)}
+              disabled={noShipping}
             />
-            <span>Envío propio</span>
+            <span className={noShipping ? "text-gray-400 line-through" : ""}>
+              Envío propio
+            </span>
           </label>
 
           {ownLogistics && (
@@ -604,9 +628,40 @@ export default function NuevoProductoPage() {
               type="checkbox"
               checked={thirdParty}
               onChange={(e) => handleThirdPartyChange(e.target.checked)}
+              disabled={noShipping}
             />
-            <span>Envío por terceros (precio fijo)</span>
+            <span className={noShipping ? "text-gray-400 line-through" : ""}>
+              Envío por terceros (precio fijo)
+            </span>
           </label>
+
+          {/* ── Sin envío ── */}
+          <div className="mt-2 border-t pt-3">
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={noShipping}
+                onChange={(e) => handleNoShippingChange(e.target.checked)}
+                className="mt-0.5"
+              />
+              <div>
+                <span className="font-medium">No realizo envíos</span>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Los revendedores solo podrán comprar mediante pedidos fraccionados —
+                  la plataforma gestiona el envío por ellos. Los pedidos directos no estarán disponibles.
+                </p>
+              </div>
+            </label>
+            {noShipping && (
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 ml-6">
+                <p className="text-sm text-blue-800">
+                  <strong>📦 Cómo funciona:</strong> La plataforma agrupa revendedores y organiza
+                  el envío desde tu fábrica. Vos solo preparás el pedido y lo entregás al
+                  transportista — sin costo ni gestión de tu parte.
+                </p>
+              </div>
+            )}
+          </div>
 
           {thirdParty && (
             <input

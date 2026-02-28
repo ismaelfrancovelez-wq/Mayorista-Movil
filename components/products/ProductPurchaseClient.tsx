@@ -10,6 +10,7 @@ type Props = {
   allowPickup: boolean;
   allowFactoryShipping: boolean;
   hasFactoryAddress: boolean;
+  noShipping?: boolean;           // fabricante no realiza envíos — solo fraccionado plataforma
   initialCommissionRate?: number; // ✅ NUEVO: viene del servidor, porcentaje real del usuario
 };
 
@@ -27,6 +28,7 @@ export default function ProductPurchaseClient({
   allowPickup,
   allowFactoryShipping,
   hasFactoryAddress,
+  noShipping = false,
   initialCommissionRate = 12,
 }: Props) {
   const [qty, setQty] = useState(1);
@@ -34,6 +36,7 @@ export default function ProductPurchaseClient({
 
   /* ─── Shipping state ─── */
   const [selectedShipping, setSelectedShipping] = useState<ShippingMode>(() => {
+    if (noShipping) return "platform";
     if (allowPickup) return "pickup";
     if (allowFactoryShipping) return "factory";
     return "platform";
@@ -220,6 +223,10 @@ export default function ProductPurchaseClient({
   /* ─── FLUJO PAGO ─── */
   async function handleCheckout() {
     if (blockedByAddress) return;
+    if (noShipping && !isFraccionado) {
+      alert("⚠️ Este fabricante no realiza envíos directos.\n\nSolo podés comprar mediante pedidos fraccionados — la plataforma gestiona el envío.");
+      return;
+    }
     if (mpConnected === false) {
       alert("⚠️ Este producto no está disponible para compra.\n\nEl fabricante aún no ha vinculado su cuenta de Mercado Pago.");
       return;
@@ -341,6 +348,25 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
+      {/* ℹ️ Sin envío del fabricante */}
+      {noShipping && (
+        <div className="mb-6 bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">🚚</div>
+            <div>
+              <p className="font-semibold text-indigo-900 mb-1">
+                Este fabricante no realiza envíos directos
+              </p>
+              <p className="text-sm text-indigo-700">
+                {isFraccionado
+                  ? "Podés sumarte a un pedido fraccionado — la plataforma coordina el envío y lo dividís con otros compradores."
+                  : "Para pedidos del mínimo o más, el envío lo coordinás directamente con el fabricante."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CANTIDAD */}
       <div className="mb-4">
         <label className="block text-sm font-medium mb-1">Cantidad</label>
@@ -383,7 +409,7 @@ export default function ProductPurchaseClient({
           </label>
         )}
 
-        {isFraccionado && (
+        {(isFraccionado || noShipping) && (
           <label className="block mt-1">
             <input
               type="radio"
@@ -527,7 +553,8 @@ export default function ProductPurchaseClient({
           disabled={
             loadingMPStatus ||
             mpConnected === false ||
-            blockedByAddress
+            blockedByAddress ||
+            (noShipping && !isFraccionado)
           }
           className="w-full bg-black text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -537,6 +564,8 @@ export default function ProductPurchaseClient({
             ? "No disponible — el fabricante no configuró su dirección"
             : mpConnected === false
             ? "Producto no disponible"
+            : noShipping && !isFraccionado
+            ? "Envío no disponible — comprá en cantidad fraccionada"
             : "Continuar al pago"}
         </button>
       )}
