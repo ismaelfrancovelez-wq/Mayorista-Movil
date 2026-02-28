@@ -18,14 +18,14 @@ export function validateShippingConfig(shipping: ProductShipping) {
   }
 
   const hasAnyMethod =
-    shipping.methods.length > 0;
+  shipping.methods.length > 0 || shipping.noShipping === true;
 
-  if (!hasAnyMethod) {
-    throw new ShippingConfigError(
-      "Debe existir al menos un método de entrega",
-      "NO_SHIPPING_METHOD"
-    );
-  }
+if (!hasAnyMethod) {
+  throw new ShippingConfigError(
+    "Debe existir al menos un método de entrega",
+    "NO_SHIPPING_METHOD"
+  );
+}
 
   // 🚚 Envío propio
   if (shipping.methods.includes("own_logistics")) {
