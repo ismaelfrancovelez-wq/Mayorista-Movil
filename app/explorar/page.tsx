@@ -28,6 +28,7 @@ type Product = {
   manufacturerImageUrl?: string;
   manufacturerVerified?: boolean;
   isIntermediary?: boolean;
+  unitLabel?: string;
 };
 
 async function getProducts(): Promise<Product[]> {
@@ -87,6 +88,7 @@ async function getProducts(): Promise<Product[]> {
         manufacturerImageUrl: manufacturer?.profileImageUrl || undefined,
         manufacturerVerified: manufacturer?.verified || false,
         isIntermediary: data.isIntermediary || false,
+        unitLabel: data.unitLabel || undefined,
       };
     });
 

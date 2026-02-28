@@ -19,6 +19,7 @@ type Product = {
   manufacturerImageUrl?: string;
   manufacturerVerified?: boolean;
   isIntermediary?: boolean;
+  unitLabel?: string;
 };
 
 // ✅ NUEVO: tipo para lotes por cerrar
@@ -34,6 +35,7 @@ type ClosingSoonLot = {
   manufacturerName?: string;
   manufacturerVerified?: boolean;
   manufacturerImageUrl?: string;
+  unitLabel?: string;
 };
 
 type SortOption = "price_asc" | "price_desc" | "min_asc" | "min_desc" | "name";
@@ -304,7 +306,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                         </div>
 
                         <p className="text-xs font-bold text-gray-900 mt-auto">
-                          ${lot.productPrice.toLocaleString("es-AR")} / u.
+                          ${lot.productPrice.toLocaleString("es-AR")}{lot.unitLabel ? ` / ${lot.unitLabel}` : " / u."}
                         </p>
                       </div>
                     </Link>
@@ -575,13 +577,13 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                         <p className="text-gray-900 mb-1">
                           <span className="font-medium">Precio:</span>{" "}
                           <span className="font-bold text-gray-900">
-                            ${product.price.toLocaleString("es-AR")}
+                            ${product.price.toLocaleString("es-AR")}{product.unitLabel && <span className="text-gray-500 font-normal text-sm"> / {product.unitLabel}</span>}
                           </span>
                         </p>
 
                         {/* Pedido mínimo */}
                         <p className="text-sm text-gray-600 mb-4">
-                          Pedido mínimo: {product.minimumOrder} unidades
+                          Pedido mínimo: {product.minimumOrder} {product.unitLabel ? `unidades (${product.unitLabel} c/u)` : "unidades"}
                         </p>
 
                         {/* Botón */}

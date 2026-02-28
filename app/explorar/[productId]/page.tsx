@@ -92,6 +92,7 @@ export default async function ProductDetailPage({
     shippingMethods.includes("own_logistics") ||
     shippingMethods.includes("third_party");
   const noShipping = product.shipping?.noShipping === true;
+  const unitLabel: string | null = (product as any).unitLabel || null;
   const hasFactoryAddress = !!(
     manufacturerInfo?.address?.formattedAddress ||
     manufacturerInfo?.address?.lat
@@ -161,16 +162,40 @@ export default async function ProductDetailPage({
               </h1>
 
               {/* PRECIO */}
-              <p className="text-3xl font-light text-gray-900 mb-3">
-                ${product.price.toLocaleString("es-AR")}
-              </p>
-
-              {/* PEDIDO MÍNIMO */}
-              <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Pedido mínimo</p>
-                <p className="text-xl font-semibold text-gray-900">
-                  {minimumOrder} unidades
+              <div className="mb-3">
+                <p className="text-3xl font-light text-gray-900 leading-none">
+                  ${product.price.toLocaleString("es-AR")}
+                  {unitLabel && (
+                    <span className="text-base font-normal text-gray-500 ml-1">
+                      / {unitLabel}
+                    </span>
+                  )}
                 </p>
+                {unitLabel && (
+                  <p className="text-xs text-gray-400 mt-1">precio por {unitLabel}</p>
+                )}
+              </div>
+
+              {/* PEDIDO MÍNIMO + PRECIO TOTAL */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Pedido mínimo</p>
+                  <p className="text-xl font-semibold text-gray-900">
+                    {minimumOrder} uds.
+                  </p>
+                  {unitLabel && (
+                    <p className="text-xs text-gray-500 mt-0.5">{unitLabel} c/u</p>
+                  )}
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Precio mínimo total</p>
+                  <p className="text-xl font-semibold text-gray-900">
+                    ${(product.price * minimumOrder).toLocaleString("es-AR")}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {minimumOrder} × ${product.price.toLocaleString("es-AR")}
+                  </p>
+                </div>
               </div>
 
               {/* PROGRESO FRACCIONADO */}
@@ -178,7 +203,7 @@ export default async function ProductDetailPage({
                 <div className="bg-blue-50 rounded-lg p-3 mb-3">
                   <h3 className="font-semibold text-xs mb-1.5 text-blue-900">📦 Progreso Fraccionado</h3>
                   <p className="text-xs text-gray-600 mb-2">
-                    {progressData.accumulatedQty} / {minimumOrder} unidades acumuladas
+                    {progressData.accumulatedQty} / {minimumOrder} unidades acumuladas{unitLabel ? ` (${unitLabel} c/u)` : ""}
                   </p>
                   <div className="w-full bg-blue-100 rounded-full h-2">
                     <div
@@ -288,6 +313,7 @@ export default async function ProductDetailPage({
                   allowFactoryShipping={allowFactoryShipping}
                   hasFactoryAddress={hasFactoryAddress}
                   noShipping={noShipping}
+                  unitLabel={unitLabel || undefined}
                 />
               )}
 

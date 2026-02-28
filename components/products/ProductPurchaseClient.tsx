@@ -11,6 +11,7 @@ type Props = {
   allowFactoryShipping: boolean;
   hasFactoryAddress: boolean;
   noShipping?: boolean;           // fabricante no realiza envíos — solo fraccionado plataforma
+  unitLabel?: string;             // ej: "500g", "1kg", "750ml" — se muestra junto al precio
   initialCommissionRate?: number; // ✅ NUEVO: viene del servidor, porcentaje real del usuario
 };
 
@@ -29,6 +30,7 @@ export default function ProductPurchaseClient({
   allowFactoryShipping,
   hasFactoryAddress,
   noShipping = false,
+  unitLabel,
   initialCommissionRate = 12,
 }: Props) {
   const [qty, setQty] = useState(1);
@@ -382,7 +384,7 @@ export default function ProductPurchaseClient({
           min={1}
         />
         <p className="text-xs text-gray-500 mt-1">
-          Mínimo de fábrica: {MF} unidades
+          Mínimo de fábrica: {MF} unidades{unitLabel ? <span className="text-gray-400"> ({unitLabel} c/u)</span> : null}
         </p>
       </div>
 
@@ -474,7 +476,7 @@ export default function ProductPurchaseClient({
 
       {/* RESUMEN DE COSTOS */}
       <div className="border rounded p-4 text-sm mb-4 bg-gray-50">
-        <p>Subtotal producto: $ {formatNumber(productSubtotal)}</p>
+        <p>Subtotal producto: $ {formatNumber(productSubtotal)}{unitLabel ? <span className="text-gray-400 text-xs"> ({qty}× {unitLabel})</span> : null}</p>
         {commission > 0 && (
           <p>Comisión ({commissionRate}%): $ {formatNumber(commission)}</p>
         )}

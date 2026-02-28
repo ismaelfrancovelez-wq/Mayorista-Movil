@@ -26,13 +26,13 @@ export type OwnLogisticsPricing =
 
 export interface ProductShipping {
   methods: ShippingMethod[];
-  noShipping?: boolean; // ✅ AGREGADO: Para evitar error 2339
   ownLogistics?: OwnLogisticsPricing;
   thirdParty?: {
     fixedPrice: number;
     disclaimerAccepted: boolean;
   };
   factoryPickup?: boolean;
+  noShipping?: boolean; // fabricante no realiza envíos — solo fraccionado por plataforma
 }
 
 export interface ProductProfit {
@@ -84,6 +84,7 @@ export interface Product {
   /* 📦 BÁSICO */
   name: string;
   description: string;        // ✅ obligatorio
+  unitLabel?: string;           // opcional — ej: "500g", "1kg", "750ml", "pack x6"
   price: number;
   minimumOrder: number;
 
@@ -92,7 +93,6 @@ export interface Product {
 
   /* 🖼️ IMÁGENES DEL PRODUCTO */
   imageUrls?: string[];       // ✅ array de URLs en lugar de imageUrl string
-  imageUrl?: string;          // ✅ AGREGADO: Compatibilidad con productos de imagen única
 
   /* 💰 Ganancia neta informativa por unidad (solo fabricante) */
   netProfitPerUnit: number;

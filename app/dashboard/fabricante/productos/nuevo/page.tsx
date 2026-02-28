@@ -35,6 +35,7 @@ export default function NuevoProductoPage() {
   const [minimumOrder, setMinimumOrder] = useState<number | "">("");
   const [netProfitPerUnit, setNetProfitPerUnit] = useState<number | "">("");
   const [category, setCategory] = useState<ProductCategory>("otros");
+  const [unitLabel, setUnitLabel] = useState(""); // ej: "500g", "1kg", "750ml"
 
   /* ===============================
      🖼️ IMÁGENES DEL PRODUCTO (múltiples)
@@ -131,7 +132,6 @@ export default function NuevoProductoPage() {
   =============================== */
   const handleNoShippingChange = (checked: boolean) => {
     if (checked) {
-      // "Sin envío" es exclusivo: deshabilita ownLogistics y thirdParty
       setOwnLogistics(false);
       setThirdParty(false);
       setOwnType("");
@@ -174,7 +174,8 @@ export default function NuevoProductoPage() {
     setError(null);
 
     const sanitizedName = sanitizeText(name, 100);
-    const sanitizedDescription = sanitizeText(description, 1000);
+    const sanitizedDescription = sanitizeText(description, 500);
+    const sanitizedUnitLabel = sanitizeText(unitLabel, 20);
 
     if (sanitizedName.length < 3) {
       setError("El nombre debe tener al menos 3 caracteres");
@@ -311,6 +312,7 @@ export default function NuevoProductoPage() {
           minimumOrder: Number(minimumOrder),
           netProfitPerUnit: Number(netProfitPerUnit),
           category,
+          unitLabel: sanitizedUnitLabel || undefined,
           shipping,
           imageUrls,   // ✅ array de URLs
         }),
@@ -373,10 +375,10 @@ export default function NuevoProductoPage() {
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              maxLength={1000}
+              maxLength={500}
             />
             <p className="text-xs text-gray-400 mt-1">
-              {description.length}/1000 caracteres · mínimo 10
+              {description.length}/500 caracteres · mínimo 10
             </p>
           </div>
 
@@ -393,6 +395,29 @@ export default function NuevoProductoPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Unidad del producto */}
+          <div>
+            <label className="block text-sm mb-1">
+              Unidad de medida{" "}
+              <span className="text-gray-400 font-normal">(opcional)</span>
+            </label>
+            <input
+              placeholder="Ej: 500g · 1kg · 750ml · 1 litro · pack x6"
+              className="w-full border rounded px-3 py-2"
+              value={unitLabel}
+              onChange={(e) => setUnitLabel(e.target.value)}
+              maxLength={20}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Se muestra junto al precio. Dejalo vacío si vendés por pieza/unidad simple.
+            </p>
+            {unitLabel && (
+              <p className="text-xs text-blue-600 mt-1">
+                Vista previa: <strong>$ {price ? Number(price).toLocaleString("es-AR") : "0"} / {unitLabel}</strong>
+              </p>
+            )}
           </div>
 
           {/* ✅ MÚLTIPLES IMÁGENES */}
@@ -648,7 +673,7 @@ export default function NuevoProductoPage() {
                 <span className="font-medium">No realizo envíos</span>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Los revendedores solo podrán comprar mediante pedidos fraccionados —
-                  la plataforma gestiona el envío por ellos. Los pedidos directos no estarán disponibles.
+                  la plataforma gestiona el envío por ellos.
                 </p>
               </div>
             </label>

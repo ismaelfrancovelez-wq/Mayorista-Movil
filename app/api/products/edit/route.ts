@@ -118,13 +118,16 @@ export async function POST(req: Request) {
     =============================== */
     await productRef.update({
       name: body.name.trim().substring(0, 100),
-      description: body.description.trim().substring(0, 1000),
+      description: body.description.trim().substring(0, 500),
       price: body.price,
       minimumOrder: body.minimumOrder,
       netProfitPerUnit: body.netProfitPerUnit,
       category: body.category || "otros",
       imageUrls: Array.isArray(body.imageUrls) ? body.imageUrls : [],
       shipping: body.shipping,
+      unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim()
+        ? body.unitLabel.trim().substring(0, 20)
+        : null,
       updatedAt: FieldValue.serverTimestamp(),
     });
 

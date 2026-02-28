@@ -14,6 +14,7 @@ type Product = {
   allowPickup: boolean;
   allowFactoryShipping: boolean;
   noShipping: boolean;
+  unitLabel?: string;
 };
 
 type FraccionadoLot = {
@@ -47,6 +48,7 @@ async function getProductById(id: string): Promise<Product | null> {
     allowFactoryShipping:
       methods.includes("own_logistics") || methods.includes("third_party"),
     noShipping: data?.shipping?.noShipping === true,
+    unitLabel: data?.unitLabel || undefined,
   };
 }
 
@@ -132,6 +134,7 @@ export default async function ProductPage({ params }: Props) {
         allowFactoryShipping={product.allowFactoryShipping}
         hasFactoryAddress={hasFactoryAddress}
         noShipping={product.noShipping}
+        unitLabel={product.unitLabel}
       />
     </main>
   );

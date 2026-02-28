@@ -109,7 +109,12 @@ export async function POST(req: Request) {
       factoryId, // 🔒 siempre desde cookie / rol
 
       name: body.name,
-      description: body.description.trim(), // ✅ NUEVO: descripción obligatoria
+      description: body.description.trim(),
+
+      // etiqueta de unidad opcional ("500g", "1kg", "750ml", etc.)
+      unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim()
+        ? body.unitLabel.trim().substring(0, 20)
+        : null,
 
       price: body.price,
       minimumOrder: body.minimumOrder,
