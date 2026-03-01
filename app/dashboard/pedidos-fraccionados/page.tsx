@@ -9,6 +9,7 @@ import { Suspense } from "react";
 import { DashboardSkeleton } from "../../../components/DashboardSkeleton";
 import CancelReservationButton from "../../../components/CancelReservationButton";
 import HideOrderButton from "../../../components/HideOrderButton";
+import { STREAK_BADGES, MILESTONE_BADGES } from "../../../lib/retailers/calculateScore";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
@@ -67,11 +68,14 @@ async function DashboardRevendedorContent() {
     userEmail.split("@")[0] ||
     "revendedor";
 
-  // ✅ BADGES: leer del doc retailers para el UserRoleHeader
+  // BADGES + NIVEL + SCORE para UserRoleHeader y modal
   const retailerData = retailerSnap.data() || {};
   const milestoneBadges: string[] = retailerData.milestoneBadges ?? [];
   const streakBadges: string[] = retailerData.streakBadges ?? [];
   const currentStreak: number = retailerData.currentStreak ?? 0;
+  const paymentLevel: number = retailerData.paymentLevel ?? 2;
+  const completedLots: number = retailerData.completedReservations ?? 0;
+  const scoreValue: number = retailerData.scoreAggregate?.score ?? 0.5;
 
   /* ── 2. ESTADO REAL DE LOTES DESDE FIRESTORE ── */
   const allLotIds = new Set<string>();
@@ -309,6 +313,9 @@ async function DashboardRevendedorContent() {
             milestoneBadges={milestoneBadges}
             streakBadges={streakBadges}
             currentStreak={currentStreak}
+            paymentLevel={paymentLevel}
+            completedLots={completedLots}
+            scoreValue={scoreValue}
           />
         </div>
 
