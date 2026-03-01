@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { formatCurrency } from "../../../../lib/utils";
 import CancelReservationButton from "../../../../components/CancelReservationButton";
 import HideOrderButton from "../../../../components/HideOrderButton";
+import { STREAK_BADGES, MILESTONE_BADGES } from "../../../../lib/retailers/calculateScore";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
@@ -260,6 +261,110 @@ function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
         🏆 Acumulá reservas para desbloquear descuentos en envío y llegar al lote gratis
       </p>
     </div>
+  );
+}
+
+
+// ── BLOQUE 5 impl 13 — Barras de progreso ────────────────────────────────────
+// Tres barras: nivel de confianza, badge de racha, badge permanente.
+// Goal Gradient Effect (Kivetz, 2006): la barra se vuelve dorada cuando quedan 1-2 pasos.
+
+function ProgressBar({
+  label,
+  sublabel,
+  pct,
+  urgent,
+  color,
+  icon,
+  nextLabel,
+  currentLabel,
+}: {
+  label: string;
+  sublabel: string;
+  pct: number;
+  urgent: boolean;
+  color: string;         // clases Tailwind para la barra llena
+  icon: string;
+  nextLabel: string;     // texto del siguiente hito
+  currentLabel: string;  // texto del estado actual
+}) {
+  const barColor = urgent
+    ? "bg-gradient-to-r from-yellow-400 to-orange-500"
+    : color;
+
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center justify-between mb-1 gap-1">
+        <span className="text-xs font-semibold text-gray-700 flex items-center gap-1 truncate">
+          <span>{icon}</span>
+          <span className="truncate">{label}</span>
+        </span>
+        <span className={`text-xs font-bold flex-shrink-0 ${urgent ? "text-orange-600" : "text-gray-500"}`}>
+          {pct}%
+        </span>
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-2.5 mb-1 relative overflow-hidden">
+        <div
+          className={`${barColor} h-2.5 rounded-full transition-all duration-500 ${urgent ? "animate-pulse" : ""}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-500 truncate">{currentLabel}</span>
+        <span className={`text-xs truncate text-right ${urgent ? "text-orange-600 font-semibold" : "text-gray-400"}`}>
+          → {nextLabel}
+        </span>
+      </div>
+      {urgent && (
+        <p className="text-xs text-orange-600 font-semibold mt-0.5 text-center">
+          ¡Muy cerca!
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── BLOQUE 5 impl 12 — Badges con 3 estados ──────────────────────────────────
+// Estado 1 bloqueado: gris con candado + tooltip
+// Estado 2 desbloqueado: color completo
+// Estado 3 racha activa: color + pulso animado
+// Information Gap Theory (Loewenstein, 1994): badge bloqueado pero visible activa la anticipación.
+
+function BadgeChip({
+  label,
+  state,          // "locked" | "unlocked" | "active"
+  tooltip,
+  color,          // clases de color para estado unlocked/active
+}: {
+  label: string;
+  state: "locked" | "unlocked" | "active";
+  tooltip?: string;
+  color: string;
+}) {
+  if (state === "locked") {
+    return (
+      <span
+        title={tooltip}
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 border border-gray-200 cursor-help select-none"
+      >
+        🔒 {label}
+      </span>
+    );
+  }
+  if (state === "active") {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border animate-pulse ${color}`}
+      >
+        ⚡ {label}
+      </span>
+    );
+  }
+  // unlocked
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${color}`}>
+      🏅 {label}
+    </span>
   );
 }
 
@@ -544,14 +649,46 @@ export default async function PedidosPage() {
   const userSnap = await db.collection("users").doc(userId).get();
   const hiddenIds: string[] = userSnap.data()?.hiddenOrders || [];
 
-  // BLOQUE 2 impl 5 y 6: leer nivel del retailer para mostrar banner y framing
+  // BLOQUE 2+5: leer nivel, score, racha y badges del retailer
   const retailerSnap = await db.collection("retailers").doc(userId).get();
-  const retailerLevel: number = retailerSnap.data()?.paymentLevel ?? 2;
+  const retailerData = retailerSnap.data() ?? {};
+  const retailerLevel: number       = retailerData.paymentLevel         ?? 2;
+  const retailerScore: number       = retailerData.scoreAggregate?.score ?? 0.6;
+  const currentStreak: number       = retailerData.currentStreak         ?? 0;
+  const completedLots: number       = retailerData.completedReservations  ?? 0;
+  const streakBadges: string[]      = retailerData.streakBadges           ?? [];
+  const milestoneBadges: string[]   = retailerData.milestoneBadges        ?? [];
 
   const orders = await getRetailerOrders(userId, hiddenIds);
 
   // BLOQUE 2 impl 6: framing del nivel actual del retailer
   const levelCfg = LEVEL_CONFIG[retailerLevel] ?? LEVEL_CONFIG[2];
+
+  // BLOQUE 5 impl 13: calcular próximos hitos para las 3 barras de progreso
+  const nextStreakBadge  = STREAK_BADGES.find((b) => currentStreak < b.streak) ?? null;
+  const nextMilestone    = MILESTONE_BADGES.find((b) => completedLots < b.lots) ?? null;
+  // Score hacia nivel 1 (Verde): target 0.75, actual retailerScore
+  const scoreToGreen     = Math.min(retailerScore / 0.75, 1);
+  const scoreToGreenPct  = Math.round(scoreToGreen * 100);
+  // Racha: progreso hacia próximo badge
+  const streakPrev       = nextStreakBadge
+    ? (STREAK_BADGES[STREAK_BADGES.indexOf(nextStreakBadge) - 1]?.streak ?? 0)
+    : (STREAK_BADGES[STREAK_BADGES.length - 1]?.streak ?? 0);
+  const streakTarget     = nextStreakBadge?.streak ?? streakPrev;
+  const streakPct        = nextStreakBadge
+    ? Math.round(Math.min((currentStreak - streakPrev) / (streakTarget - streakPrev), 1) * 100)
+    : 100;
+  // Milestone: progreso hacia próximo badge permanente
+  const milestonePrev    = nextMilestone
+    ? (MILESTONE_BADGES[MILESTONE_BADGES.indexOf(nextMilestone) - 1]?.lots ?? 0)
+    : (MILESTONE_BADGES[MILESTONE_BADGES.length - 1]?.lots ?? 0);
+  const milestoneTarget  = nextMilestone?.lots ?? milestonePrev;
+  const milestonePct     = nextMilestone
+    ? Math.round(Math.min((completedLots - milestonePrev) / (milestoneTarget - milestonePrev), 1) * 100)
+    : 100;
+  // Colores de urgencia (dorado cuando quedan 1-2 para el siguiente hito)
+  const streakUrgent     = nextStreakBadge && (nextStreakBadge.streak - currentStreak) <= 2;
+  const milestoneUrgent  = nextMilestone   && (nextMilestone.lots    - completedLots)  <= 2;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -562,19 +699,104 @@ export default async function PedidosPage() {
           <p className="text-gray-600">Últimos 50 pedidos (actualizado cada 10 segundos)</p>
 
           {/* BLOQUE 2 impl 6 — Banner de nivel actual con framing positivo */}
-          <div className={`mt-4 flex items-center gap-3 p-3 rounded-lg border ${levelCfg.bgColor} ${levelCfg.borderColor}`}>
-            <span className="text-2xl">
-              {retailerLevel === 1 ? "🟢" : retailerLevel === 2 ? "🟡" : retailerLevel === 3 ? "🟠" : "🔴"}
-            </span>
-            <div>
-              <p className={`text-sm font-semibold ${levelCfg.color}`}>
-                {levelCfg.framingLabel}
-              </p>
-              <p className="text-xs text-gray-600">{levelCfg.framingDesc}</p>
+          <div className={`mt-4 p-4 rounded-lg border ${levelCfg.bgColor} ${levelCfg.borderColor}`}>
+            {/* Fila superior: nivel + comisión */}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl flex-shrink-0">
+                {retailerLevel === 1 ? "🟢" : retailerLevel === 2 ? "🟡" : retailerLevel === 3 ? "🟠" : "🔴"}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${levelCfg.color}`}>
+                  {levelCfg.framingLabel}
+                </p>
+                <p className="text-xs text-gray-600">{levelCfg.framingDesc}</p>
+              </div>
+              <div className="flex-shrink-0 text-right">
+                <p className={`text-lg font-bold ${levelCfg.color}`}>{levelCfg.pct}</p>
+                <p className="text-xs text-gray-500">comisión actual</p>
+              </div>
             </div>
-            <div className="ml-auto text-right">
-              <p className={`text-lg font-bold ${levelCfg.color}`}>{levelCfg.pct}</p>
-              <p className="text-xs text-gray-500">comisión actual</p>
+
+            {/* BLOQUE 5 impl 13 — Tres barras de progreso */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+              {/* Barra 1: Nivel de confianza → Nivel Verde */}
+              <ProgressBar
+                label="Nivel de confianza"
+                sublabel="Score hacia Nivel Verde"
+                pct={retailerLevel === 1 ? 100 : scoreToGreenPct}
+                urgent={retailerLevel !== 1 && scoreToGreenPct >= 85}
+                color="bg-gradient-to-r from-green-400 to-green-600"
+                icon="📊"
+                currentLabel={`Nivel ${levelCfg.label} — Score ${Math.round(retailerScore * 100)}/100`}
+                nextLabel={retailerLevel === 1 ? "¡Nivel Verde alcanzado!" : "Nivel Verde (9%)"}
+              />
+
+              {/* Barra 2: Badge de racha */}
+              <ProgressBar
+                label="Racha"
+                sublabel="Puntos hacia próximo badge"
+                pct={streakPct}
+                urgent={!!streakUrgent}
+                color="bg-gradient-to-r from-blue-400 to-blue-600"
+                icon="⚡"
+                currentLabel={`${currentStreak} pt${currentStreak !== 1 ? "s" : ""}`}
+                nextLabel={nextStreakBadge ? `${nextStreakBadge.label} (${nextStreakBadge.streak} pts)` : "¡Racha máxima!"}
+              />
+
+              {/* Barra 3: Badge permanente (milestone) */}
+              <ProgressBar
+                label="Historial"
+                sublabel="Lotes hacia próximo badge permanente"
+                pct={milestonePct}
+                urgent={!!milestoneUrgent}
+                color="bg-gradient-to-r from-amber-400 to-amber-600"
+                icon="🎖️"
+                currentLabel={`${completedLots} lote${completedLots !== 1 ? "s" : ""} pagados`}
+                nextLabel={nextMilestone ? `${nextMilestone.label} (${nextMilestone.lots} lotes)` : "¡Máximo nivel!"}
+              />
+            </div>
+
+            {/* BLOQUE 5 impl 12 — Badges con 3 estados */}
+            {/* Badges de racha */}
+            <div className="mb-2">
+              <p className="text-xs text-gray-500 font-medium mb-1.5 uppercase tracking-wide">Badges de racha</p>
+              <div className="flex flex-wrap gap-1.5">
+                {STREAK_BADGES.map((b) => {
+                  const isActive   = streakBadges.includes(b.id) && b.streak === (STREAK_BADGES.slice().reverse().find(x => streakBadges.includes(x.id))?.streak ?? -1);
+                  const isUnlocked = streakBadges.includes(b.id) && !isActive;
+                  const state      = isActive ? "active" : isUnlocked ? "unlocked" : "locked";
+                  const ptsLeft    = b.streak - currentStreak;
+                  return (
+                    <BadgeChip
+                      key={b.id}
+                      label={b.label}
+                      state={state}
+                      tooltip={state === "locked" ? `Alcanzá ${b.streak} puntos de racha para desbloquear (te faltan ${ptsLeft})` : undefined}
+                      color="bg-blue-100 text-blue-800 border-blue-300"
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Badges permanentes */}
+            <div>
+              <p className="text-xs text-gray-500 font-medium mb-1.5 uppercase tracking-wide">Badges permanentes</p>
+              <div className="flex flex-wrap gap-1.5">
+                {MILESTONE_BADGES.map((b) => {
+                  const isUnlocked = milestoneBadges.includes(b.id);
+                  const lotsLeft   = b.lots - completedLots;
+                  return (
+                    <BadgeChip
+                      key={b.id}
+                      label={b.label}
+                      state={isUnlocked ? "unlocked" : "locked"}
+                      tooltip={!isUnlocked ? `Completá ${b.lots} lotes para desbloquear (te faltan ${lotsLeft})` : undefined}
+                      color="bg-amber-100 text-amber-800 border-amber-300"
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
