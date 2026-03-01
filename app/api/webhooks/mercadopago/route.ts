@@ -381,7 +381,7 @@ export async function POST(req: NextRequest) {
 
             const streakLine = updatedScore.currentStreak > 0
               ? `<div style="margin:6px 0;font-size:13px;color:#374151;">
-                  🔥 Racha actual: <strong>${updatedScore.currentStreak} pagos consecutivos en &lt;12h</strong>
+                  ⚡ Racha activa: <strong>${updatedScore.currentStreak} punto${updatedScore.currentStreak !== 1 ? "s" : ""} acumulado${updatedScore.currentStreak !== 1 ? "s" : ""}</strong>
                  </div>`
               : "";
 
@@ -402,11 +402,7 @@ export async function POST(req: NextRequest) {
                 💼 Tu comisión actual: <strong>${updatedScore.commission}% (Nivel ${updatedScore.level})</strong>
                </div>`;
 
-            const discountLine = updatedScore.nextMilestoneDiscount
-              ? `<div style="background:#fef9c3;border:1px solid #fde047;border-radius:6px;padding:10px 14px;margin-top:10px;font-size:13px;color:#713f12;">
-                  🎁 <strong>¡Lograste un hito!</strong> Tu próximo lote tiene 1% de descuento adicional sobre el producto.
-                 </div>`
-              : "";
+            const discountLine = ""; // nextMilestoneDiscount eliminado (Bloque 1)
 
             const nextStreakBadge = STREAK_BADGES.find(
               (b) => updatedScore!.currentStreak < b.streak

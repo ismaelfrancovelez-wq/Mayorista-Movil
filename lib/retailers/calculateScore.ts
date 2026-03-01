@@ -6,7 +6,7 @@
 // SCORE FINAL = (velocidadPromedio × 0.5) + (tasaCompletado × 0.5)
 //
 // Velocidad por reserva:
-//   0-12h  → 1.0
+//   0-16h  → 1.0
 //   12-24h → 0.75
 //   24-48h → 0.50
 //   48-72h → 0.25
@@ -137,7 +137,7 @@ export interface RetailerScore {
 // ── Helpers ───────────────────────────────────────────────────────
 
 function speedScore(hoursToPayment: number): number {
-  if (hoursToPayment <= 12) return 1.0;
+  if (hoursToPayment <= 16) return 1.0;
   if (hoursToPayment <= 24) return 0.75;
   if (hoursToPayment <= 48) return 0.50;
   if (hoursToPayment <= 72) return 0.25;

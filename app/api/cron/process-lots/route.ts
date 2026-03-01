@@ -2,31 +2,18 @@
 //
 // GET — llamado por Vercel Cron cada 15 minutos.
 //
-// PROBLEMA QUE RESUELVE:
-//   Con 60-70 compradores, el flujo anterior tardaba ~105s
-//   (1500ms × 70 = MP preference + Firestore update + email + 600ms delay).
-//   Eso supera cualquier límite serverless (Vercel Hobby = 60s).
+// BLOQUE 4 impl 10: Cuando el lote se procesa, se calcula y guarda
+// paymentDeadlineAt en cada reserva (lotClosedAt + 24h, o +26h si cierra entre 22-8h).
+// El email muestra la hora límite exacta para que el revendedor sepa con precisión
+// cuándo vence su plazo — elimina el argumento "no me enteré".
 //
-// SOLUCIÓN:
-//   1. Genera todas las preferences de MP en secuencia (MP no tiene batch API)
-//   2. Actualiza todas las reservas en Firestore con Promise.all (paralelo)
-//   3. Manda TODOS los emails en UNA sola llamada a resend.batch.send()
-//      → Resend permite hasta 100 emails por llamada
-//      → Para lotes > 100 compradores, divide automáticamente en chunks de 100
+// ARQUITECTURA:
+//   1. Genera preferences MP en secuencial (~500ms c/u)
+//   2. Actualiza reservas en Firestore con Promise.all (paralelo)
+//   3. Manda todos los emails con resend.batch.send (1 sola llamada)
 //
-// TIEMPO ESTIMADO CON 70 COMPRADORES:
-//   MP preferences secuencial:  ~35s  (500ms × 70, sin delay entre llamadas)
-//   Firestore updates paralelo: ~1s
-//   Resend batch (1 llamada):   ~2s
-//   Total:                      ~38s  ✅ dentro del límite de 60s Hobby
-//
-// SEGURIDAD:
-//   Verifica header x-cron-secret.
-//   Agregar en Vercel env: CRON_SECRET=cualquier_string_secreto
-//
-// IDEMPOTENCIA:
-//   Lote se marca "processing" antes de empezar.
-//   Si falla, se revierte a "closed" para reintento en 15min.
+// IDEMPOTENCIA: Lote se marca "processing" antes de empezar.
+// Si falla → revierte a "closed" para reintento en 15min.
 
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
@@ -35,11 +22,30 @@ import { FieldValue } from "firebase-admin/firestore";
 import { createSplitPreference } from "../../../../lib/mercadopago-split";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Vercel Hobby max — alcanza para 70 compradores
+export const maxDuration = 60;
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.EMAIL_FROM || "onboarding@resend.dev";
+
+// ── BLOQUE 4 impl 10: calcular deadline de pago ────────────────────────────
+// Si el lote cierra entre las 22:00 y las 08:00 → +26h (margen nocturno)
+// Si cierra en horario diurno → +24h
+function calcPaymentDeadline(lotClosedAt: Date): Date {
+  // Plazo fijo de 48 horas desde el cierre del lote
+  return new Date(lotClosedAt.getTime() + 72 * 60 * 60 * 1000);
+}
+
+function formatDeadlineAR(date: Date): string {
+  return date.toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 /* ====================================================
    TIPOS
@@ -55,17 +61,23 @@ interface ReservationToProcess {
   commission: number;
   shippingCostEstimated: number;
   retailerId: string;
+  // BLOQUE 1: descuentos de racha guardados en la reserva
+  shippingDiscount: number;
+  commissionDiscount: number;
 }
 
 interface ProcessedReservation extends ReservationToProcess {
   shippingFinal: number;
+  commissionFinal: number;
   totalFinal: number;
   paymentLink: string;
   groupSize: number;
+  paymentDeadlineAt: Date;
 }
 
 /* ====================================================
-   HTML DEL EMAIL DE PAGO
+   HTML DEL EMAIL DE PAGO — BLOQUE 4 impl 10
+   Incluye hora límite exacta y descuentos de racha si aplica.
 ==================================================== */
 function buildPaymentEmailHtml(params: {
   retailerName: string;
@@ -79,11 +91,15 @@ function buildPaymentEmailHtml(params: {
   groupSize: number;
   shippingCostEstimated: number;
   isPickup: boolean;
+  paymentDeadlineStr: string;   // hora límite formateada
+  shippingDiscount: number;     // 0-1
+  commissionDiscount: number;   // 0-1
 }): string {
   const {
     retailerName, productName, qty, productSubtotal, commission,
     shippingFinal, totalFinal, paymentLink, groupSize,
-    shippingCostEstimated, isPickup,
+    shippingCostEstimated, isPickup, paymentDeadlineStr,
+    shippingDiscount, commissionDiscount,
   } = params;
 
   const savingsHtml =
@@ -97,6 +113,26 @@ function buildPaymentEmailHtml(params: {
         </div>`
       : "";
 
+  // Badge de descuento por racha
+  const streakDiscountHtml =
+    shippingDiscount > 0 || commissionDiscount > 0
+      ? `<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px;margin:16px 0;text-align:center;">
+          <p style="margin:0;font-size:14px;font-weight:700;color:#1d4ed8;">⚡ Descuento de racha aplicado</p>
+          ${shippingDiscount > 0 && !isPickup ? `<p style="margin:4px 0 0;color:#2563eb;font-size:13px;">${Math.round(shippingDiscount * 100)}% de descuento en envío</p>` : ""}
+          ${commissionDiscount >= 1 ? `<p style="margin:4px 0 0;color:#2563eb;font-size:13px;font-weight:700;">🎉 ¡Comisión GRATIS por tu racha!</p>` : ""}
+        </div>`
+      : "";
+
+  // IMPL 10: Bloque de hora límite exacta
+  const deadlineHtml = `
+    <div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0;">
+      <p style="margin:0;font-size:15px;font-weight:700;color:#92400e;">⏰ Tu plazo de pago</p>
+      <p style="margin:8px 0 0;color:#78350f;font-size:14px;">
+        Tenés hasta el <strong>${paymentDeadlineStr}</strong> para completar el pago.<br>
+        Pasado ese momento tu reserva se cancela automáticamente.
+      </p>
+    </div>`;
+
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8">
 <style>
@@ -107,7 +143,6 @@ function buildPaymentEmailHtml(params: {
   .section{margin:25px 0;padding:20px;background:#f9fafb;border-radius:6px;border-left:4px solid #2563eb;}
   .row{margin:10px 0;}.label{font-weight:600;color:#6b7280;}.value{font-weight:600;color:#111827;}
   .cta{display:block;background:#2563eb;color:white;text-align:center;padding:18px 24px;border-radius:8px;text-decoration:none;font-size:18px;font-weight:700;margin:24px 0;}
-  .warning{background:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:15px;margin:20px 0;}
   .footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:14px;}
 </style>
 </head><body><div class="container">
@@ -115,12 +150,15 @@ function buildPaymentEmailHtml(params: {
   <p>¡Hola <strong>${retailerName}</strong>!</p>
   <p>El lote de <strong>${productName}</strong> alcanzó el mínimo. Ahora podés confirmar tu compra con el precio final.</p>
   ${savingsHtml}
+  ${streakDiscountHtml}
   <div class="section">
     <h3 style="margin-top:0;">🧾 Tu pedido</h3>
     <div class="row"><span class="label">Producto:</span> <span class="value">${productName}</span></div>
     <div class="row"><span class="label">Cantidad:</span> <span class="value">${qty} unidades</span></div>
     <div class="row"><span class="label">Subtotal producto:</span> <span class="value">$${productSubtotal.toLocaleString("es-AR")}</span></div>
-    <div class="row"><span class="label">Comisión:</span> <span class="value">$${commission.toLocaleString("es-AR")}</span></div>
+    <div class="row"><span class="label">Comisión:</span>
+      <span class="value">${commissionDiscount >= 1 ? "¡Gratis! 🎉" : `$${commission.toLocaleString("es-AR")}`}</span>
+    </div>
     <div class="row"><span class="label">Envío:</span>
       <span class="value">${isPickup ? "Retiro en fábrica (Gratis)" : `$${shippingFinal.toLocaleString("es-AR")}${groupSize > 1 ? ` (dividido entre ${groupSize} compradores de tu zona)` : ""}`}</span>
     </div>
@@ -129,7 +167,7 @@ function buildPaymentEmailHtml(params: {
       <span class="value" style="font-size:22px;color:#2563eb;">$${totalFinal.toLocaleString("es-AR")}</span>
     </div>
   </div>
-  <div class="warning"><strong>⏰ Importante:</strong> Tenés <strong>48 horas</strong> para completar el pago o tu reserva se cancelará.</div>
+  ${deadlineHtml}
   <a href="${paymentLink}" class="cta">💳 Pagar ahora — $${totalFinal.toLocaleString("es-AR")}</a>
   <div class="footer"><p><strong>Mayorista Móvil</strong></p></div>
 </div></body></html>`;
@@ -152,11 +190,9 @@ async function processLotClosure(params: {
       ? "http://localhost:3000"
       : "https://mayoristamovil.com");
 
-  // ── 1. MP user ID del fabricante ─────────────────────
   const factorySnap = await db.collection("manufacturers").doc(factoryId).get();
   const factoryMPUserId = factorySnap.data()?.mercadopago?.user_id || null;
 
-  // ── 2. Todas las reservas pending_lot ────────────────
   const reservationsSnap = await db
     .collection("reservations")
     .where("lotId", "==", lotId)
@@ -181,12 +217,19 @@ async function processLotClosure(params: {
       commission: r.commission || 0,
       shippingCostEstimated: r.shippingCostEstimated || 0,
       retailerId: r.retailerId,
+      shippingDiscount: r.shippingDiscount ?? 0,
+      commissionDiscount: r.commissionDiscount ?? 0,
     };
   });
 
   console.log(`📦 [CRON] Lote ${lotId}: ${reservations.length} compradores`);
 
-  // ── 3. Agrupar por CP para dividir envío ─────────────
+  // IMPL 10: Calcular deadline de pago desde el momento actual (cierre del lote)
+  const lotClosedNow = new Date();
+  const paymentDeadlineAt = calcPaymentDeadline(lotClosedNow);
+  const paymentDeadlineStr = formatDeadlineAR(paymentDeadlineAt);
+
+  // Agrupar por CP para dividir envío
   const shippingGroups: Record<string, ReservationToProcess[]> = {};
   const noGroupReservations: ReservationToProcess[] = [];
 
@@ -204,9 +247,7 @@ async function processLotClosure(params: {
     ...(noGroupReservations.length > 0 ? [noGroupReservations] : []),
   ];
 
-  // ── 4. Generar preferences MP (secuencial — MP no tiene batch) ──────
-  // Sin delay entre llamadas — MP lo permite, el delay era solo por Resend.
-  // ~500ms por preference × 70 compradores = ~35s
+  // Generar preferences MP (secuencial)
   const processed: ProcessedReservation[] = [];
 
   for (const group of allGroups) {
@@ -219,8 +260,17 @@ async function processLotClosure(params: {
       if (!reservation.retailerEmail) continue;
 
       const isPickup = reservation.shippingMode === "pickup";
-      const shippingFinal = isPickup ? 0 : shippingPerPerson;
-      const totalFinal = reservation.productSubtotal + reservation.commission + shippingFinal;
+      const rawShipping = isPickup ? 0 : shippingPerPerson;
+
+      // BLOQUE 1: aplicar descuentos de racha guardados en la reserva
+      const shippingFinal = isPickup
+        ? 0
+        : Math.round(rawShipping * (1 - reservation.shippingDiscount));
+      const commissionFinal = reservation.commissionDiscount >= 1
+        ? 0
+        : reservation.commission;
+
+      const totalFinal = reservation.productSubtotal + commissionFinal + shippingFinal;
 
       let paymentLink = `${baseUrl}/explorar/${productId}`;
       try {
@@ -241,7 +291,7 @@ async function processLotClosure(params: {
             MF: 0,
             shippingCost: shippingFinal,
             shippingMode: reservation.shippingMode,
-            commission: reservation.commission,
+            commission: commissionFinal,
             reservationId: reservation.docId,
             lotId,
           },
@@ -253,7 +303,7 @@ async function processLotClosure(params: {
           factoryMPUserId,
           shippingCost: shippingFinal,
           productTotal: reservation.productSubtotal,
-          commission: reservation.commission,
+          commission: commissionFinal,
         });
         if (preference.init_point) paymentLink = preference.init_point;
       } catch (prefErr) {
@@ -263,33 +313,36 @@ async function processLotClosure(params: {
       processed.push({
         ...reservation,
         shippingFinal,
+        commissionFinal,
         totalFinal,
         paymentLink,
         groupSize,
+        paymentDeadlineAt,
       });
     }
   }
 
   console.log(`✅ [CRON] Preferences MP generadas: ${processed.length}`);
 
-  // ── 5. Actualizar todas las reservas en Firestore (Promise.all — paralelo) ──
+  // Actualizar reservas en Firestore (paralelo) — incluye paymentDeadlineAt (IMPL 10)
   await Promise.all(
     processed.map((r) =>
       db.collection("reservations").doc(r.docId).update({
         status: "lot_closed",
         lotClosedAt: FieldValue.serverTimestamp(),
         shippingCostFinal: r.shippingFinal,
+        commissionFinal: r.commissionFinal,
         totalFinal: r.totalFinal,
         paymentLink: r.paymentLink,
+        paymentDeadlineAt: r.paymentDeadlineAt,   // IMPL 10: deadline exacto
         updatedAt: FieldValue.serverTimestamp(),
       })
     )
   );
 
-  console.log(`✅ [CRON] Reservas actualizadas en Firestore (paralelo)`);
+  console.log(`✅ [CRON] Reservas actualizadas en Firestore`);
 
-  // ── 6. Resend batch — UNA sola llamada HTTP para todos los emails ─────
-  // Límite: 100 emails por llamada → chunks automáticos si hay más.
+  // Resend batch — un solo llamado HTTP
   const emailPayloads = processed
     .filter((r) => r.retailerEmail)
     .map((r) => ({
@@ -301,26 +354,25 @@ async function processLotClosure(params: {
         productName,
         qty: r.qty,
         productSubtotal: r.productSubtotal,
-        commission: r.commission,
+        commission: r.commissionFinal,
         shippingFinal: r.shippingFinal,
         totalFinal: r.totalFinal,
         paymentLink: r.paymentLink,
         groupSize: r.groupSize,
         shippingCostEstimated: r.shippingCostEstimated,
         isPickup: r.shippingMode === "pickup",
+        paymentDeadlineStr,             // IMPL 10
+        shippingDiscount: r.shippingDiscount,
+        commissionDiscount: r.commissionDiscount,
       }),
     }));
 
   const BATCH_SIZE = 100;
-  const chunks: typeof emailPayloads[] = [];
-  for (let i = 0; i < emailPayloads.length; i += BATCH_SIZE) {
-    chunks.push(emailPayloads.slice(i, i + BATCH_SIZE));
-  }
-
   let emailsSent = 0;
   let emailErrors = 0;
 
-  for (const chunk of chunks) {
+  for (let i = 0; i < emailPayloads.length; i += BATCH_SIZE) {
+    const chunk = emailPayloads.slice(i, i + BATCH_SIZE);
     try {
       const { data, error } = await resend.batch.send(chunk);
       if (error) {
@@ -373,7 +425,6 @@ export async function GET(req: Request) {
       const lotId = lotDoc.id;
 
       try {
-        // Marcar "processing" — evita doble ejecución si el cron se solapa
         await db.collection("lots").doc(lotId).update({
           status: "processing",
           processingStartedAt: FieldValue.serverTimestamp(),
@@ -387,7 +438,6 @@ export async function GET(req: Request) {
           factoryId: lotData.factoryId,
         });
 
-        // El webhook lo mueve a "fully_paid" cuando todos pagan
         await db.collection("lots").doc(lotId).update({
           status: "processed_pending_payment",
           processedAt: FieldValue.serverTimestamp(),
@@ -401,7 +451,6 @@ export async function GET(req: Request) {
         errors++;
         console.error(`❌ [CRON] Error en lote ${lotId}:`, lotErr);
 
-        // Revertir a "closed" → el próximo cron lo reintenta
         try {
           await db.collection("lots").doc(lotId).update({
             status: "closed",
