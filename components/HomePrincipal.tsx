@@ -103,6 +103,7 @@ export default function HomePrincipal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+
   // Datos dinámicos de las APIs
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
   const [featuredFactories, setFeaturedFactories] = useState<FeaturedFactory[]>([]);
@@ -113,20 +114,16 @@ export default function HomePrincipal() {
   const [loadingFeaturedFactories, setLoadingFeaturedFactories] = useState(true);
   const [loadingAllProducts, setLoadingAllProducts] = useState(true);
 
-  // ✅ FIX ERROR 13: En lugar de 4 useEffects con 4 llamadas separadas (waterfall),
-  // se usa un solo useEffect con Promise.all para hacer todas las llamadas en paralelo.
   useEffect(() => {
     async function loadAllData() {
-      // Lanzar todas las peticiones al mismo tiempo
       const [authRes, featuredProductsRes, featuredFactoriesRes, productsRes] =
         await Promise.allSettled([
           fetch('/api/auth/me'),
           fetch('/api/featured/active?type=product'),
           fetch('/api/featured/active?type=factory'),
-          fetch('/api/products/explore?page=1'),  // ✅ FIX paginación: agrega ?page=1
+          fetch('/api/products/explore?page=1'),
         ]);
 
-      // Procesar autenticación
       try {
         if (authRes.status === 'fulfilled' && authRes.value.ok) {
           const data = await authRes.value.json();
@@ -138,7 +135,6 @@ export default function HomePrincipal() {
         setIsLoading(false);
       }
 
-      // Procesar productos destacados
       try {
         if (featuredProductsRes.status === 'fulfilled' && featuredProductsRes.value.ok) {
           const data = await featuredProductsRes.value.json();
@@ -150,7 +146,6 @@ export default function HomePrincipal() {
         setLoadingFeaturedProducts(false);
       }
 
-      // Procesar fábricas destacadas
       try {
         if (featuredFactoriesRes.status === 'fulfilled' && featuredFactoriesRes.value.ok) {
           const data = await featuredFactoriesRes.value.json();
@@ -162,8 +157,6 @@ export default function HomePrincipal() {
         setLoadingFeaturedFactories(false);
       }
 
-      // Procesar todos los productos
-      // ✅ FIX paginación: la API ahora devuelve { products, page, hasMore }
       try {
         if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
           const data = await productsRes.value.json();
@@ -179,7 +172,6 @@ export default function HomePrincipal() {
     loadAllData();
   }, []);
 
-  // Cargar progreso de lotes para productos destacados
   useEffect(() => {
     async function loadProductLots() {
       if (featuredProducts.length === 0) return;
@@ -211,39 +203,37 @@ export default function HomePrincipal() {
     }
   }, [featuredProducts, loadingFeaturedProducts]);
 
-  // ✅ FIX ERROR 14: Corregidos errores ortográficos en los banners
   const banners = [
     {
       title: '¡Pedidos desde 10 unidades!',
-      subtitle: 'Comprá a precio de fábrica sin invertir grandes volúmenes.',  // ✅ "fabrica" → "fábrica", "volumenes" → "volúmenes"
+      subtitle: 'Comprá a precio de fábrica sin invertir grandes volúmenes.',
       bgColor: 'from-blue-600 via-blue-700 to-blue-900',
       image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200',
       cta: 'Explorar'
     },
     {
-      title: '¡Fábricas Célebres!',  // ✅ "celebres" → "Célebres"
-      subtitle: 'Encontrarás productos de las fábricas más importantes.',  // ✅ "Encontraras" → "Encontrarás", "fabricas" → "fábricas"
+      title: '¡Fábricas Célebres!',
+      subtitle: 'Encontrarás productos de las fábricas más importantes.',
       bgColor: 'from-zinc-600 via-zinc-700 to-zinc-900',
       image: 'https://images.unsplash.com/photo-1615797534094-7fde0a4861f3?w=1200',
       cta: 'Explorar'
     },
     {
       title: '¡Fábricas Verificadas!',
-      subtitle: 'Podés buscar productos de forma segura y tranquila.',  // ✅ "Puedes" → "Podés" (consistent with Argentine Spanish)
+      subtitle: 'Podés buscar productos de forma segura y tranquila.',
       bgColor: 'from-emerald-600 via-emerald-700 to-emerald-900',
       image: 'https://images.unsplash.com/photo-1603899122406-e7eb957f9fd6?w=1200',
       cta: 'Explorar'
     },
     {
       title: '¡Lotes a Punto De Cerrar!',
-      subtitle: 'Unite antes de que se completen.',  // ✅ "Unite" ya estaba bien en voseo
+      subtitle: 'Unite antes de que se completen.',
       bgColor: 'from-orange-600 via-orange-700 to-orange-900',
       image: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1200',
       cta: 'Ver Lotes'
     }
   ];
 
-  // Obtener categorías únicas de los productos
   const categories = Object.keys(CATEGORY_LABELS).map(key => ({
     id: key,
     name: CATEGORY_LABELS[key],
@@ -252,7 +242,6 @@ export default function HomePrincipal() {
     count: allProducts.filter(p => p.category === key).length
   })).filter(cat => cat.count > 0);
 
-  // Auto-rotación de banners
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentBanner((prev) => (prev + 1) % banners.length);
@@ -260,30 +249,25 @@ export default function HomePrincipal() {
     return () => clearInterval(interval);
   }, [banners.length]);
 
-  // Scroll detection para header sticky
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Función para manejar clic en rol
   const handleRoleRedirect = (targetRole: 'retailer' | 'manufacturer') => {
     if (isAuthenticated) {
-      // Usuario autenticado: ir al dashboard correcto
       if (targetRole === 'retailer') {
         router.push('/dashboard/pedidos-fraccionados');
       } else {
         router.push('/dashboard/fabricante');
       }
     } else {
-      // Usuario NO autenticado: guardar rol y ir a /registro
       localStorage.setItem('selectedRole', targetRole);
       router.push('/registro');
     }
   };
 
-  // Función para manejar clic en login/perfil
   const handleLoginClick = () => {
     if (isAuthenticated) {
       router.push('/perfil');
@@ -292,170 +276,115 @@ export default function HomePrincipal() {
     }
   };
 
-  // ── BLOQUE TEMPORAL: plataforma en construcción ──────────────────────────────
-  // Para sacar: eliminar el bloque entre "INICIO BLOQUE TEMPORAL" y "FIN BLOQUE TEMPORAL"
-  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gray-50">
 
-      {/* ═══════════════ INICIO BLOQUE TEMPORAL ═══════════════
-          Cuando quieras sacar esto, eliminá desde acá...       */}
-      {/* Overlay que bloquea toda interacción */}
+      {/* ═══════════════════════════════════════════════════════════════════════
+          COMING SOON — Banner inferior + bloqueo de navegación
+          
+          Para sacarlo cuando ya no lo necesites, borrá TODO este bloque
+          desde aquí ↓ hasta el comentario "FIN COMING SOON"
+      ════════════════════════════════════════════════════════════════════════ */}
+
+      {/* Overlay TRANSPARENTE — el usuario ve toda la home normalmente,
+          pero no puede hacer click en ningún link ni botón.
+          No tiene background, así que no tapa nada visualmente. */}
       <div style={{
-        position: "fixed", inset: 0, zIndex: 9999,
-        background: "rgba(8, 8, 20, 0.72)",
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-        pointerEvents: "all",
+        position: 'fixed',
+        top: 0, left: 0, right: 0,
+        bottom: 72, // deja libre el espacio del banner de abajo
+        zIndex: 9998,
+        cursor: 'not-allowed',
       }} />
 
-      {/* Modal de anuncio */}
+      {/* Banner fijo abajo — informativo, no invasivo */}
       <div style={{
-        position: "fixed", top: "50%", left: "50%",
-        transform: "translate(-50%, -50%)",
-        zIndex: 10000,
-        width: 440, maxWidth: "calc(100vw - 32px)",
-        background: "linear-gradient(145deg, #ffffff, #f8faff)",
-        borderRadius: 20,
-        boxShadow: "0 32px 80px rgba(0,0,0,0.35), 0 0 0 1px rgba(59,130,246,0.15)",
-        overflow: "hidden",
-        pointerEvents: "all",
-        animation: "hpModalIn 0.4s cubic-bezier(0.34,1.4,0.64,1)",
+        position: 'fixed',
+        bottom: 0, left: 0, right: 0,
+        height: 72,
+        zIndex: 9999,
+        background: 'linear-gradient(90deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)',
+        borderTop: '2px solid rgba(59,130,246,0.35)',
+        boxShadow: '0 -6px 28px rgba(0,0,0,0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 20px',
+        gap: 12,
       }}>
-        {/* Franja superior azul */}
-        <div style={{
-          background: "linear-gradient(135deg, #1d4ed8, #3b82f6, #60a5fa)",
-          padding: "28px 32px 24px",
-          textAlign: "center",
-          position: "relative",
-          overflow: "hidden",
-        }}>
-          {/* Círculos decorativos de fondo */}
-          <div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,0.08)"}}/>
-          <div style={{position:"absolute",bottom:-20,left:-20,width:80,height:80,borderRadius:"50%",background:"rgba(255,255,255,0.06)"}}/>
-
-          {/* Logo / icono */}
+        {/* Izquierda: punto parpadeante + mensaje */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+          {/* Indicador "en vivo" */}
           <div style={{
-            width: 64, height: 64, borderRadius: 16,
-            background: "rgba(255,255,255,0.2)",
-            border: "2px solid rgba(255,255,255,0.3)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 14px",
-            backdropFilter: "blur(4px)",
+            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+            background: 'rgba(59,130,246,0.15)',
+            border: '1px solid rgba(59,130,246,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <span style={{fontSize: 30}}>🏭</span>
+            <div style={{
+              width: 9, height: 9, borderRadius: '50%',
+              background: '#3b82f6',
+              boxShadow: '0 0 8px #3b82f6',
+              animation: 'mm-blink 1.4s ease-in-out infinite',
+            }} />
           </div>
 
-          <h2 style={{
-            margin: 0, fontSize: 22, fontWeight: 900,
-            color: "#fff", letterSpacing: "-0.02em", lineHeight: 1.2,
-          }}>
-            Estamos sumando marcas
-          </h2>
-          <p style={{
-            margin: "6px 0 0", fontSize: 13,
-            color: "rgba(255,255,255,0.8)", fontWeight: 500,
-          }}>
-            y fábricas a la plataforma
-          </p>
+          <div style={{ minWidth: 0 }}>
+            {/* Chip "Próximamente" */}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: 'rgba(59,130,246,0.12)',
+              border: '1px solid rgba(59,130,246,0.28)',
+              borderRadius: 99, padding: '1px 8px',
+              marginBottom: 3,
+            }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                Próximamente
+              </span>
+            </div>
+            <p style={{
+              fontSize: 13, fontWeight: 700, color: '#e2e8f0',
+              margin: 0, lineHeight: 1.2,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              🏭 Estamos sumando marcas y fábricas cada día — ¡Pronto podés explorar y comprar!
+            </p>
+          </div>
         </div>
 
-        {/* Cuerpo */}
-        <div style={{padding: "28px 32px 32px", textAlign: "center"}}>
-          {/* Indicador de estado */}
-          <div style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            background: "#eff6ff", border: "1px solid #bfdbfe",
-            borderRadius: 99, padding: "6px 16px", marginBottom: 20,
-          }}>
-            <span style={{
-              width: 8, height: 8, borderRadius: "50%",
-              background: "#22c55e",
-              display: "inline-block",
-              boxShadow: "0 0 0 3px rgba(34,197,94,0.25)",
-              animation: "hpBlink 1.5s ease-in-out infinite",
-            }}/>
-            <span style={{fontSize: 12, fontWeight: 700, color: "#1d4ed8", letterSpacing: "0.02em"}}>
-              En preparación
-            </span>
-          </div>
-
-          <p style={{
-            fontSize: 15, color: "#374151", lineHeight: 1.65,
-            margin: "0 0 10px", fontWeight: 400,
-          }}>
-            Estamos incorporando nuevas marcas y fábricas para que tengas la mejor oferta disponible desde el primer día.
-          </p>
-
-          <p style={{
-            fontSize: 14, color: "#6b7280", lineHeight: 1.6,
-            margin: "0 0 28px",
-          }}>
-            Pronto vas a poder explorar, reservar y comprar en lotes fraccionados.
-          </p>
-
-          {/* Divisor */}
-          <div style={{height: 1, background: "#f3f4f6", marginBottom: 24}}/>
-
-          {/* Tres puntos de progreso */}
-          <div style={{display: "flex", justifyContent: "center", gap: 24, marginBottom: 28}}>
-            {[
-              { icon: "🏭", label: "Fábricas verificadas", done: true  },
-              { icon: "📦", label: "Catálogo de productos", done: false },
-              { icon: "🚀", label: "Lanzamiento",           done: false },
-            ].map((step, i) => (
-              <div key={i} style={{textAlign: "center"}}>
-                <div style={{
-                  width: 44, height: 44, borderRadius: "50%",
-                  background: step.done ? "#eff6ff" : "#f9fafb",
-                  border: `2px solid ${step.done ? "#3b82f6" : "#e5e7eb"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  margin: "0 auto 6px", fontSize: 20,
-                }}>
-                  {step.icon}
-                </div>
-                <p style={{fontSize: 10, fontWeight: 600, color: step.done ? "#1d4ed8" : "#9ca3af", margin: 0, lineHeight: 1.3, maxWidth: 70}}>
-                  {step.label}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* CTA */}
-          <a
-            href="mailto:hola@mayoristamovil.com"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "12px 28px", borderRadius: 12,
-              background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
-              color: "#fff", fontWeight: 700, fontSize: 14,
-              textDecoration: "none", letterSpacing: "0.01em",
-              boxShadow: "0 8px 20px rgba(59,130,246,0.35)",
-              transition: "transform 0.1s, box-shadow 0.1s",
-            }}
-          >
-            ✉️ Registrá tu fábrica
-          </a>
-
-          <p style={{marginTop: 14, fontSize: 11, color: "#9ca3af"}}>
-            ¿Sos fabricante? Contactanos para ser parte desde el inicio.
-          </p>
+        {/* Derecha: chips de estado */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {[
+            { icon: '✅', text: 'Plataforma lista' },
+            { icon: '🏭', text: 'Sumando fábricas' },
+            { icon: '⚡', text: 'Lanzamiento pronto' },
+          ].map((chip, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '4px 10px',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 99,
+            }}>
+              <span style={{ fontSize: 11 }}>{chip.icon}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                {chip.text}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
       <style>{`
-        @keyframes hpModalIn {
-          from { opacity: 0; transform: translate(-50%, -46%) scale(0.92); }
-          to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-        }
-        @keyframes hpBlink {
-          0%, 100% { opacity: 1; box-shadow: 0 0 0 3px rgba(34,197,94,0.25); }
-          50%       { opacity: 0.6; box-shadow: 0 0 0 5px rgba(34,197,94,0.1); }
+        @keyframes mm-blink {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.25; }
         }
       `}</style>
-      {/* ═══════════════ FIN BLOQUE TEMPORAL ═══════════════
-          ...hasta acá.                                       */}
+
+      {/* FIN COMING SOON ────────────────────────────────────────────────────── */}
+
       
       {/* HEADER PRINCIPAL */}
       <header className={`sticky top-0 z-50 transition-all duration-300 ${
@@ -564,7 +493,6 @@ export default function HomePrincipal() {
                 Lotes por cerrar
               </Link>
               
-              {/* Botones que manejan la redirección según autenticación */}
               <button 
                 onClick={() => handleRoleRedirect('retailer')}
                 className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition cursor-pointer"
@@ -621,7 +549,6 @@ export default function HomePrincipal() {
       {/* BANNER CAROUSEL */}
       <section className="relative h-[400px] md:h-[500px] overflow-hidden bg-gradient-to-br from-slate-900 to-slate-700">
         
-        {/* Indicador de banner actual */}
         <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold z-30">
           {currentBanner + 1} / {banners.length}
         </div>
@@ -659,7 +586,6 @@ export default function HomePrincipal() {
           </div>
         ))}
 
-        {/* Banner Navigation Dots */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3 z-20">
           {banners.map((banner, index) => (
             <button
@@ -676,7 +602,6 @@ export default function HomePrincipal() {
           ))}
         </div>
 
-        {/* Flechas de navegación */}
         <button
           onClick={() => setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length)}
           className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full p-3 transition-all z-20"
@@ -785,7 +710,6 @@ export default function HomePrincipal() {
                         <h4 className="font-bold text-gray-900 mb-1 line-clamp-2">{product.itemData.name}</h4>
                         <p className="text-sm text-gray-500 mb-3">{product.itemData.category}</p>
                         
-                        {/* Barra de progreso del lote */}
                         <div className="mb-3">
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-gray-600">Progreso del lote</span>
@@ -1060,15 +984,9 @@ export default function HomePrincipal() {
             <div>
               <h4 className="font-bold text-lg mb-4">Seguinos</h4>
               <div className="flex gap-4 mb-6">
-                <a href="#" className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center hover:bg-blue-700 transition">
-                  f
-                </a>
-                <a href="#" className="w-10 h-10 bg-blue-400 rounded-lg flex items-center justify-center hover:bg-blue-500 transition">
-                  t
-                </a>
-                <a href="#" className="w-10 h-10 bg-pink-600 rounded-lg flex items-center justify-center hover:bg-pink-700 transition">
-                  i
-                </a>
+                <a href="#" className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center hover:bg-blue-700 transition">f</a>
+                <a href="#" className="w-10 h-10 bg-blue-400 rounded-lg flex items-center justify-center hover:bg-blue-500 transition">t</a>
+                <a href="#" className="w-10 h-10 bg-pink-600 rounded-lg flex items-center justify-center hover:bg-pink-700 transition">i</a>
               </div>
               <h4 className="font-bold text-sm mb-2">Suscribite a nuestro newsletter</h4>
               <div className="flex gap-2">
@@ -1077,9 +995,7 @@ export default function HomePrincipal() {
                   placeholder="Tu email"
                   className="flex-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 focus:border-blue-500 outline-none"
                 />
-                <button className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition">
-                  →
-                </button>
+                <button className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition">→</button>
               </div>
             </div>
           </div>
@@ -1111,42 +1027,14 @@ export default function HomePrincipal() {
 
       <style>{`
         @keyframes fade-in-up {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(20px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-
-        .animate-fade-in-up {
-          animation: fade-in-up 0.6s ease-out forwards;
-        }
-
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-
-        .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-
-        .line-clamp-1 {
-          display: -webkit-box;
-          -webkit-line-clamp: 1;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
+        .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       `}</style>
     </div>
   );
