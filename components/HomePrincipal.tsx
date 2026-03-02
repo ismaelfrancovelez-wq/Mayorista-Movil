@@ -292,8 +292,170 @@ export default function HomePrincipal() {
     }
   };
 
+  // ── BLOQUE TEMPORAL: plataforma en construcción ──────────────────────────────
+  // Para sacar: eliminar el bloque entre "INICIO BLOQUE TEMPORAL" y "FIN BLOQUE TEMPORAL"
+  // ─────────────────────────────────────────────────────────────────────────────
+
   return (
     <div className="min-h-screen bg-gray-50">
+
+      {/* ═══════════════ INICIO BLOQUE TEMPORAL ═══════════════
+          Cuando quieras sacar esto, eliminá desde acá...       */}
+      {/* Overlay que bloquea toda interacción */}
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(8, 8, 20, 0.72)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        pointerEvents: "all",
+      }} />
+
+      {/* Modal de anuncio */}
+      <div style={{
+        position: "fixed", top: "50%", left: "50%",
+        transform: "translate(-50%, -50%)",
+        zIndex: 10000,
+        width: 440, maxWidth: "calc(100vw - 32px)",
+        background: "linear-gradient(145deg, #ffffff, #f8faff)",
+        borderRadius: 20,
+        boxShadow: "0 32px 80px rgba(0,0,0,0.35), 0 0 0 1px rgba(59,130,246,0.15)",
+        overflow: "hidden",
+        pointerEvents: "all",
+        animation: "hpModalIn 0.4s cubic-bezier(0.34,1.4,0.64,1)",
+      }}>
+        {/* Franja superior azul */}
+        <div style={{
+          background: "linear-gradient(135deg, #1d4ed8, #3b82f6, #60a5fa)",
+          padding: "28px 32px 24px",
+          textAlign: "center",
+          position: "relative",
+          overflow: "hidden",
+        }}>
+          {/* Círculos decorativos de fondo */}
+          <div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,0.08)"}}/>
+          <div style={{position:"absolute",bottom:-20,left:-20,width:80,height:80,borderRadius:"50%",background:"rgba(255,255,255,0.06)"}}/>
+
+          {/* Logo / icono */}
+          <div style={{
+            width: 64, height: 64, borderRadius: 16,
+            background: "rgba(255,255,255,0.2)",
+            border: "2px solid rgba(255,255,255,0.3)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 14px",
+            backdropFilter: "blur(4px)",
+          }}>
+            <span style={{fontSize: 30}}>🏭</span>
+          </div>
+
+          <h2 style={{
+            margin: 0, fontSize: 22, fontWeight: 900,
+            color: "#fff", letterSpacing: "-0.02em", lineHeight: 1.2,
+          }}>
+            Estamos sumando marcas
+          </h2>
+          <p style={{
+            margin: "6px 0 0", fontSize: 13,
+            color: "rgba(255,255,255,0.8)", fontWeight: 500,
+          }}>
+            y fábricas a la plataforma
+          </p>
+        </div>
+
+        {/* Cuerpo */}
+        <div style={{padding: "28px 32px 32px", textAlign: "center"}}>
+          {/* Indicador de estado */}
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            background: "#eff6ff", border: "1px solid #bfdbfe",
+            borderRadius: 99, padding: "6px 16px", marginBottom: 20,
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: "#22c55e",
+              display: "inline-block",
+              boxShadow: "0 0 0 3px rgba(34,197,94,0.25)",
+              animation: "hpBlink 1.5s ease-in-out infinite",
+            }}/>
+            <span style={{fontSize: 12, fontWeight: 700, color: "#1d4ed8", letterSpacing: "0.02em"}}>
+              En preparación
+            </span>
+          </div>
+
+          <p style={{
+            fontSize: 15, color: "#374151", lineHeight: 1.65,
+            margin: "0 0 10px", fontWeight: 400,
+          }}>
+            Estamos incorporando nuevas marcas y fábricas para que tengas la mejor oferta disponible desde el primer día.
+          </p>
+
+          <p style={{
+            fontSize: 14, color: "#6b7280", lineHeight: 1.6,
+            margin: "0 0 28px",
+          }}>
+            Pronto vas a poder explorar, reservar y comprar en lotes fraccionados.
+          </p>
+
+          {/* Divisor */}
+          <div style={{height: 1, background: "#f3f4f6", marginBottom: 24}}/>
+
+          {/* Tres puntos de progreso */}
+          <div style={{display: "flex", justifyContent: "center", gap: 24, marginBottom: 28}}>
+            {[
+              { icon: "🏭", label: "Fábricas verificadas", done: true  },
+              { icon: "📦", label: "Catálogo de productos", done: false },
+              { icon: "🚀", label: "Lanzamiento",           done: false },
+            ].map((step, i) => (
+              <div key={i} style={{textAlign: "center"}}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: "50%",
+                  background: step.done ? "#eff6ff" : "#f9fafb",
+                  border: `2px solid ${step.done ? "#3b82f6" : "#e5e7eb"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  margin: "0 auto 6px", fontSize: 20,
+                }}>
+                  {step.icon}
+                </div>
+                <p style={{fontSize: 10, fontWeight: 600, color: step.done ? "#1d4ed8" : "#9ca3af", margin: 0, lineHeight: 1.3, maxWidth: 70}}>
+                  {step.label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <a
+            href="mailto:hola@mayoristamovil.com"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "12px 28px", borderRadius: 12,
+              background: "linear-gradient(135deg, #1d4ed8, #3b82f6)",
+              color: "#fff", fontWeight: 700, fontSize: 14,
+              textDecoration: "none", letterSpacing: "0.01em",
+              boxShadow: "0 8px 20px rgba(59,130,246,0.35)",
+              transition: "transform 0.1s, box-shadow 0.1s",
+            }}
+          >
+            ✉️ Registrá tu fábrica
+          </a>
+
+          <p style={{marginTop: 14, fontSize: 11, color: "#9ca3af"}}>
+            ¿Sos fabricante? Contactanos para ser parte desde el inicio.
+          </p>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes hpModalIn {
+          from { opacity: 0; transform: translate(-50%, -46%) scale(0.92); }
+          to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        @keyframes hpBlink {
+          0%, 100% { opacity: 1; box-shadow: 0 0 0 3px rgba(34,197,94,0.25); }
+          50%       { opacity: 0.6; box-shadow: 0 0 0 5px rgba(34,197,94,0.1); }
+        }
+      `}</style>
+      {/* ═══════════════ FIN BLOQUE TEMPORAL ═══════════════
+          ...hasta acá.                                       */}
       
       {/* HEADER PRINCIPAL */}
       <header className={`sticky top-0 z-50 transition-all duration-300 ${
