@@ -5,10 +5,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-// ⚠️ Asegurate de ajustar este import según el path de tu configuración de Firebase
-// import { app } from '@/lib/firebase';
 
 // Tipos
 type FeaturedProduct = {
@@ -107,10 +103,6 @@ export default function HomePrincipal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ─── ADMIN STATE ──────────────────────────────────────────────────────────────
-  // Si isAdmin es true, se oculta toda la barrera "Coming Soon"
-  const [isAdmin, setIsAdmin] = useState(false);
-  // ─────────────────────────────────────────────────────────────────────────────
 
   // Datos dinámicos de las APIs
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
@@ -121,47 +113,6 @@ export default function HomePrincipal() {
   const [loadingFeaturedProducts, setLoadingFeaturedProducts] = useState(true);
   const [loadingFeaturedFactories, setLoadingFeaturedFactories] = useState(true);
   const [loadingAllProducts, setLoadingAllProducts] = useState(true);
-
-  // ─── EFECTO: VERIFICAR SI EL USUARIO ES ADMIN EN FIREBASE ────────────────────
-  //
-  //  Lee el documento del usuario en Firestore (colección "users", doc uid)
-  //  y chequea si tiene el campo  isAdmin === true.
-  //  Si es admin → oculta la barrera Coming Soon y permite navegar libremente.
-  //
-  //  ⚠️  Si tu colección se llama distinto (ej: "usuarios", "accounts", etc.)
-  //      cambiá 'users' por el nombre correcto en la línea del doc().
-  //
-  useEffect(() => {
-    const auth = getAuth();
-    // Si usás una instancia específica: const auth = getAuth(app);
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const db = getFirestore();
-          // Si usás una instancia específica: const db = getFirestore(app);
-
-          const userDocRef = doc(db, 'users', user.uid);
-          const userSnap = await getDoc(userDocRef);
-
-          if (userSnap.exists() && userSnap.data()?.isAdmin === true) {
-            setIsAdmin(true);
-          } else {
-            setIsAdmin(false);
-          }
-        } catch (e) {
-          console.error('Error verificando rol de admin:', e);
-          setIsAdmin(false);
-        }
-      } else {
-        // Sin usuario logueado → nunca es admin
-        setIsAdmin(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-  // ─────────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     async function loadAllData() {
@@ -276,7 +227,7 @@ export default function HomePrincipal() {
     },
     {
       title: '¡Lotes a Punto De Cerrar!',
-      subtitle: 'Unite antes de que se completan.',
+      subtitle: 'Unite antes de que se completen.',
       bgColor: 'from-orange-600 via-orange-700 to-orange-900',
       image: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1200',
       cta: 'Ver Lotes'
@@ -332,110 +283,105 @@ export default function HomePrincipal() {
       {/* ═══════════════════════════════════════════════════════════════════════
           COMING SOON — Banner inferior + bloqueo de navegación
           
-          Se muestra SOLO si el usuario NO es admin (isAdmin === false).
-          
-          Para sacarlo definitivamente cuando ya no lo necesites,
-          borrá TODO este bloque desde aquí ↓ hasta el comentario "FIN COMING SOON"
+          Para sacarlo cuando ya no lo necesites, borrá TODO este bloque
+          desde aquí ↓ hasta el comentario "FIN COMING SOON"
       ════════════════════════════════════════════════════════════════════════ */}
 
-      {!isAdmin && (
-        <>
-          {/* Overlay TRANSPARENTE — el usuario ve toda la home normalmente,
-              pero no puede hacer click en ningún link ni botón. */}
-          <div style={{
-            position: 'fixed',
-            top: 0, left: 0, right: 0,
-            bottom: 72,
-            zIndex: 9998,
-            cursor: 'not-allowed',
-          }} />
+      {/* Overlay TRANSPARENTE — el usuario ve toda la home normalmente,
+          pero no puede hacer click en ningún link ni botón.
+          No tiene background, así que no tapa nada visualmente. */}
+      <div style={{
+        position: 'fixed',
+        top: 0, left: 0, right: 0,
+        bottom: 72, // deja libre el espacio del banner de abajo
+        zIndex: 9998,
+        cursor: 'not-allowed',
+      }} />
 
-          {/* Banner fijo abajo — informativo, no invasivo */}
+      {/* Banner fijo abajo — informativo, no invasivo */}
+      <div style={{
+        position: 'fixed',
+        bottom: 0, left: 0, right: 0,
+        height: 72,
+        zIndex: 9999,
+        background: 'linear-gradient(90deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)',
+        borderTop: '2px solid rgba(59,130,246,0.35)',
+        boxShadow: '0 -6px 28px rgba(0,0,0,0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 20px',
+        gap: 12,
+      }}>
+        {/* Izquierda: punto parpadeante + mensaje */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+          {/* Indicador "en vivo" */}
           <div style={{
-            position: 'fixed',
-            bottom: 0, left: 0, right: 0,
-            height: 72,
-            zIndex: 9999,
-            background: 'linear-gradient(90deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)',
-            borderTop: '2px solid rgba(59,130,246,0.35)',
-            boxShadow: '0 -6px 28px rgba(0,0,0,0.55)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 20px',
-            gap: 12,
+            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+            background: 'rgba(59,130,246,0.15)',
+            border: '1px solid rgba(59,130,246,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            {/* Izquierda: punto parpadeante + mensaje */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-              {/* Indicador "en vivo" */}
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                background: 'rgba(59,130,246,0.15)',
-                border: '1px solid rgba(59,130,246,0.4)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <div style={{
-                  width: 9, height: 9, borderRadius: '50%',
-                  background: '#3b82f6',
-                  boxShadow: '0 0 8px #3b82f6',
-                  animation: 'mm-blink 1.4s ease-in-out infinite',
-                }} />
-              </div>
-
-              <div style={{ minWidth: 0 }}>
-                {/* Chip "Próximamente" */}
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  background: 'rgba(59,130,246,0.12)',
-                  border: '1px solid rgba(59,130,246,0.28)',
-                  borderRadius: 99, padding: '1px 8px',
-                  marginBottom: 3,
-                }}>
-                  <span style={{ fontSize: 9, fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                    Próximamente
-                  </span>
-                </div>
-                <p style={{
-                  fontSize: 13, fontWeight: 700, color: '#e2e8f0',
-                  margin: 0, lineHeight: 1.2,
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                }}>
-                  🏭 Estamos sumando marcas y fábricas cada día — ¡Pronto podés explorar y comprar!
-                </p>
-              </div>
-            </div>
-
-            {/* Derecha: chips de estado */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              {[
-                { icon: '✅', text: 'Plataforma lista' },
-                { icon: '🏭', text: 'Sumando fábricas' },
-                { icon: '⚡', text: 'Lanzamiento pronto' },
-              ].map((chip, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '4px 10px',
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 99,
-                }}>
-                  <span style={{ fontSize: 11 }}>{chip.icon}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>
-                    {chip.text}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <div style={{
+              width: 9, height: 9, borderRadius: '50%',
+              background: '#3b82f6',
+              boxShadow: '0 0 8px #3b82f6',
+              animation: 'mm-blink 1.4s ease-in-out infinite',
+            }} />
           </div>
 
-          <style>{`
-            @keyframes mm-blink {
-              0%, 100% { opacity: 1; }
-              50%       { opacity: 0.25; }
-            }
-          `}</style>
-        </>
-      )}
+          <div style={{ minWidth: 0 }}>
+            {/* Chip "Próximamente" */}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: 'rgba(59,130,246,0.12)',
+              border: '1px solid rgba(59,130,246,0.28)',
+              borderRadius: 99, padding: '1px 8px',
+              marginBottom: 3,
+            }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                Próximamente
+              </span>
+            </div>
+            <p style={{
+              fontSize: 13, fontWeight: 700, color: '#e2e8f0',
+              margin: 0, lineHeight: 1.2,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              🏭 Estamos sumando marcas y fábricas cada día — ¡Pronto podés explorar y comprar!
+            </p>
+          </div>
+        </div>
+
+        {/* Derecha: chips de estado */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {[
+            { icon: '✅', text: 'Plataforma lista' },
+            { icon: '🏭', text: 'Sumando fábricas' },
+            { icon: '⚡', text: 'Lanzamiento pronto' },
+          ].map((chip, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '4px 10px',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 99,
+            }}>
+              <span style={{ fontSize: 11 }}>{chip.icon}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                {chip.text}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes mm-blink {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.25; }
+        }
+      `}</style>
 
       {/* FIN COMING SOON ────────────────────────────────────────────────────── */}
 
