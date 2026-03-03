@@ -348,7 +348,7 @@ export default function HomePrincipal() {
               margin: 0, lineHeight: 1.2,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
-               Estamos sumando fábricas y productos todos los día — ¡Pronto podras explorar y comprar muchos productos!
+               Estamos sumando fábricas y productos todos los días — ¡Pronto podras explorar y comprar muchos productos!
             </p>
           </div>
         </div>
