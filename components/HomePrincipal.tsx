@@ -348,7 +348,7 @@ export default function HomePrincipal() {
               margin: 0, lineHeight: 1.2,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
-              🏭 Estamos sumando marcas y fábricas cada día — ¡Pronto podés explorar y comprar!
+               Estamos sumando fábricas y productos todos los día — ¡Pronto podras explorar y comprar muchos productos!
             </p>
           </div>
         </div>
@@ -357,8 +357,8 @@ export default function HomePrincipal() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {[
             { icon: '✅', text: 'Plataforma lista' },
-            { icon: '🏭', text: 'Sumando fábricas' },
-            { icon: '⚡', text: 'Lanzamiento pronto' },
+            { icon: '✅', text: 'Sumando fábricas' },
+            { icon: '', text: 'Lanzamiento pronto' },
           ].map((chip, i) => (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', gap: 4,
@@ -759,54 +759,53 @@ export default function HomePrincipal() {
           <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
             Accedé a precios de fabrica comprando pocas cantidades 
           </p>
-          
           <div className="grid md:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-                1
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-2">Elegí tu producto</h4>
-              <p className="text-gray-600">
-                Busca en el explorador, el producto que mas quieras o necesites.
-              </p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-                2
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-2">Unite al lote</h4>
-              <p className="text-gray-600">
-                Cuando compras cantidades menores al minimo, te unes a la barra de progreso junto a otros compradores para llegar al minimo.
-              </p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-                3
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-2">Reembolso</h4>
-              <p className="text-gray-600">
-                Mientras el lote este en progreso, puedes pedir el reembolso de tu dinero.
-              </p>
-            </div>
-             
-            <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-                4
-              </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-2">Recibí tu pedido</h4>
-              <p className="text-gray-600">
-                Cuando el lote se completa, el dinero se libera y tu recibes el producto dentro de las 24-72h.
-              </p>
-            </div>
-          </div>
+  <div className="text-center">
+    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
+      <span className="font-black text-white drop-shadow-md tracking-tight">01</span>
+    </div>
+    <h4 className="text-xl font-bold text-gray-900 mb-2">Elegí tu producto</h4>
+    <p className="text-gray-600">
+      Busca en el explorador, el producto que mas quieras o necesites.
+    </p>
+  </div>
+  
+  <div className="text-center">
+    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
+      <span className="font-black text-white drop-shadow-md tracking-tight">02</span>
+    </div>
+    <h4 className="text-xl font-bold text-gray-900 mb-2">Unite al lote</h4>
+    <p className="text-gray-600">
+      Cuando compras cantidades menores al minimo, te unes a la barra de progreso junto a otros compradores para llegar al minimo.
+    </p>
+  </div>
+  
+  <div className="text-center">
+    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
+      <span className="font-black text-white drop-shadow-md tracking-tight">03</span>
+    </div>
+    <h4 className="text-xl font-bold text-gray-900 mb-2">Reembolso</h4>
+    <p className="text-gray-600">
+      Mientras el lote este en progreso, puedes pedir el reembolso de tu dinero.
+    </p>
+  </div>
+   
+  <div className="text-center">
+    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
+      <span className="font-black text-white drop-shadow-md tracking-tight">04</span>
+    </div>
+    <h4 className="text-xl font-bold text-gray-900 mb-2">Recibí tu pedido</h4>
+    <p className="text-gray-600">
+      Cuando el lote se completa, el dinero se libera y tu recibes el producto dentro de las 24-72h.
+    </p>
+  </div>
+</div>
 
-          <div className="mt-8 text-center">
-            <Link 
-              href="/como-funciona" 
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
-            >
+<div className="mt-8 text-center">
+  <Link 
+    href="/como-funciona" 
+    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
+  >
               Conocer más detalles →
             </Link>
           </div>
