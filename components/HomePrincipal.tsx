@@ -762,7 +762,7 @@ export default function HomePrincipal() {
           <div className="grid md:grid-cols-4 gap-8">
   <div className="text-center">
     <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-      <span className="font-black text-white drop-shadow-md tracking-tight">01</span>
+      <span className="font-black text-white drop-shadow-md tracking-tight">1</span>
     </div>
     <h4 className="text-xl font-bold text-gray-900 mb-2">Elegí tu producto</h4>
     <p className="text-gray-600">
@@ -772,7 +772,7 @@ export default function HomePrincipal() {
   
   <div className="text-center">
     <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-      <span className="font-black text-white drop-shadow-md tracking-tight">02</span>
+      <span className="font-black text-white drop-shadow-md tracking-tight">2</span>
     </div>
     <h4 className="text-xl font-bold text-gray-900 mb-2">Unite al lote</h4>
     <p className="text-gray-600">
@@ -782,7 +782,7 @@ export default function HomePrincipal() {
   
   <div className="text-center">
     <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-      <span className="font-black text-white drop-shadow-md tracking-tight">03</span>
+      <span className="font-black text-white drop-shadow-md tracking-tight">3</span>
     </div>
     <h4 className="text-xl font-bold text-gray-900 mb-2">Reembolso</h4>
     <p className="text-gray-600">
@@ -792,7 +792,7 @@ export default function HomePrincipal() {
    
   <div className="text-center">
     <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-      <span className="font-black text-white drop-shadow-md tracking-tight">04</span>
+      <span className="font-black text-white drop-shadow-md tracking-tight">4</span>
     </div>
     <h4 className="text-xl font-bold text-gray-900 mb-2">Recibí tu pedido</h4>
     <p className="text-gray-600">
