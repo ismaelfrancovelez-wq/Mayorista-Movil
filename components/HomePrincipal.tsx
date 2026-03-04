@@ -265,8 +265,8 @@ export default function HomePrincipal() {
         router.push('/dashboard/fabricante');
       }
     } else {
-      localStorage.setItem('selectedRole', targetRole);
-      router.push('/registro');
+      // ✅ Manda directo a /login?role=xxx sin pasar por /registro
+      router.push(`/login?role=${targetRole}`);
     }
   };
 
@@ -280,104 +280,6 @@ export default function HomePrincipal() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-          COMING SOON — Banner inferior + bloqueo de navegación
-          
-          Para sacarlo cuando ya no lo necesites, borrá TODO este bloque
-          desde aquí ↓ hasta el comentario "FIN COMING SOON"
-      ════════════════════════════════════════════════════════════════════════ */}
-
-      <div style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0,
-        bottom: 72,
-        zIndex: 9998,
-        cursor: 'not-allowed',
-      }} />
-
-      <div style={{
-        position: 'fixed',
-        bottom: 0, left: 0, right: 0,
-        height: 72,
-        zIndex: 9999,
-        background: 'linear-gradient(90deg, #0f172a 0%, #1e3a5f 50%, #0f172a 100%)',
-        borderTop: '2px solid rgba(59,130,246,0.35)',
-        boxShadow: '0 -6px 28px rgba(0,0,0,0.55)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 20px',
-        gap: 12,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-            background: 'rgba(59,130,246,0.15)',
-            border: '1px solid rgba(59,130,246,0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <div style={{
-              width: 9, height: 9, borderRadius: '50%',
-              background: '#3b82f6',
-              boxShadow: '0 0 8px #3b82f6',
-              animation: 'mm-blink 1.4s ease-in-out infinite',
-            }} />
-          </div>
-
-          <div style={{ minWidth: 0 }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              background: 'rgba(59,130,246,0.12)',
-              border: '1px solid rgba(59,130,246,0.28)',
-              borderRadius: 99, padding: '1px 8px',
-              marginBottom: 3,
-            }}>
-              <span style={{ fontSize: 9, fontWeight: 800, color: '#60a5fa', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                Próximamente
-              </span>
-            </div>
-            <p style={{
-              fontSize: 13, fontWeight: 700, color: '#e2e8f0',
-              margin: 0, lineHeight: 1.2,
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>
-               Estamos sumando fábricas y productos todos los días — ¡Pronto podras explorar y comprar muchos productos!
-            </p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {[
-            { icon: '✅', text: 'Plataforma lista' },
-            { icon: '✅', text: 'Sumando fábricas' },
-            { icon: '', text: 'Lanzamiento pronto' },
-          ].map((chip, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '4px 10px',
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 99,
-            }}>
-              <span style={{ fontSize: 11 }}>{chip.icon}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', whiteSpace: 'nowrap' }}>
-                {chip.text}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes mm-blink {
-          0%, 100% { opacity: 1; }
-          50%       { opacity: 0.25; }
-        }
-      `}</style>
-
-      {/* FIN COMING SOON ────────────────────────────────────────────────────── */}
-
 
       {/* HEADER PRINCIPAL */}
       <header className={`sticky top-0 z-50 transition-all duration-300 ${

@@ -38,80 +38,61 @@ export async function POST(req: Request) {
        📦 VALIDAR productId
     =============================== */
     if (!body.productId || typeof body.productId !== "string") {
-      return NextResponse.json(
-        { error: "productId requerido" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "productId requerido" }, { status: 400 });
     }
 
-    // Verificar que el producto pertenece al fabricante
     const productRef = db.collection("products").doc(body.productId);
     const productSnap = await productRef.get();
 
     if (!productSnap.exists) {
-      return NextResponse.json(
-        { error: "Producto no encontrado" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
     }
 
     if (productSnap.data()!.factoryId !== userId) {
-      return NextResponse.json(
-        { error: "Este producto no te pertenece" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Este producto no te pertenece" }, { status: 403 });
     }
 
     /* ===============================
        📦 VALIDACIONES
     =============================== */
     if (!body.name || typeof body.name !== "string") {
-      return NextResponse.json(
-        { error: "Nombre de producto inválido" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Nombre de producto inválido" }, { status: 400 });
     }
 
-    if (
-      !body.description ||
-      typeof body.description !== "string" ||
-      body.description.trim().length < 10
-    ) {
-      return NextResponse.json(
-        { error: "La descripción debe tener al menos 10 caracteres" },
-        { status: 400 }
-      );
+    if (!body.description || typeof body.description !== "string" || body.description.trim().length < 10) {
+      return NextResponse.json({ error: "La descripción debe tener al menos 10 caracteres" }, { status: 400 });
     }
 
     if (typeof body.price !== "number" || body.price <= 0) {
-      return NextResponse.json(
-        { error: "Precio inválido" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Precio inválido" }, { status: 400 });
     }
 
     if (typeof body.minimumOrder !== "number" || body.minimumOrder <= 0) {
-      return NextResponse.json(
-        { error: "Pedido mínimo inválido" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Pedido mínimo inválido" }, { status: 400 });
     }
 
     if (typeof body.netProfitPerUnit !== "number" || body.netProfitPerUnit < 0) {
-      return NextResponse.json(
-        { error: "Ganancia neta inválida" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Ganancia neta inválida" }, { status: 400 });
     }
 
     if (!body.shipping) {
-      return NextResponse.json(
-        { error: "Falta configuración de envío" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Falta configuración de envío" }, { status: 400 });
     }
 
     validateShippingConfig(body.shipping);
+
+    /* ===============================
+       ✅ PROCESAR VARIANTES
+    =============================== */
+    const cleanVariants = Array.isArray(body.variants)
+      ? body.variants
+          .map((v: any) => ({
+            unitLabel: String(v.unitLabel || "").trim().substring(0, 20),
+            price: Number(v.price),
+            minimumOrder: Number(v.minimumOrder),
+          }))
+          .filter((v: any) => v.unitLabel && v.price > 0 && v.minimumOrder > 0)
+      : [];
 
     /* ===============================
        💾 ACTUALIZAR PRODUCTO
@@ -128,6 +109,8 @@ export async function POST(req: Request) {
       unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim()
         ? body.unitLabel.trim().substring(0, 20)
         : null,
+      // ✅ NUEVO: guardar variantes
+      variants: cleanVariants,
       updatedAt: FieldValue.serverTimestamp(),
     });
 

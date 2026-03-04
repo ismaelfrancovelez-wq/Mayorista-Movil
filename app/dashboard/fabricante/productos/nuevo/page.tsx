@@ -1,5 +1,5 @@
 // app/dashboard/fabricante/productos/nuevo/page.tsx
-// ✅ VERSIÓN ACTUALIZADA - múltiples fotos + descripción obligatoria + 4 zonas + validación exclusividad
+// ✅ ACTUALIZADO: soporte para variantes (medida + precio + mínimo)
 
 "use client";
 
@@ -16,11 +16,11 @@ function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
 }
 
-function sanitizeNumber(value: number | "", min: number = 0, max: number = 1000000): number | "" {
-  if (value === "") return "";
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "";
-  return Math.max(min, Math.min(max, num));
+// ✅ NUEVO: tipo para las variantes
+interface ProductVariant {
+  unitLabel: string;
+  price: number | "";
+  minimumOrder: number | "";
 }
 
 export default function NuevoProductoPage() {
@@ -35,7 +35,29 @@ export default function NuevoProductoPage() {
   const [minimumOrder, setMinimumOrder] = useState<number | "">("");
   const [netProfitPerUnit, setNetProfitPerUnit] = useState<number | "">("");
   const [category, setCategory] = useState<ProductCategory>("otros");
-  const [unitLabel, setUnitLabel] = useState(""); // ej: "500g", "1kg", "750ml"
+  const [unitLabel, setUnitLabel] = useState("");
+
+  /* ===============================
+     📐 VARIANTES (medida + precio + mínimo)
+  =============================== */
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+
+  const addVariant = () => {
+    setVariants(prev => [...prev, { unitLabel: "", price: "", minimumOrder: "" }]);
+  };
+
+  const removeVariant = (index: number) => {
+    setVariants(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateVariant = (index: number, field: keyof ProductVariant, value: string) => {
+    setVariants(prev => prev.map((v, i) => {
+      if (i !== index) return v;
+      if (field === "unitLabel") return { ...v, unitLabel: value };
+      const num = value === "" ? "" : Number(value);
+      return { ...v, [field]: num };
+    }));
+  };
 
   /* ===============================
      🖼️ IMÁGENES DEL PRODUCTO (múltiples)
@@ -51,7 +73,7 @@ export default function NuevoProductoPage() {
   const [factoryPickup, setFactoryPickup] = useState(false);
   const [ownLogistics, setOwnLogistics] = useState(false);
   const [thirdParty, setThirdParty] = useState(false);
-  const [noShipping, setNoShipping] = useState(false); // Fabricante no realiza envíos
+  const [noShipping, setNoShipping] = useState(false);
 
   /* ===============================
      🚚 ENVÍO PROPIO
@@ -60,8 +82,6 @@ export default function NuevoProductoPage() {
   const [pricePerKm, setPricePerKm] = useState<number | "">("");
   const [roundTrip, setRoundTrip] = useState(false);
   const [zones, setZones] = useState({ z1: "", z2: "", z3: "", z4: "" });
-
-  // Envío por terceros
   const [thirdPartyPrice, setThirdPartyPrice] = useState<number | "">("");
 
   /* ===============================
@@ -71,7 +91,7 @@ export default function NuevoProductoPage() {
   const [loading, setLoading] = useState(false);
 
   /* ===============================
-     🖼️ MANEJO DE IMÁGENES (múltiples)
+     🖼️ MANEJO DE IMÁGENES
   =============================== */
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -85,7 +105,6 @@ export default function NuevoProductoPage() {
     }
 
     const filesToAdd = files.slice(0, remaining);
-
     if (files.length > remaining) {
       toast.error(`Solo se agregaron ${remaining} foto(s). Límite: ${MAX_IMAGES}`);
     }
@@ -128,7 +147,7 @@ export default function NuevoProductoPage() {
   };
 
   /* ===============================
-     ✅ VALIDACIÓN DE EXCLUSIVIDAD
+     ✅ VALIDACIÓN DE EXCLUSIVIDAD ENVÍO
   =============================== */
   const handleNoShippingChange = (checked: boolean) => {
     if (checked) {
@@ -141,28 +160,16 @@ export default function NuevoProductoPage() {
   };
 
   const handleOwnLogisticsChange = (checked: boolean) => {
-    if (checked && noShipping) {
-      setError("No podés combinar envío propio con sin envío");
-      return;
-    }
-    if (checked && thirdParty) {
-      setError("No podés elegir envío propio y envío por terceros al mismo tiempo");
-      return;
-    }
+    if (checked && noShipping) { setError("No podés combinar envío propio con sin envío"); return; }
+    if (checked && thirdParty) { setError("No podés elegir envío propio y envío por terceros al mismo tiempo"); return; }
     setOwnLogistics(checked);
     if (!checked) setOwnType("");
     setError(null);
   };
 
   const handleThirdPartyChange = (checked: boolean) => {
-    if (checked && noShipping) {
-      setError("No podés combinar envío por terceros con sin envío");
-      return;
-    }
-    if (checked && ownLogistics) {
-      setError("No podés elegir envío por terceros y envío propio al mismo tiempo");
-      return;
-    }
+    if (checked && noShipping) { setError("No podés combinar envío por terceros con sin envío"); return; }
+    if (checked && ownLogistics) { setError("No podés elegir envío por terceros y envío propio al mismo tiempo"); return; }
     setThirdParty(checked);
     setError(null);
   };
@@ -177,105 +184,49 @@ export default function NuevoProductoPage() {
     const sanitizedDescription = sanitizeText(description, 1000);
     const sanitizedUnitLabel = sanitizeText(unitLabel, 20);
 
-    if (sanitizedName.length < 3) {
-      setError("El nombre debe tener al menos 3 caracteres");
-      return;
-    }
+    if (sanitizedName.length < 3) { setError("El nombre debe tener al menos 3 caracteres"); return; }
+    if (sanitizedDescription.length < 10) { setError("La descripción debe tener al menos 10 caracteres"); return; }
+    if (price === "" || price <= 0) { setError("Ingresá un precio válido"); return; }
+    if (minimumOrder === "" || minimumOrder <= 0) { setError("Ingresá un pedido mínimo válido"); return; }
+    if (netProfitPerUnit === "" || netProfitPerUnit < 0) { setError("Ingresá una ganancia neta válida (0 o mayor)"); return; }
 
-    if (sanitizedDescription.length < 10) {
-      setError("La descripción debe tener al menos 10 caracteres");
-      return;
-    }
-
-    if (price === "" || price <= 0) {
-      setError("Ingresá un precio válido");
-      return;
-    }
-
-    if (minimumOrder === "" || minimumOrder <= 0) {
-      setError("Ingresá un pedido mínimo válido");
-      return;
-    }
-
-    if (netProfitPerUnit === "" || netProfitPerUnit < 0) {
-      setError("Ingresá una ganancia neta válida (0 o mayor)");
-      return;
+    // ✅ Validar variantes
+    for (let i = 0; i < variants.length; i++) {
+      const v = variants[i];
+      if (!v.unitLabel.trim()) { setError(`La variante ${i + 1} necesita una medida (ej: 500g)`); return; }
+      if (v.price === "" || Number(v.price) <= 0) { setError(`La variante ${i + 1} necesita un precio válido`); return; }
+      if (v.minimumOrder === "" || Number(v.minimumOrder) <= 0) { setError(`La variante ${i + 1} necesita un pedido mínimo válido`); return; }
     }
 
     if (!factoryPickup && !ownLogistics && !thirdParty && !noShipping) {
-      setError("Elegí al menos un método de envío o indicá que no realizás envíos");
-      return;
+      setError("Elegí al menos un método de envío o indicá que no realizás envíos"); return;
     }
-
-    if (ownLogistics && thirdParty) {
-      setError("No podés elegir envío propio y envío por terceros al mismo tiempo");
-      return;
+    if (ownLogistics && thirdParty) { setError("No podés elegir envío propio y envío por terceros al mismo tiempo"); return; }
+    if (ownLogistics && !ownType) { setError("Seleccioná cómo calcular el envío propio (por km o por zonas)"); return; }
+    if (ownLogistics && ownType === "per_km" && (pricePerKm === "" || pricePerKm <= 0)) {
+      setError("Ingresá un precio por kilómetro válido"); return;
     }
-
-    if (ownLogistics && !ownType) {
-      setError("Seleccioná cómo calcular el envío propio (por km o por zonas)");
-      return;
-    }
-
-    if (ownLogistics && ownType === "per_km") {
-      if (pricePerKm === "" || pricePerKm <= 0) {
-        setError("Ingresá un precio por kilómetro válido");
-        return;
-      }
-    }
-
     if (ownLogistics && ownType === "zones") {
-      if (!zones.z1 || !zones.z2 || !zones.z3 || !zones.z4) {
-        setError("Completá los precios de las 4 zonas");
-        return;
-      }
-      const z1 = Number(zones.z1);
-      const z2 = Number(zones.z2);
-      const z3 = Number(zones.z3);
-      const z4 = Number(zones.z4);
-      if (z1 <= 0 || z2 <= 0 || z3 <= 0 || z4 <= 0) {
-        setError("Los precios de zonas deben ser mayores a 0");
-        return;
+      if (!zones.z1 || !zones.z2 || !zones.z3 || !zones.z4) { setError("Completá los precios de las 4 zonas"); return; }
+      if (Number(zones.z1) <= 0 || Number(zones.z2) <= 0 || Number(zones.z3) <= 0 || Number(zones.z4) <= 0) {
+        setError("Los precios de zonas deben ser mayores a 0"); return;
       }
     }
-
-    if (thirdParty) {
-      if (thirdPartyPrice === "" || thirdPartyPrice <= 0) {
-        setError("Ingresá un precio de envío por terceros válido");
-        return;
-      }
+    if (thirdParty && (thirdPartyPrice === "" || thirdPartyPrice <= 0)) {
+      setError("Ingresá un precio de envío por terceros válido"); return;
     }
 
     /* ===============================
        📦 ARMADO SHIPPING
     =============================== */
     const shipping: any = { methods: [] };
-
     if (noShipping) shipping.noShipping = true;
     if (factoryPickup) shipping.methods.push("factory_pickup");
-
     if (ownLogistics) {
       shipping.methods.push("own_logistics");
-      if (ownType === "per_km") {
-        shipping.ownLogistics = {
-          type: "per_km",
-          pricePerKm: Number(pricePerKm),
-          roundTrip,
-        };
-      }
-      if (ownType === "zones") {
-        shipping.ownLogistics = {
-          type: "zones",
-          zones: {
-            z1: Number(zones.z1),
-            z2: Number(zones.z2),
-            z3: Number(zones.z3),
-            z4: Number(zones.z4),
-          },
-        };
-      }
+      if (ownType === "per_km") shipping.ownLogistics = { type: "per_km", pricePerKm: Number(pricePerKm), roundTrip };
+      if (ownType === "zones") shipping.ownLogistics = { type: "zones", zones: { z1: Number(zones.z1), z2: Number(zones.z2), z3: Number(zones.z3), z4: Number(zones.z4) } };
     }
-
     if (thirdParty) {
       shipping.methods.push("third_party");
       shipping.thirdParty = { fixedPrice: Number(thirdPartyPrice), disclaimerAccepted: true };
@@ -291,17 +242,19 @@ export default function NuevoProductoPage() {
       if (imageFiles.length > 0) {
         setUploadingImage(true);
         toast.loading(`Subiendo ${imageFiles.length} foto(s)...`);
-        imageUrls = await Promise.all(
-          imageFiles.map((file) => uploadImage(file, "products"))
-        );
+        imageUrls = await Promise.all(imageFiles.map((file) => uploadImage(file, "products")));
         toast.dismiss();
         toast.success("Fotos subidas correctamente");
         setUploadingImage(false);
       }
 
-      /* ===============================
-         🚀 API
-      =============================== */
+      // ✅ Limpiar y serializar variantes
+      const cleanVariants = variants.map(v => ({
+        unitLabel: v.unitLabel.trim(),
+        price: Number(v.price),
+        minimumOrder: Number(v.minimumOrder),
+      }));
+
       const res = await fetch("/api/products/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -314,7 +267,8 @@ export default function NuevoProductoPage() {
           category,
           unitLabel: sanitizedUnitLabel || undefined,
           shipping,
-          imageUrls,   // ✅ array de URLs
+          imageUrls,
+          variants: cleanVariants,  // ✅ NUEVO
         }),
       });
 
@@ -356,7 +310,7 @@ export default function NuevoProductoPage() {
           <div>
             <label className="block text-sm mb-1">Nombre del producto</label>
             <input
-              placeholder="Ej: Zapatillas deportivas"
+              placeholder="Ej: Whey Protein"
               className="w-full border rounded px-3 py-2"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -364,22 +318,19 @@ export default function NuevoProductoPage() {
             />
           </div>
 
-          {/* ✅ DESCRIPCIÓN OBLIGATORIA */}
           <div>
             <label className="block text-sm mb-1">
               Descripción del producto <span className="text-red-500">*</span>
             </label>
             <textarea
-              placeholder="Ej: Zapatillas deportivas de alta calidad, ideales para uso intensivo. Disponibles en todos los talles..."
+              placeholder="Ej: Proteína de suero de alta calidad, ideal para deportistas..."
               className="w-full border rounded px-3 py-2 resize-none"
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={1000}
             />
-            <p className="text-xs text-gray-400 mt-1">
-              {description.length}/1000 caracteres · mínimo 10
-            </p>
+            <p className="text-xs text-gray-400 mt-1">{description.length}/1000 caracteres · mínimo 10</p>
           </div>
 
           <div>
@@ -390,53 +341,23 @@ export default function NuevoProductoPage() {
               onChange={(e) => setCategory(e.target.value as ProductCategory)}
             >
               {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
+                <option key={value} value={value}>{label}</option>
               ))}
             </select>
           </div>
 
-          {/* Unidad del producto */}
-          <div>
-            <label className="block text-sm mb-1">
-              Unidad de medida{" "}
-              <span className="text-gray-400 font-normal">(opcional)</span>
-            </label>
-            <input
-              placeholder="Ej: 500g · 1kg · 750ml · 1 litro · pack x6"
-              className="w-full border rounded px-3 py-2"
-              value={unitLabel}
-              onChange={(e) => setUnitLabel(e.target.value)}
-              maxLength={20}
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              Se muestra junto al precio. Dejalo vacío si vendés por pieza/unidad simple.
-            </p>
-            {unitLabel && (
-              <p className="text-xs text-blue-600 mt-1">
-                Vista previa: <strong>$ {price ? Number(price).toLocaleString("es-AR") : "0"} / {unitLabel}</strong>
-              </p>
-            )}
-          </div>
-
-          {/* ✅ MÚLTIPLES IMÁGENES */}
+          {/* IMÁGENES */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Fotos del producto{" "}
               <span className="text-gray-400 font-normal">(opcional · máx. {MAX_IMAGES})</span>
             </label>
 
-            {/* Grilla de previews */}
             {imagePreviews.length > 0 && (
               <div className="grid grid-cols-3 gap-2 mb-3">
                 {imagePreviews.map((src, index) => (
                   <div key={index} className="relative group">
-                    <img
-                      src={src}
-                      alt={`Foto ${index + 1}`}
-                      className="w-full h-28 object-cover rounded-lg border"
-                    />
+                    <img src={src} alt={`Foto ${index + 1}`} className="w-full h-28 object-cover rounded-lg border" />
                     <button
                       type="button"
                       onClick={() => handleRemoveImage(index)}
@@ -447,71 +368,151 @@ export default function NuevoProductoPage() {
                       </svg>
                     </button>
                     {index === 0 && (
-                      <span className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">
-                        Principal
-                      </span>
+                      <span className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">Principal</span>
                     )}
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Botón para agregar más fotos (visible si no llegó al límite) */}
             {imageFiles.length < MAX_IMAGES && (
               <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                 <div className="flex flex-col items-center justify-center">
                   <svg className="w-8 h-8 mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <p className="text-sm text-gray-500">
-                    <span className="font-semibold">Click para subir</span> o arrastrá fotos
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    PNG, JPG o WEBP · MAX. 5MB por foto ·{" "}
-                    {imageFiles.length}/{MAX_IMAGES} subidas
-                  </p>
+                  <p className="text-sm text-gray-500"><span className="font-semibold">Click para subir</span> o arrastrá fotos</p>
+                  <p className="text-xs text-gray-400 mt-1">PNG, JPG o WEBP · MAX. 5MB · {imageFiles.length}/{MAX_IMAGES} subidas</p>
                 </div>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  multiple
-                  onChange={handleImageChange}
-                />
+                <input type="file" className="hidden" accept="image/jpeg,image/jpg,image/png,image/webp" multiple onChange={handleImageChange} />
               </label>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm mb-1">Precio por unidad</label>
-              <input
-                type="number"
-                placeholder="1000"
-                className="w-full border rounded px-3 py-2"
-                value={price}
-                onChange={(e) => setPrice(Number(e.target.value))}
-                min={0}
-              />
+          {/* PRECIO BASE */}
+          <div className="border-t pt-4">
+            <p className="text-sm font-semibold text-gray-700 mb-3">
+              Presentación principal
+              <span className="ml-2 text-xs font-normal text-gray-400">(la que aparece primero)</span>
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Medida / unidad</label>
+                <input
+                  placeholder="Ej: 1kg"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={unitLabel}
+                  onChange={(e) => setUnitLabel(e.target.value)}
+                  maxLength={20}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Precio por unidad</label>
+                <input
+                  type="number"
+                  placeholder="5000"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={price}
+                  onChange={(e) => setPrice(Number(e.target.value))}
+                  min={0}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Pedido mínimo</label>
+                <input
+                  type="number"
+                  placeholder="10"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={minimumOrder}
+                  onChange={(e) => setMinimumOrder(Number(e.target.value))}
+                  min={1}
+                />
+              </div>
+            </div>
+            {unitLabel && price !== "" && (
+              <p className="text-xs text-blue-600 mt-2">
+                Vista previa: <strong>${Number(price).toLocaleString("es-AR")} / {unitLabel}</strong>
+              </p>
+            )}
+          </div>
+
+          {/* ✅ VARIANTES */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Otras presentaciones</p>
+                <p className="text-xs text-gray-400 mt-0.5">Ej: 500g, 250g — cada una con su propio precio y mínimo</p>
+              </div>
+              <button
+                type="button"
+                onClick={addVariant}
+                className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 hover:border-blue-400 rounded-lg px-3 py-1.5 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Agregar
+              </button>
             </div>
 
-            <div>
-              <label className="block text-sm mb-1">Pedido mínimo</label>
-              <input
-                type="number"
-                placeholder="10"
-                className="w-full border rounded px-3 py-2"
-                value={minimumOrder}
-                onChange={(e) => setMinimumOrder(Number(e.target.value))}
-                min={1}
-              />
+            {variants.length === 0 && (
+              <p className="text-xs text-gray-400 italic text-center py-3 border border-dashed border-gray-200 rounded-lg">
+                Sin presentaciones adicionales. Hacé click en "Agregar" para sumar una.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {variants.map((v, i) => (
+                <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end bg-gray-50 rounded-lg p-3 border border-gray-100">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Medida</label>
+                    <input
+                      placeholder="Ej: 500g"
+                      className="w-full border rounded px-2 py-1.5 text-sm bg-white"
+                      value={v.unitLabel}
+                      onChange={(e) => updateVariant(i, "unitLabel", e.target.value)}
+                      maxLength={20}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Precio</label>
+                    <input
+                      type="number"
+                      placeholder="2500"
+                      className="w-full border rounded px-2 py-1.5 text-sm bg-white"
+                      value={v.price}
+                      onChange={(e) => updateVariant(i, "price", e.target.value)}
+                      min={0}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Mínimo</label>
+                    <input
+                      type="number"
+                      placeholder="20"
+                      className="w-full border rounded px-2 py-1.5 text-sm bg-white"
+                      value={v.minimumOrder}
+                      onChange={(e) => updateVariant(i, "minimumOrder", e.target.value)}
+                      min={1}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeVariant(i)}
+                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Eliminar variante"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm mb-1">
-              Ganancia neta por unidad (solo para vos)
-            </label>
+            <label className="block text-sm mb-1">Ganancia neta por unidad (solo para vos)</label>
             <input
               type="number"
               placeholder="200"
@@ -526,41 +527,22 @@ export default function NuevoProductoPage() {
         {/* ENVÍOS */}
         <div className="bg-white rounded-xl shadow p-6 mb-8 space-y-3">
           <h2 className="font-semibold mb-2">Métodos de envío</h2>
-
-          <p className="text-sm text-gray-600 mb-4">
-            Retiro en fábrica puede combinarse con cualquier otro método.
-            Los demás métodos son exclusivos entre sí.
-          </p>
+          <p className="text-sm text-gray-600 mb-4">Retiro en fábrica puede combinarse con cualquier otro método. Los demás métodos son exclusivos entre sí.</p>
 
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={factoryPickup}
-              onChange={(e) => setFactoryPickup(e.target.checked)}
-            />
+            <input type="checkbox" checked={factoryPickup} onChange={(e) => setFactoryPickup(e.target.checked)} />
             <span>Retiro en fábrica (gratis)</span>
           </label>
 
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={ownLogistics}
-              onChange={(e) => handleOwnLogisticsChange(e.target.checked)}
-              disabled={noShipping}
-            />
-            <span className={noShipping ? "text-gray-400 line-through" : ""}>
-              Envío propio
-            </span>
+            <input type="checkbox" checked={ownLogistics} onChange={(e) => handleOwnLogisticsChange(e.target.checked)} disabled={noShipping} />
+            <span className={noShipping ? "text-gray-400 line-through" : ""}>Envío propio</span>
           </label>
 
           {ownLogistics && (
             <div className="ml-6 space-y-2 border-l-2 pl-4">
               <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  checked={ownType === "per_km"}
-                  onChange={() => setOwnType("per_km")}
-                />
+                <input type="radio" checked={ownType === "per_km"} onChange={() => setOwnType("per_km")} />
                 <span>Por kilómetro</span>
               </label>
 
@@ -568,135 +550,60 @@ export default function NuevoProductoPage() {
                 <div className="space-y-3 ml-4 border-l-2 border-gray-200 pl-4">
                   <div>
                     <label className="block text-sm mb-1">Precio por kilómetro</label>
-                    <input
-                      type="number"
-                      placeholder="Ej: 85"
-                      className="border rounded px-3 py-2 w-full"
-                      value={pricePerKm}
-                      onChange={(e) => setPricePerKm(Number(e.target.value))}
-                      min={0}
-                    />
+                    <input type="number" placeholder="Ej: 85" className="border rounded px-3 py-2 w-full" value={pricePerKm} onChange={(e) => setPricePerKm(Number(e.target.value))} min={0} />
                   </div>
-
                   <div>
                     <label className="block text-sm mb-2 font-medium">Tipo de cálculo:</label>
-
                     <label className="flex items-center gap-2 mb-2">
-                      <input
-                        type="radio"
-                        checked={!roundTrip}
-                        onChange={() => setRoundTrip(false)}
-                      />
-                      <span>Solo ida</span>
-                      <span className="text-xs text-gray-500">(fábrica → revendedor)</span>
+                      <input type="radio" checked={!roundTrip} onChange={() => setRoundTrip(false)} />
+                      <span>Solo ida</span><span className="text-xs text-gray-500">(fábrica → revendedor)</span>
                     </label>
-
                     <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        checked={roundTrip}
-                        onChange={() => setRoundTrip(true)}
-                      />
-                      <span>Ida y vuelta (×2)</span>
-                      <span className="text-xs text-gray-500">(fábrica → revendedor → fábrica)</span>
+                      <input type="radio" checked={roundTrip} onChange={() => setRoundTrip(true)} />
+                      <span>Ida y vuelta (×2)</span><span className="text-xs text-gray-500">(fábrica → revendedor → fábrica)</span>
                     </label>
                   </div>
                 </div>
               )}
 
               <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  checked={ownType === "zones"}
-                  onChange={() => setOwnType("zones")}
-                />
+                <input type="radio" checked={ownType === "zones"} onChange={() => setOwnType("zones")} />
                 <span>Por zonas de distancia</span>
               </label>
 
               {ownType === "zones" && (
                 <div className="grid grid-cols-2 gap-2">
-                  <input
-                    placeholder="Zona 1 (0-15 km)"
-                    type="number"
-                    className="border px-2 py-1"
-                    value={zones.z1}
-                    onChange={(e) => setZones({ ...zones, z1: e.target.value })}
-                  />
-                  <input
-                    placeholder="Zona 2 (15-35 km)"
-                    type="number"
-                    className="border px-2 py-1"
-                    value={zones.z2}
-                    onChange={(e) => setZones({ ...zones, z2: e.target.value })}
-                  />
-                  <input
-                    placeholder="Zona 3 (35-60 km)"
-                    type="number"
-                    className="border px-2 py-1"
-                    value={zones.z3}
-                    onChange={(e) => setZones({ ...zones, z3: e.target.value })}
-                  />
-                  <input
-                    placeholder="Zona 4 (+60 km)"
-                    type="number"
-                    className="border px-2 py-1"
-                    value={zones.z4}
-                    onChange={(e) => setZones({ ...zones, z4: e.target.value })}
-                  />
+                  <input placeholder="Zona 1 (0-15 km)" type="number" className="border px-2 py-1" value={zones.z1} onChange={(e) => setZones({ ...zones, z1: e.target.value })} />
+                  <input placeholder="Zona 2 (15-35 km)" type="number" className="border px-2 py-1" value={zones.z2} onChange={(e) => setZones({ ...zones, z2: e.target.value })} />
+                  <input placeholder="Zona 3 (35-60 km)" type="number" className="border px-2 py-1" value={zones.z3} onChange={(e) => setZones({ ...zones, z3: e.target.value })} />
+                  <input placeholder="Zona 4 (+60 km)" type="number" className="border px-2 py-1" value={zones.z4} onChange={(e) => setZones({ ...zones, z4: e.target.value })} />
                 </div>
               )}
             </div>
           )}
 
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={thirdParty}
-              onChange={(e) => handleThirdPartyChange(e.target.checked)}
-              disabled={noShipping}
-            />
-            <span className={noShipping ? "text-gray-400 line-through" : ""}>
-              Envío por terceros (precio fijo)
-            </span>
+            <input type="checkbox" checked={thirdParty} onChange={(e) => handleThirdPartyChange(e.target.checked)} disabled={noShipping} />
+            <span className={noShipping ? "text-gray-400 line-through" : ""}>Envío por terceros (precio fijo)</span>
           </label>
 
-          {/* ── Sin envío ── */}
           <div className="mt-2 border-t pt-3">
             <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={noShipping}
-                onChange={(e) => handleNoShippingChange(e.target.checked)}
-                className="mt-0.5"
-              />
+              <input type="checkbox" checked={noShipping} onChange={(e) => handleNoShippingChange(e.target.checked)} className="mt-0.5" />
               <div>
                 <span className="font-medium">No realizo envíos</span>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Los revendedores solo podrán comprar mediante pedidos fraccionados —
-                  la plataforma gestiona el envío por ellos.
-                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Los revendedores solo podrán comprar mediante pedidos fraccionados — la plataforma gestiona el envío por ellos.</p>
               </div>
             </label>
             {noShipping && (
               <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 ml-6">
-                <p className="text-sm text-blue-800">
-                  <strong>📦 Cómo funciona:</strong> La plataforma agrupa revendedores y organiza
-                  el envío desde tu fábrica. Vos solo preparás el pedido y lo entregás al
-                  transportista — sin costo ni gestión de tu parte.
-                </p>
+                <p className="text-sm text-blue-800"><strong>📦 Cómo funciona:</strong> La plataforma agrupa revendedores y organiza el envío desde tu fábrica.</p>
               </div>
             )}
           </div>
 
           {thirdParty && (
-            <input
-              type="number"
-              placeholder="Precio fijo terceros"
-              className="border rounded px-3 py-2 w-64 ml-6"
-              value={thirdPartyPrice}
-              onChange={(e) => setThirdPartyPrice(Number(e.target.value))}
-              min={0}
-            />
+            <input type="number" placeholder="Precio fijo terceros" className="border rounded px-3 py-2 w-64 ml-6" value={thirdPartyPrice} onChange={(e) => setThirdPartyPrice(Number(e.target.value))} min={0} />
           )}
         </div>
 

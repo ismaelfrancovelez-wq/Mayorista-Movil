@@ -5,7 +5,8 @@
 
 import { useState } from "react";
 
-type Role = "manufacturer" | "retailer";
+// ✅ ACTUALIZADO: ahora acepta los 4 roles
+type Role = "manufacturer" | "retailer" | "distributor" | "wholesaler";
 
 // ─── DESCUENTOS POR RACHA ─────────────────────────────────────────────────────
 const STREAK_DISCOUNTS: Record<number, { shipping: number; commission: number; label: string }> = {
@@ -50,45 +51,43 @@ const LEVEL_DATA = [
 ];
 
 // ─── TEMA COMERCIAL B2B ───────────────────────────────────────────────────────
-// Reemplaza el TIER_THEME de gaming.
-// Paleta basada en confianza empresarial: azul → verde → ámbar → índigo → platino
 const COMMERCIAL_TIER: Record<number, {
   bg1: string; bg2: string;
   border: string; borderInner: string;
   iconColor: string; accent: string;
   glow: string | null; labelColor: string;
 }> = {
-  0: { // Bloqueado — gris neutro
+  0: {
     bg1:"#1c1f2e", bg2:"#13151f",
     border:"#2a2d40", borderInner:"#252838",
     iconColor:"#50537a", accent:"#50537a",
     glow: null, labelColor:"#606080",
   },
-  1: { // Azul Acero — Nuevo socio / confianza inicial
+  1: {
     bg1:"#0e2040", bg2:"#091528",
     border:"#1e4888", borderInner:"#2a60a8",
     iconColor:"#60a8e8", accent:"#4090d8",
     glow:"0 0 16px rgba(64,144,216,0.35)", labelColor:"#80b8f0",
   },
-  2: { // Verde Bosque — Activo / constante
+  2: {
     bg1:"#0e2e1a", bg2:"#091e10",
     border:"#1a6035", borderInner:"#259048",
     iconColor:"#50c870", accent:"#40b060",
     glow:"0 0 16px rgba(64,176,96,0.35)", labelColor:"#70d888",
   },
-  3: { // Ámbar / Oro — Confiable / comprometido
+  3: {
     bg1:"#2e1e08", bg2:"#1e1205",
     border:"#886020", borderInner:"#b08030",
     iconColor:"#e8b040", accent:"#d0a030",
     glow:"0 0 20px rgba(208,160,48,0.4)", labelColor:"#f0c050",
   },
-  4: { // Índigo — VIP
+  4: {
     bg1:"#1e1035", bg2:"#130a22",
     border:"#5028a8", borderInner:"#7040d0",
     iconColor:"#a870f8", accent:"#9060e8",
     glow:"0 0 22px rgba(144,96,232,0.45)", labelColor:"#c090ff",
   },
-  5: { // Platino / Cian — Leyenda / Fundador
+  5: {
     bg1:"#082030", bg2:"#041518",
     border:"#1880a0", borderInner:"#20b8d0",
     iconColor:"#50e8f8", accent:"#30d0e8",
@@ -97,8 +96,6 @@ const COMMERCIAL_TIER: Record<number, {
 };
 
 // ─── BADGE HEXAGONAL PROFESIONAL ─────────────────────────────────────────────
-// Forma hexagonal con punta arriba — estilo credencial/certificación B2B
-// Sin llamas, sin anillos de gaming. Limpio y directo.
 type IconType = "bolt" | "star" | "shield";
 
 function CommercialBadge({
@@ -109,10 +106,8 @@ function CommercialBadge({
   const s = size, c = s / 2;
   const th = locked ? COMMERCIAL_TIER[0] : (COMMERCIAL_TIER[tier] || COMMERCIAL_TIER[1]);
 
-  // Hexágono con punta arriba
-  // sin(0)=0, cos(0)=1 → punta arriba con la fórmula x=sin(θ), y=-cos(θ)
-  const R  = s * 0.44; // radio exterior
-  const Ri = s * 0.31; // radio del anillo interior decorativo
+  const R  = s * 0.44;
+  const Ri = s * 0.31;
 
   const hexPts = (r: number) =>
     [0, 60, 120, 180, 240, 300]
@@ -122,7 +117,6 @@ function CommercialBadge({
       })
       .join(" ");
 
-  // IDs únicos para evitar conflictos entre múltiples badges en pantalla
   const bgId    = `cb-bg-${tier}-${s}`;
   const glowId  = `cb-gw-${tier}-${s}`;
   const sheenId = `cb-sh-${tier}-${s}`;
@@ -139,26 +133,22 @@ function CommercialBadge({
       }}
     >
       <defs>
-        {/* Gradiente de fondo del hexágono */}
         <linearGradient id={bgId} x1="0.3" y1="0" x2="0.7" y2="1">
           <stop offset="0%"   stopColor={th.bg1} />
           <stop offset="100%" stopColor={th.bg2} />
         </linearGradient>
-        {/* Brillo radial interno */}
         {!locked && (
           <radialGradient id={glowId} cx="50%" cy="38%" r="62%">
             <stop offset="0%"   stopColor={th.accent} stopOpacity="0.22" />
             <stop offset="100%" stopColor={th.accent} stopOpacity="0"    />
           </radialGradient>
         )}
-        {/* Destello superior (sheen) */}
         <linearGradient id={sheenId} x1="0.2" y1="0" x2="0.8" y2="0.8">
           <stop offset="0%"  stopColor="white" stopOpacity="0.14" />
           <stop offset="55%" stopColor="white" stopOpacity="0"    />
         </linearGradient>
       </defs>
 
-      {/* ── Cuerpo principal del hexágono ── */}
       <polygon
         points={hexPts(R)}
         fill={`url(#${bgId})`}
@@ -167,10 +157,8 @@ function CommercialBadge({
         strokeLinejoin="round"
       />
 
-      {/* ── Brillo radial interno (solo desbloqueados) ── */}
       {!locked && <polygon points={hexPts(R)} fill={`url(#${glowId})`} />}
 
-      {/* ── Anillo hexagonal interior — toque de elegancia ── */}
       <polygon
         points={hexPts(Ri)}
         fill="none"
@@ -180,9 +168,7 @@ function CommercialBadge({
         opacity={locked ? 0.25 : 0.5}
       />
 
-      {/* ── Ícono central ── */}
       {locked ? (
-        // Candado para bloqueados
         <g opacity={0.38}>
           <rect x={c-s*0.09} y={c+s*0.01} width={s*0.18} height={s*0.13} rx={s*0.022} fill={th.iconColor}/>
           <path
@@ -194,21 +180,18 @@ function CommercialBadge({
         <BusinessIcon cx={c} cy={c} s={s * 0.32} color={th.iconColor} type={icon} />
       )}
 
-      {/* ── Destello superior ── */}
       <polygon points={hexPts(R)} fill={`url(#${sheenId})`} />
     </svg>
   );
 }
 
-// ─── ÍCONOS DE NEGOCIO (reemplazan los íconos de gaming) ─────────────────────
+// ─── ÍCONOS DE NEGOCIO ────────────────────────────────────────────────────────
 function BusinessIcon({
   cx, cy, s, color, type,
 }: { cx: number; cy: number; s: number; color: string; type: IconType }) {
   const h = s / 2;
 
   if (type === "bolt") {
-    // Rayo limpio — representa velocidad de pago y agilidad comercial
-    // Idéntico al original en forma pero más refinado (sin stroke extra)
     return (
       <polygon
         points={[
@@ -225,7 +208,6 @@ function BusinessIcon({
   }
 
   if (type === "star") {
-    // Estrella de 5 puntas — logros permanentes y nivel top
     const pts = Array.from({ length: 5 }, (_, i) => {
       const ao = (i * 72 - 90) * Math.PI / 180;
       const ai = (i * 72 - 54) * Math.PI / 180;
@@ -234,7 +216,6 @@ function BusinessIcon({
     return <polygon points={pts} fill={color} />;
   }
 
-  // shield — confianza y nivel de reputación
   return (
     <path
       d={`M ${cx} ${cy-h*0.88} L ${cx+h*0.68} ${cy-h*0.42} L ${cx+h*0.68} ${cy+h*0.18} Q ${cx+h*0.68} ${cy+h*0.88} ${cx} ${cy+h*0.92} Q ${cx-h*0.68} ${cy+h*0.88} ${cx-h*0.68} ${cy+h*0.18} L ${cx-h*0.68} ${cy-h*0.42} Z`}
@@ -244,8 +225,6 @@ function BusinessIcon({
 }
 
 // ─── BARRA DE PROGRESO: RACHA DE LOTES ───────────────────────────────────────
-// Diseño: barra arriba con números → grilla de tarjetas abajo
-// Esto elimina 100% el solapamiento de textos
 function StreakTimelineBar({
   badges, currentValue, maxValue, color,
 }: {
@@ -258,11 +237,7 @@ function StreakTimelineBar({
 
   return (
     <div style={{ width: "100%" }}>
-
-      {/* ── Barra con números — solo marcadores, sin textos colgantes ── */}
       <div style={{ position: "relative", padding: "0 8px", marginBottom: 20 }}>
-
-        {/* Números del umbral */}
         <div style={{ position: "relative", height: 22, marginBottom: 8 }}>
           {badges.map(b => {
             const pos = (b.streak / maxValue) * 100;
@@ -291,7 +266,6 @@ function StreakTimelineBar({
           })}
         </div>
 
-        {/* Barra */}
         <div style={{ position: "relative", height: 14 }}>
           <div style={{
             position: "absolute", left: 0, right: 0,
@@ -338,7 +312,6 @@ function StreakTimelineBar({
         </div>
       </div>
 
-      {/* ── Grilla de credenciales — cada badge tiene su propio espacio ── */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(3, 1fr)",
@@ -367,7 +340,6 @@ function StreakTimelineBar({
               position: "relative",
               overflow: "hidden",
             }}>
-              {/* Brillo lateral izquierdo en ganados */}
               {earned && (
                 <div style={{
                   position: "absolute", inset: 0,
@@ -375,15 +347,10 @@ function StreakTimelineBar({
                   pointerEvents: "none",
                 }} />
               )}
-
-              {/* Badge hexagonal */}
               <div style={{ flexShrink: 0 }}>
                 <CommercialBadge tier={earned ? b.tier : 0} locked={!earned} size={44} icon="bolt" />
               </div>
-
-              {/* Textos */}
               <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }}>
-                {/* Umbral de puntos */}
                 <span style={{
                   fontSize: 10, fontWeight: 900,
                   color: earned ? "#ffffff" : "#a0a0c0",
@@ -392,7 +359,6 @@ function StreakTimelineBar({
                 }}>
                   {b.streak} pts
                 </span>
-                {/* Nombre del logro */}
                 <span style={{
                   fontSize: 11, fontWeight: 800,
                   color: earned ? "#ffffff" : "#d0d0e8",
@@ -400,7 +366,6 @@ function StreakTimelineBar({
                 }}>
                   {b.label}
                 </span>
-                {/* Beneficio de descuento */}
                 {discount && (
                   <span style={{
                     fontSize: 10, fontWeight: 700, lineHeight: 1, marginTop: 1,
@@ -412,8 +377,6 @@ function StreakTimelineBar({
                   </span>
                 )}
               </div>
-
-              {/* Check de ganado */}
               {earned && (
                 <div style={{
                   position: "absolute", top: 6, right: 7,
@@ -449,8 +412,6 @@ function MilestoneTimelineBar({
 
   return (
     <div style={{ width: "100%" }}>
-
-      {/* Barra */}
       <div style={{ position: "relative", padding: "0 8px", marginBottom: 20 }}>
         <div style={{ position: "relative", height: 22, marginBottom: 8 }}>
           {badges.map(b => {
@@ -522,7 +483,6 @@ function MilestoneTimelineBar({
         </div>
       </div>
 
-      {/* Grilla de logros — auto-fit para 5 items */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
@@ -554,11 +514,7 @@ function MilestoneTimelineBar({
                   pointerEvents: "none",
                 }} />
               )}
-
-              {/* Badge */}
               <CommercialBadge tier={earned ? b.tier : 0} locked={!earned} size={48} icon="star" />
-
-              {/* Lotes */}
               <span style={{
                 fontSize: 10, fontWeight: 900,
                 color: earned ? "#ffffff" : "#a0a0c0",
@@ -567,8 +523,6 @@ function MilestoneTimelineBar({
               }}>
                 {b.lots} lotes
               </span>
-
-              {/* Nombre */}
               <span style={{
                 fontSize: 10.5, fontWeight: 800,
                 color: earned ? "#ffffff" : "#d0d0e8",
@@ -577,8 +531,6 @@ function MilestoneTimelineBar({
               }}>
                 {b.label}
               </span>
-
-              {/* Etiqueta permanente */}
               {earned && (
                 <div style={{
                   marginTop: 6,
@@ -592,8 +544,6 @@ function MilestoneTimelineBar({
                   </span>
                 </div>
               )}
-
-              {/* Check */}
               {earned && (
                 <div style={{
                   position: "absolute", top: 6, right: 6,
@@ -625,19 +575,16 @@ function ProgressModal({
 }) {
   const [tab, setTab] = useState<"streak" | "milestone" | "level">("streak");
 
-  // Colores de tabs actualizados para B2B
   const TABS = [
     { id: "streak"    as const, label: "Racha de lotes", color: "#2090e0", emoji: "⚡" },
     { id: "milestone" as const, label: "Logros",          color: "#d0a030", emoji: "🏆" },
     { id: "level"     as const, label: "Nivel",           color: "#40b860", emoji: "🎖️" },
   ];
 
-  // Badge de racha más alto ganado
   const topStreakBadge  = [...STREAK_BADGES_DATA].reverse().find(b => streakBadges.includes(b.id)) ?? null;
   const nextStreakBadge = STREAK_BADGES_DATA.find(b => currentStreak < b.streak);
   const ptsToNext       = nextStreakBadge ? nextStreakBadge.streak - currentStreak : 0;
 
-  // Descuento activo
   const activeDiscount = (() => {
     let best = { shipping: 0, commission: 0, label: "Sin descuento aún" };
     for (const [pts, disc] of Object.entries(STREAK_DISCOUNTS)) {
@@ -646,7 +593,6 @@ function ProgressModal({
     return best;
   })();
 
-  // Badge milestone más alto ganado
   const topMilestoneBadge  = [...MILESTONE_BADGES_DATA].reverse().find(b => milestoneBadges.includes(b.id)) ?? null;
   const nextMilestoneBadge = MILESTONE_BADGES_DATA.find(b => completedLots < b.lots);
   const lotsToNext         = nextMilestoneBadge ? nextMilestoneBadge.lots - completedLots : 0;
@@ -656,7 +602,6 @@ function ProgressModal({
 
   return (
     <>
-      {/* Overlay */}
       <div onClick={onClose} style={{
         position: "fixed", inset: 0,
         background: "rgba(4,6,20,0.88)",
@@ -665,7 +610,6 @@ function ProgressModal({
         animation: "urh-fadeIn 0.2s ease-out",
       }} />
 
-      {/* Modal */}
       <div style={{
         position: "fixed", top: "50%", left: "50%",
         transform: "translate(-50%,-50%)",
@@ -673,7 +617,6 @@ function ProgressModal({
         width: 660, maxWidth: "calc(100vw - 24px)",
         maxHeight: "92vh",
         display: "flex", flexDirection: "column",
-        // Fondo más sofisticado — azul marino oscuro, no negro puro
         background: "linear-gradient(160deg, #0c0e1c 0%, #111420 55%, #090c18 100%)",
         borderRadius: 22,
         border: "1px solid rgba(255,255,255,0.08)",
@@ -681,8 +624,6 @@ function ProgressModal({
         overflow: "hidden",
         animation: "urh-modalIn 0.25s cubic-bezier(0.34,1.4,0.64,1)",
       }}>
-
-        {/* Header */}
         <div style={{ padding: "22px 26px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
             <div>
@@ -707,7 +648,6 @@ function ProgressModal({
             >×</button>
           </div>
 
-          {/* Tabs */}
           <div style={{ display: "flex", gap: 2 }}>
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
@@ -726,15 +666,11 @@ function ProgressModal({
           </div>
         </div>
 
-        {/* Contenido */}
         <div style={{ padding: "24px 26px 28px", overflowY: "auto", flex: 1 }}>
 
-          {/* ═══ TAB: RACHA DE LOTES ═══ */}
           {tab === "streak" && (
             <div>
-              {/* Tarjetas de estadísticas */}
               <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
-                {/* Puntos */}
                 <div style={{
                   flex: "1 1 130px", padding: "14px 16px",
                   background: "rgba(32,144,224,0.08)",
@@ -752,7 +688,6 @@ function ProgressModal({
                   </div>
                 </div>
 
-                {/* Último logro */}
                 {topStreakBadge && (() => {
                   const th = COMMERCIAL_TIER[topStreakBadge.tier];
                   return (
@@ -775,7 +710,6 @@ function ProgressModal({
                   );
                 })()}
 
-                {/* Descuento activo */}
                 <div style={{
                   flex: "1 1 130px", padding: "14px 16px",
                   background: currentStreak > 0 ? "rgba(32,144,224,0.06)" : "rgba(255,255,255,0.03)",
@@ -796,7 +730,6 @@ function ProgressModal({
                 </div>
               </div>
 
-              {/* Barra + grilla */}
               <div style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#404060", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 14 }}>
                   Progreso · descuentos por credencial
@@ -820,11 +753,9 @@ function ProgressModal({
             </div>
           )}
 
-          {/* ═══ TAB: LOGROS ═══ */}
           {tab === "milestone" && (
             <div>
               <div style={{ display: "flex", gap: 10, marginBottom: 22, flexWrap: "wrap" }}>
-                {/* Lotes completados */}
                 <div style={{
                   flex: "1 1 130px", padding: "14px 16px",
                   background: "rgba(208,160,48,0.08)",
@@ -842,7 +773,6 @@ function ProgressModal({
                   </div>
                 </div>
 
-                {/* Último logro permanente */}
                 {topMilestoneBadge && (() => {
                   const th = COMMERCIAL_TIER[topMilestoneBadge.tier];
                   return (
@@ -865,7 +795,6 @@ function ProgressModal({
                   );
                 })()}
 
-                {/* Próximo logro */}
                 {nextMilestoneBadge && (
                   <div style={{
                     flex: "1 1 130px", padding: "14px 16px",
@@ -909,7 +838,6 @@ function ProgressModal({
             </div>
           )}
 
-          {/* ═══ TAB: NIVEL ═══ */}
           {tab === "level" && (
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#404060", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 20 }}>
@@ -939,7 +867,6 @@ function ProgressModal({
                           pointerEvents: "none",
                         }} />
                       )}
-
                       <div style={{ position: "relative", marginBottom: 10 }}>
                         <CommercialBadge
                           tier={active ? b.tier : 0}
@@ -963,7 +890,6 @@ function ProgressModal({
                           </div>
                         )}
                       </div>
-
                       <div style={{
                         display: "inline-flex", alignItems: "center", justifyContent: "center",
                         padding: "4px 14px", borderRadius: 7,
@@ -980,7 +906,6 @@ function ProgressModal({
                           {b.label}
                         </span>
                       </div>
-
                       <div style={{ fontSize: 11, fontWeight: 700, color: active ? "#ffffff" : "#9090b0" }}>
                         {b.desc}
                       </div>
@@ -1042,27 +967,28 @@ function HeaderPill({
   );
 }
 
-// ─── ÍCONOS UI ────────────────────────────────────────────────────────────────
-function IconSwitch() {
-  return (
-    <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/>
-      <path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
-    </svg>
-  );
-}
-function IconSpinner() {
-  return (
-    <svg style={{ animation: "urh-spin 0.8s linear infinite" }} width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-    </svg>
-  );
-}
+// ─── LABELS DE ROLES ──────────────────────────────────────────────────────────
+// ✅ NUEVO: mapa de todos los roles a su etiqueta en español
+const ROLE_LABELS: Record<Role, string> = {
+  manufacturer: "Fabricante",
+  retailer:     "Revendedor",
+  distributor:  "Distribuidor",
+  wholesaler:   "Mayorista",
+};
+
+// ✅ NUEVO: color del punto y texto según el rol
+const ROLE_COLORS: Record<Role, { dot: string; text: string; avatar: string }> = {
+  manufacturer: { dot: "#3b82f6", text: "#1d4ed8", avatar: "linear-gradient(135deg,#1d4ed8,#3b82f6)" },
+  retailer:     { dot: "#8b5cf6", text: "#6d28d9", avatar: "linear-gradient(135deg,#6d28d9,#8b5cf6)" },
+  distributor:  { dot: "#9333ea", text: "#7e22ce", avatar: "linear-gradient(135deg,#7e22ce,#a855f7)" },
+  wholesaler:   { dot: "#16a34a", text: "#15803d", avatar: "linear-gradient(135deg,#15803d,#22c55e)" },
+};
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 interface UserRoleHeaderProps {
   userEmail?: string;
-  activeRole: "manufacturer" | "retailer";
+  // ✅ ACTUALIZADO: acepta los 4 roles
+  activeRole: Role;
   userName?: string;
   milestoneBadges?: string[];
   streakBadges?: string[];
@@ -1083,14 +1009,12 @@ export default function UserRoleHeader({
   completedLots   = 0,
   scoreValue      = 0.5,
 }: UserRoleHeaderProps) {
-  const [switching, setSwitching] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const isManufacturer = activeRole === "manufacturer";
-  const isRetailer     = activeRole === "retailer";
-  const targetRole: Role = isManufacturer ? "retailer" : "manufacturer";
-  const targetLabel  = isManufacturer ? "Revendedor" : "Fabricante";
-  const currentLabel = isManufacturer ? "Fabricante" : "Revendedor";
+  // ✅ Usando los mapas de colores y labels para todos los roles
+  const isRetailer    = activeRole === "retailer";
+  const currentLabel  = ROLE_LABELS[activeRole] ?? activeRole;
+  const colors        = ROLE_COLORS[activeRole] ?? ROLE_COLORS.manufacturer;
 
   const initials = userName
     ? userName.slice(0, 2).toUpperCase()
@@ -1099,31 +1023,7 @@ export default function UserRoleHeader({
   const topStreakBadge    = [...STREAK_BADGES_DATA].reverse().find(b => streakBadges.includes(b.id)) ?? null;
   const topMilestoneBadge = [...MILESTONE_BADGES_DATA].reverse().find(b => milestoneBadges.includes(b.id)) ?? null;
   const levelEntry        = LEVEL_DATA.find(l => l.level === paymentLevel) ?? LEVEL_DATA[1];
-
-  const handleSwitch = async () => {
-    setSwitching(true);
-    await fetch("/api/auth/switch-role", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: targetRole }),
-    });
-    window.location.href = targetRole === "manufacturer"
-      ? "/dashboard/fabricante"
-      : "/dashboard/pedidos-fraccionados";
-  };
-
-  const avatarGradient = isManufacturer
-    ? "linear-gradient(135deg,#1d4ed8,#3b82f6)"
-    : "linear-gradient(135deg,#6d28d9,#8b5cf6)";
-  const roleDotColor   = isManufacturer ? "#3b82f6" : "#8b5cf6";
-  const roleTextColor  = isManufacturer ? "#1d4ed8" : "#6d28d9";
-  const switchBg       = isManufacturer
-    ? "linear-gradient(135deg,#f5f3ff,#ede9fe)"
-    : "linear-gradient(135deg,#eff6ff,#dbeafe)";
-  const switchColor    = isManufacturer ? "#6d28d9" : "#1d4ed8";
-
-  // Colores del pill de nivel según el nuevo sistema
-  const levelTh = COMMERCIAL_TIER[levelEntry.tier];
+  const levelTh           = COMMERCIAL_TIER[levelEntry.tier];
 
   return (
     <>
@@ -1131,14 +1031,14 @@ export default function UserRoleHeader({
         <div style={{
           display: "flex", alignItems: "center", gap: 12,
           background: "#fff", border: "1px solid #e5e7eb",
-          borderRadius: 18, padding: "10px 12px 10px 14px",
+          borderRadius: 18, padding: "10px 16px 10px 14px",
           boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
           minWidth: 0,
         }}>
           {/* Avatar */}
           <div style={{
             width: 42, height: 42, borderRadius: "50%",
-            background: avatarGradient,
+            background: colors.avatar,
             display: "flex", alignItems: "center", justifyContent: "center",
             color: "#fff", fontWeight: 700, fontSize: 14,
             flexShrink: 0, letterSpacing: "0.04em",
@@ -1156,21 +1056,21 @@ export default function UserRoleHeader({
             }}>
               {userEmail || "Sin sesión"}
             </span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: roleTextColor, lineHeight: 1.3 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: roleDotColor, display: "inline-block", flexShrink: 0 }} />
+            {/* ✅ Muestra el rol correcto para los 4 tipos */}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: colors.text, lineHeight: 1.3 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: colors.dot, display: "inline-block", flexShrink: 0 }} />
               Rol activo: {currentLabel}
             </span>
 
+            {/* Badges — solo para revendedor, igual que antes */}
             {isRetailer && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 3 }}>
-                {/* Pill nivel */}
                 <HeaderPill
                   tier={levelEntry.tier} icon={levelEntry.icon}
                   label={levelEntry.label} sublabel={levelEntry.desc}
                   color={levelTh.labelColor}
                   onClick={() => setModalOpen(true)}
                 />
-                {/* Pill racha */}
                 {currentStreak > 0 && (
                   <HeaderPill
                     tier={topStreakBadge?.tier ?? 1} icon="bolt"
@@ -1181,7 +1081,6 @@ export default function UserRoleHeader({
                     pulse={!!topStreakBadge}
                   />
                 )}
-                {/* Pill logro permanente */}
                 {topMilestoneBadge && (
                   <HeaderPill
                     tier={topMilestoneBadge.tier} icon="star"
@@ -1195,29 +1094,11 @@ export default function UserRoleHeader({
             )}
           </div>
 
-          {/* Divider */}
-          <div style={{ width: 1, height: 38, background: "#e5e7eb", flexShrink: 0 }} />
-
-          {/* Botón cambiar rol */}
-          <button
-            onClick={handleSwitch} disabled={switching}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "7px 13px", borderRadius: 11, border: "none",
-              cursor: switching ? "not-allowed" : "pointer",
-              background: switchBg, color: switchColor,
-              fontWeight: 700, fontSize: 12, transition: "all 0.15s",
-              opacity: switching ? 0.6 : 1, whiteSpace: "nowrap", flexShrink: 0,
-            }}
-            onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.filter = "brightness(0.94)"}
-            onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.filter = "none"}
-          >
-            {switching ? <><IconSpinner />Cambiando...</> : <><IconSwitch />Cambiar a {targetLabel}</>}
-          </button>
+          {/* ✅ ELIMINADO: el divider y el botón "Cambiar a..." que estaban aquí */}
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal — solo para revendedor, igual que antes */}
       {modalOpen && isRetailer && (
         <ProgressModal
           onClose={() => setModalOpen(false)}
@@ -1230,7 +1111,6 @@ export default function UserRoleHeader({
       )}
 
       <style>{`
-        @keyframes urh-spin          { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes urh-badge-breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
         @keyframes urh-head-pulse    { 0%,100%{transform:translate(-50%,-50%) scale(1);opacity:1} 50%{transform:translate(-50%,-50%) scale(1.45);opacity:0.55} }
         @keyframes urh-pill-pulse    { 0%,100%{box-shadow:0 0 0 0 rgba(32,144,224,0)} 50%{box-shadow:0 0 0 4px rgba(32,144,224,0.18)} }

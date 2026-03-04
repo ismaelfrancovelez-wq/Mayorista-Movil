@@ -1,7 +1,7 @@
 import { db } from "../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import UserRoleHeader from "../../../components/UserRoleHeader"; // ✅ NUEVO (reemplaza ActiveRoleBadge + SwitchRoleButton)
+import UserRoleHeader from "../../../components/UserRoleHeader";
 import { formatCurrency } from "../../../lib/utils";
 import { Suspense } from "react";
 import { DashboardSkeleton } from "../../../components/DashboardSkeleton";
@@ -13,11 +13,12 @@ async function DashboardFabricanteContent() {
   const userId = cookies().get("userId")?.value;
   const role = cookies().get("activeRole")?.value;
 
-  if (!userId || role !== "manufacturer") {
+  // ✅ ACTUALIZADO: acepta fabricante, distribuidor y mayorista
+  if (!userId || !["manufacturer", "distributor", "wholesaler"].includes(role ?? "")) {
     return <div className="p-6">No autorizado</div>;
   }
 
-  // ✅ NUEVO: leer email desde cookie; si no existe (sesión previa), buscarlo en Firestore
+  // ✅ leer email desde cookie; si no existe (sesión previa), buscarlo en Firestore
   let userEmail = cookies().get("userEmail")?.value || "";
   let userName = cookies().get("userName")?.value || "";
   if (!userEmail || !userName) {
@@ -68,7 +69,7 @@ async function DashboardFabricanteContent() {
     closedLots.push({
       id: lotDoc.id,
       productId: lotData.productId,
-      productName: productName,  // ✅ Usar variable calculada arriba
+      productName: productName,
       qty: accumulatedQty,
       pricePerUnit: productPrice,
       total: totalIngresos,
@@ -113,7 +114,6 @@ async function DashboardFabricanteContent() {
     const productName = payment.productName || productData?.name || "Producto eliminado";
     const qty = payment.qty || 0;
     
-    // Para directos, necesitamos buscar el precio en el producto o usar el monto del payment
     const productPrice = payment.productPrice || productData?.price || (payment.amount / qty) || 0;
     const netProfitPerUnit = payment.netProfitPerUnit || productData?.netProfitPerUnit || 0;
     const totalIngresos = qty * productPrice;
@@ -122,11 +122,11 @@ async function DashboardFabricanteContent() {
     directOrders.push({
       id: paymentDoc.id,
       productId: payment.productId,
-      productName: productName,  // ✅ Usar variable calculada
+      productName: productName,
       qty: qty,
       pricePerUnit: productPrice,
       total: totalIngresos,
-      ganancia: ganancia,  // ✅ Usar ganancia calculada correctamente
+      ganancia: ganancia,
       closedAt: payment.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
       closedAtTimestamp: payment.createdAt?.toMillis() || 0,
     });
@@ -166,10 +166,10 @@ async function DashboardFabricanteContent() {
             </p>
           </div>
 
-          {/* ✅ NUEVO: reemplaza <ActiveRoleBadge /> + <SwitchRoleButton targetRole="retailer" /> */}
+          {/* ✅ ACTUALIZADO: se pasa el role real para que muestre Distribuidor/Mayorista */}
           <UserRoleHeader
             userEmail={userEmail}
-            activeRole="manufacturer"
+            activeRole={role as "manufacturer" | "distributor" | "wholesaler"}
             userName={userName}
           />
         </div>

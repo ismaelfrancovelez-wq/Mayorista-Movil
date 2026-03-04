@@ -104,10 +104,9 @@ export default function HomeRegistro() {
     loadFeatured();
   }, []);
 
-  // ✅ ACTUALIZADO: ahora acepta los 4 roles
+  // ✅ ACTUALIZADO: manda directo a /login?role=xxx sin pasar por /registro
   const handleRoleSelection = (role: "retailer" | "manufacturer" | "distributor" | "wholesaler") => {
-    localStorage.setItem("selectedRole", role);
-    router.push("/login");
+    router.push(`/login?role=${role}`);
   };
 
   return (

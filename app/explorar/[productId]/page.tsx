@@ -1,9 +1,5 @@
 // app/explorar/[productId]/page.tsx
-// ✅ ACTUALIZADO:
-//    - Carrusel de imágenes (múltiples fotos del fabricante)
-//    - Shipping props pasados a ProductPurchaseClient:
-//        allowPickup / allowFactoryShipping / hasFactoryAddress
-//    - Bloqueo de compra si fabricante no tiene dirección
+// ✅ ACTUALIZADO: muestra variantes de medida/precio/mínimo como pills seleccionables
 
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
@@ -13,6 +9,8 @@ import ProductPurchaseClient from "../../../components/products/ProductPurchaseC
 import ShippingSimulatorSection from "../../../components/ShippingSimulatorSection";
 import ImageCarousel from "../../../components/products/ImageCarousel";
 import Link from "next/link";
+// ✅ NUEVO: import del selector de variantes (client component)
+import VariantSelectorClient from "../../../components/products/VariantSelectorClient";
 
 export const revalidate = 30;
 
@@ -98,6 +96,23 @@ export default async function ProductDetailPage({
     manufacturerInfo?.address?.lat
   );
 
+  // ✅ NUEVO: variantes del producto
+  const variants: { unitLabel: string; price: number; minimumOrder: number }[] =
+    Array.isArray((product as any).variants) ? (product as any).variants : [];
+
+  // ✅ Lista completa: presentación base + variantes adicionales
+  const allVariants = [
+    {
+      unitLabel: unitLabel || "",
+      price: product.price,
+      minimumOrder: minimumOrder,
+      isBase: true,
+    },
+    ...variants.map(v => ({ ...v, isBase: false })),
+  ];
+
+  const hasVariants = variants.length > 0;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-6">
@@ -161,64 +176,96 @@ export default async function ProductDetailPage({
                 {product.name}
               </h1>
 
-              {/* PRECIO */}
-              <div className="mb-3">
-                <p className="text-3xl font-light text-gray-900 leading-none">
-                  ${product.price.toLocaleString("es-AR")}
-                  {unitLabel && (
-                    <span className="text-base font-normal text-gray-500 ml-1">
-                      / {unitLabel}
-                    </span>
-                  )}
-                </p>
-                {unitLabel && (
-                  <p className="text-xs text-gray-400 mt-1">precio por {unitLabel}</p>
-                )}
-              </div>
-
-              {/* PEDIDO MÍNIMO + PRECIO TOTAL */}
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Pedido mínimo</p>
-                  <p className="text-xl font-semibold text-gray-900">
-                    {minimumOrder} uds.
-                  </p>
-                  {unitLabel && (
-                    <p className="text-xs text-gray-500 mt-0.5">{unitLabel} c/u</p>
-                  )}
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Precio mínimo total</p>
-                  <p className="text-xl font-semibold text-gray-900">
-                    ${(product.price * minimumOrder).toLocaleString("es-AR")}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {minimumOrder} × ${product.price.toLocaleString("es-AR")}
-                  </p>
-                </div>
-              </div>
-
-              {/* PROGRESO FRACCIONADO */}
-              {progressData && progressData.accumulatedQty > 0 && (
-                <div className="bg-blue-50 rounded-lg p-3 mb-3">
-                  <h3 className="font-semibold text-xs mb-1.5 text-blue-900">📦 Progreso Fraccionado</h3>
-                  <p className="text-xs text-gray-600 mb-2">
-                    {progressData.accumulatedQty} / {minimumOrder} unidades acumuladas{unitLabel ? ` (${unitLabel} c/u)` : ""}
-                  </p>
-                  <div className="w-full bg-blue-100 rounded-full h-2">
-                    <div
-                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                      style={{
-                        width: `${Math.min((progressData.accumulatedQty / minimumOrder) * 100, 100)}%`,
-                      }}
-                    />
+              {/* ✅ Si tiene variantes → pills interactivos; si no → vista original */}
+              {hasVariants ? (
+                <VariantSelectorClient
+                  allVariants={allVariants}
+                  progressData={progressData}
+                  productId={product.id}
+                  factoryId={product.factoryId}
+                  allowPickup={allowPickup}
+                  allowFactoryShipping={allowFactoryShipping}
+                  hasFactoryAddress={hasFactoryAddress}
+                  noShipping={noShipping}
+                  userId={userId}
+                />
+              ) : (
+                <>
+                  {/* PRECIO */}
+                  <div className="mb-3">
+                    <p className="text-3xl font-light text-gray-900 leading-none">
+                      ${product.price.toLocaleString("es-AR")}
+                      {unitLabel && (
+                        <span className="text-base font-normal text-gray-500 ml-1">
+                          / {unitLabel}
+                        </span>
+                      )}
+                    </p>
+                    {unitLabel && (
+                      <p className="text-xs text-gray-400 mt-1">precio por {unitLabel}</p>
+                    )}
                   </div>
-                </div>
+
+                  {/* PEDIDO MÍNIMO + PRECIO TOTAL */}
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Pedido mínimo</p>
+                      <p className="text-xl font-semibold text-gray-900">
+                        {minimumOrder} uds.
+                      </p>
+                      {unitLabel && (
+                        <p className="text-xs text-gray-500 mt-0.5">{unitLabel} c/u</p>
+                      )}
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Precio mínimo total</p>
+                      <p className="text-xl font-semibold text-gray-900">
+                        ${(product.price * minimumOrder).toLocaleString("es-AR")}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {minimumOrder} × ${product.price.toLocaleString("es-AR")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* PROGRESO FRACCIONADO */}
+                  {progressData && progressData.accumulatedQty > 0 && (
+                    <div className="bg-blue-50 rounded-lg p-3 mb-3">
+                      <h3 className="font-semibold text-xs mb-1.5 text-blue-900">📦 Progreso Fraccionado</h3>
+                      <p className="text-xs text-gray-600 mb-2">
+                        {progressData.accumulatedQty} / {minimumOrder} unidades acumuladas{unitLabel ? ` (${unitLabel} c/u)` : ""}
+                      </p>
+                      <div className="w-full bg-blue-100 rounded-full h-2">
+                        <div
+                          className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                          style={{
+                            width: `${Math.min((progressData.accumulatedQty / minimumOrder) * 100, 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* COMPRA */}
+                  {userId && (
+                    <ProductPurchaseClient
+                      price={product.price}
+                      MF={minimumOrder}
+                      productId={product.id}
+                      factoryId={product.factoryId}
+                      allowPickup={allowPickup}
+                      allowFactoryShipping={allowFactoryShipping}
+                      hasFactoryAddress={hasFactoryAddress}
+                      noShipping={noShipping}
+                      unitLabel={unitLabel || undefined}
+                    />
+                  )}
+                </>
               )}
 
               {/* INFO DEL FABRICANTE */}
               {manufacturerInfo && (
-                <div className="border-t border-gray-100 pt-3 mb-3">
+                <div className="border-t border-gray-100 pt-3 mb-3 mt-3">
                   <h3 className="text-xs font-semibold text-gray-900 mb-2">
                     Información del Fabricante
                   </h3>
@@ -300,21 +347,6 @@ export default async function ProductDetailPage({
                     )}
                   </div>
                 </div>
-              )}
-
-              {/* COMPRA */}
-              {userId && (
-                <ProductPurchaseClient
-                  price={product.price}
-                  MF={minimumOrder}
-                  productId={product.id}
-                  factoryId={product.factoryId}
-                  allowPickup={allowPickup}
-                  allowFactoryShipping={allowFactoryShipping}
-                  hasFactoryAddress={hasFactoryAddress}
-                  noShipping={noShipping}
-                  unitLabel={unitLabel || undefined}
-                />
               )}
 
             </div>

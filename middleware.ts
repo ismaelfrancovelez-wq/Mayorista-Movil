@@ -6,18 +6,20 @@ export function middleware(req: NextRequest) {
   const role = req.cookies.get("activeRole")?.value;
   const path = req.nextUrl.pathname;
 
-  // ✅ FIX ERROR 1: Solo proteger rutas del dashboard
-  // Las rutas públicas (/explorar, /login, /registro, /) NO requieren autenticación
+  // ✅ Solo proteger rutas del dashboard
   const isProtectedRoute = path.startsWith("/dashboard");
 
   if (!userId && isProtectedRoute) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // 🏭 Fabricante queriendo entrar a revendedor
+  // ✅ ACTUALIZADO: los 3 roles de vendedor pueden entrar al dashboard de fabricante
+  const isSellerRole = role === "manufacturer" || role === "distributor" || role === "wholesaler";
+
+  // 🏭 Vendedor (fabricante/distribuidor/mayorista) queriendo entrar a revendedor
   if (
     path.startsWith("/dashboard/pedidos-fraccionados") &&
-    role !== "retailer"
+    isSellerRole
   ) {
     return NextResponse.redirect(
       new URL("/dashboard/fabricante", req.url)
@@ -27,7 +29,7 @@ export function middleware(req: NextRequest) {
   // 🛒 Revendedor queriendo entrar a fabricante
   if (
     path.startsWith("/dashboard/fabricante") &&
-    role !== "manufacturer"
+    role === "retailer"
   ) {
     return NextResponse.redirect(
       new URL("/dashboard/pedidos-fraccionados", req.url)

@@ -188,6 +188,13 @@ export async function POST(req: Request) {
       // 🚚 reglas de envío
       shipping: body.shipping,
 
+      // ✅ NUEVO: variantes de medida/precio/mínimo
+      variants: Array.isArray(body.variants) ? body.variants.map((v: any) => ({
+        unitLabel: String(v.unitLabel || "").trim().substring(0, 20),
+        price: Number(v.price),
+        minimumOrder: Number(v.minimumOrder),
+      })).filter((v: any) => v.unitLabel && v.price > 0 && v.minimumOrder > 0) : [],
+
       // ⭐ destacados
       featured: false,
       featuredUntil: null,
