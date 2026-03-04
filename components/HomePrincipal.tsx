@@ -1,4 +1,5 @@
 // components/HomePrincipal.tsx - Home Principal Funcional
+// ✅ ACTUALIZADO: agregados roles distribuidor y mayorista
 
 'use client';
 
@@ -103,13 +104,12 @@ export default function HomePrincipal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-
   // Datos dinámicos de las APIs
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
   const [featuredFactories, setFeaturedFactories] = useState<FeaturedFactory[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [productLots, setProductLots] = useState<Record<string, LotData>>({});
-  
+
   const [loadingFeaturedProducts, setLoadingFeaturedProducts] = useState(true);
   const [loadingFeaturedFactories, setLoadingFeaturedFactories] = useState(true);
   const [loadingAllProducts, setLoadingAllProducts] = useState(true);
@@ -177,7 +177,7 @@ export default function HomePrincipal() {
       if (featuredProducts.length === 0) return;
 
       const lotsData: Record<string, LotData> = {};
-      
+
       for (const product of featuredProducts) {
         try {
           const res = await fetch(`/api/lots/${product.itemData.id}`);
@@ -194,7 +194,7 @@ export default function HomePrincipal() {
           console.error(`Error cargando lote para producto ${product.itemData.id}:`, error);
         }
       }
-      
+
       setProductLots(lotsData);
     }
 
@@ -255,11 +255,13 @@ export default function HomePrincipal() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleRoleRedirect = (targetRole: 'retailer' | 'manufacturer') => {
+  // ✅ ACTUALIZADO: ahora acepta los 4 roles
+  const handleRoleRedirect = (targetRole: 'retailer' | 'manufacturer' | 'distributor' | 'wholesaler') => {
     if (isAuthenticated) {
       if (targetRole === 'retailer') {
         router.push('/dashboard/pedidos-fraccionados');
       } else {
+        // fabricante, distribuidor y mayorista van al mismo dashboard de vendedor
         router.push('/dashboard/fabricante');
       }
     } else {
@@ -276,7 +278,6 @@ export default function HomePrincipal() {
     }
   };
 
-
   return (
     <div className="min-h-screen bg-gray-50">
 
@@ -287,18 +288,14 @@ export default function HomePrincipal() {
           desde aquí ↓ hasta el comentario "FIN COMING SOON"
       ════════════════════════════════════════════════════════════════════════ */}
 
-      {/* Overlay TRANSPARENTE — el usuario ve toda la home normalmente,
-          pero no puede hacer click en ningún link ni botón.
-          No tiene background, así que no tapa nada visualmente. */}
       <div style={{
         position: 'fixed',
         top: 0, left: 0, right: 0,
-        bottom: 72, // deja libre el espacio del banner de abajo
+        bottom: 72,
         zIndex: 9998,
         cursor: 'not-allowed',
       }} />
 
-      {/* Banner fijo abajo — informativo, no invasivo */}
       <div style={{
         position: 'fixed',
         bottom: 0, left: 0, right: 0,
@@ -313,9 +310,7 @@ export default function HomePrincipal() {
         padding: '0 20px',
         gap: 12,
       }}>
-        {/* Izquierda: punto parpadeante + mensaje */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-          {/* Indicador "en vivo" */}
           <div style={{
             width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
             background: 'rgba(59,130,246,0.15)',
@@ -331,7 +326,6 @@ export default function HomePrincipal() {
           </div>
 
           <div style={{ minWidth: 0 }}>
-            {/* Chip "Próximamente" */}
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
               background: 'rgba(59,130,246,0.12)',
@@ -353,7 +347,6 @@ export default function HomePrincipal() {
           </div>
         </div>
 
-        {/* Derecha: chips de estado */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {[
             { icon: '✅', text: 'Plataforma lista' },
@@ -385,7 +378,7 @@ export default function HomePrincipal() {
 
       {/* FIN COMING SOON ────────────────────────────────────────────────────── */}
 
-      
+
       {/* HEADER PRINCIPAL */}
       <header className={`sticky top-0 z-50 transition-all duration-300 ${
         scrollY > 50 ? 'shadow-lg' : ''
@@ -413,7 +406,7 @@ export default function HomePrincipal() {
         <div className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center justify-between gap-4">
-              
+
               {/* Logo */}
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform shadow-lg">
@@ -458,8 +451,8 @@ export default function HomePrincipal() {
 
                 {isAuthenticated && (
                   <>
-                    <Link 
-                      href="/mis-compras" 
+                    <Link
+                      href="/mis-compras"
                       className="hidden md:flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition"
                     >
                       <span className="text-2xl">📦</span>
@@ -469,8 +462,8 @@ export default function HomePrincipal() {
                       </div>
                     </Link>
 
-                    <Link 
-                      href="/carrito" 
+                    <Link
+                      href="/carrito"
                       className="relative px-4 py-2 hover:bg-gray-100 rounded-lg transition"
                     >
                       <span className="text-3xl">🛒</span>
@@ -492,18 +485,33 @@ export default function HomePrincipal() {
               <Link href="/explorar/cerrando" className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition">
                 Lotes por cerrar
               </Link>
-              
-              <button 
+
+              {/* ✅ ACTUALIZADO: 4 botones de rol */}
+              <button
                 onClick={() => handleRoleRedirect('retailer')}
                 className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition cursor-pointer"
               >
                 Soy revendedor
               </button>
-              <button 
+              <button
                 onClick={() => handleRoleRedirect('manufacturer')}
                 className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition cursor-pointer"
               >
                 Soy fabricante
+              </button>
+              {/* ✅ NUEVO: Distribuidor */}
+              <button
+                onClick={() => handleRoleRedirect('distributor')}
+                className="text-sm text-gray-700 hover:text-purple-600 whitespace-nowrap transition cursor-pointer"
+              >
+                Soy distribuidor
+              </button>
+              {/* ✅ NUEVO: Mayorista */}
+              <button
+                onClick={() => handleRoleRedirect('wholesaler')}
+                className="text-sm text-gray-700 hover:text-green-600 whitespace-nowrap transition cursor-pointer"
+              >
+                Soy mayorista
               </button>
             </div>
           </div>
@@ -526,16 +534,16 @@ export default function HomePrincipal() {
                   Unite a otros compradores y revendedores para acceder a precios de fabrica comprando solo las unidades que necesitás.
                 </p>
               </div>
-              
+
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link 
-                  href="/como-funciona" 
+                <Link
+                  href="/como-funciona"
                   className="px-8 py-4 bg-white text-blue-700 font-black rounded-xl hover:bg-yellow-300 hover:text-blue-900 transition-all transform hover:scale-105 shadow-2xl text-center"
                 >
                   ¿Cómo funciona? →
                 </Link>
-                <Link 
-                  href="/explorar" 
+                <Link
+                  href="/explorar"
                   className="px-8 py-4 bg-yellow-400 text-blue-900 font-black rounded-xl hover:bg-yellow-300 transition-all transform hover:scale-105 shadow-2xl text-center"
                 >
                   Explorar productos
@@ -548,7 +556,7 @@ export default function HomePrincipal() {
 
       {/* BANNER CAROUSEL */}
       <section className="relative h-[400px] md:h-[500px] overflow-hidden bg-gradient-to-br from-slate-900 to-slate-700">
-        
+
         <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold z-30">
           {currentBanner + 1} / {banners.length}
         </div>
@@ -592,8 +600,8 @@ export default function HomePrincipal() {
               key={index}
               onClick={() => setCurrentBanner(index)}
               className={`transition-all ${
-                currentBanner === index 
-                  ? 'bg-white w-8 h-3 rounded-full' 
+                currentBanner === index
+                  ? 'bg-white w-8 h-3 rounded-full'
                   : 'bg-white/50 hover:bg-white/75 w-3 h-3 rounded-full'
               }`}
               aria-label={`Ir a banner ${index + 1}: ${banner.title}`}
@@ -622,7 +630,7 @@ export default function HomePrincipal() {
       <section className="max-w-7xl mx-auto px-4 -mt-16 relative z-10 mb-12">
         <div className="bg-white rounded-2xl shadow-2xl p-6">
           <h3 className="text-2xl font-bold text-gray-900 mb-6">Explorar por categoría</h3>
-          
+
           {loadingAllProducts ? (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
               {[...Array(8)].map((_, i) => (
@@ -666,14 +674,14 @@ export default function HomePrincipal() {
               <h3 className="text-3xl font-black mb-2">⭐ Productos Destacados</h3>
               <p className="text-lg opacity-90">Los mejores productos seleccionados para vos</p>
             </div>
-            <Link 
-              href="/explorar" 
+            <Link
+              href="/explorar"
               className="hidden md:flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-xl hover:bg-white/30 transition-all font-semibold"
             >
               Ver todos →
             </Link>
           </div>
-          
+
           {loadingFeaturedProducts ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
@@ -709,14 +717,14 @@ export default function HomePrincipal() {
                       <div className="p-4">
                         <h4 className="font-bold text-gray-900 mb-1 line-clamp-2">{product.itemData.name}</h4>
                         <p className="text-sm text-gray-500 mb-3">{product.itemData.category}</p>
-                        
+
                         <div className="mb-3">
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-gray-600">Progreso del lote</span>
                             <span className="font-bold text-blue-600">{progress}%</span>
                           </div>
                           <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div 
+                            <div
                               className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
                               style={{ width: `${Math.min(progress, 100)}%` }}
                             />
@@ -725,14 +733,14 @@ export default function HomePrincipal() {
                             {accumulated} de {minimum} unidades
                           </p>
                         </div>
-                        
+
                         <div className="flex items-baseline gap-2 mb-3">
                           <span className="text-2xl font-black text-gray-900">
                             ${product.itemData.price.toLocaleString()}
                           </span>
                           <span className="text-xs text-gray-500">por unidad</span>
                         </div>
-                        
+
                         <button className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 shadow-lg">
                           Ver detalles
                         </button>
@@ -757,55 +765,55 @@ export default function HomePrincipal() {
             ¿Cómo funciona la compra fraccionada?
           </h3>
           <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
-            Accedé a precios de fabrica comprando pocas cantidades 
+            Accedé a precios de fabrica comprando pocas cantidades
           </p>
           <div className="grid md:grid-cols-4 gap-8">
-  <div className="text-center">
-    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-      <span className="font-black text-white drop-shadow-md tracking-tight">1</span>
-    </div>
-    <h4 className="text-xl font-bold text-gray-900 mb-2">Elegí tu producto</h4>
-    <p className="text-gray-600">
-      Busca en el explorador, el producto que mas quieras o necesites.
-    </p>
-  </div>
-  
-  <div className="text-center">
-    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-      <span className="font-black text-white drop-shadow-md tracking-tight">2</span>
-    </div>
-    <h4 className="text-xl font-bold text-gray-900 mb-2">Unite al lote</h4>
-    <p className="text-gray-600">
-      Cuando compras cantidades menores al minimo, te unes a la barra de progreso junto a otros compradores para llegar al minimo.
-    </p>
-  </div>
-  
-  <div className="text-center">
-    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-      <span className="font-black text-white drop-shadow-md tracking-tight">3</span>
-    </div>
-    <h4 className="text-xl font-bold text-gray-900 mb-2">Reembolso</h4>
-    <p className="text-gray-600">
-      Mientras el lote este en progreso, puedes pedir el reembolso de tu dinero.
-    </p>
-  </div>
-   
-  <div className="text-center">
-    <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-      <span className="font-black text-white drop-shadow-md tracking-tight">4</span>
-    </div>
-    <h4 className="text-xl font-bold text-gray-900 mb-2">Recibí tu pedido</h4>
-    <p className="text-gray-600">
-      Cuando el lote se completa, el dinero se libera y tu recibes el producto dentro de las 24-72h.
-    </p>
-  </div>
-</div>
+            <div className="text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
+                <span className="font-black text-white drop-shadow-md tracking-tight">1</span>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 mb-2">Elegí tu producto</h4>
+              <p className="text-gray-600">
+                Busca en el explorador, el producto que mas quieras o necesites.
+              </p>
+            </div>
 
-<div className="mt-8 text-center">
-  <Link 
-    href="/como-funciona" 
-    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
-  >
+            <div className="text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
+                <span className="font-black text-white drop-shadow-md tracking-tight">2</span>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 mb-2">Unite al lote</h4>
+              <p className="text-gray-600">
+                Cuando compras cantidades menores al minimo, te unes a la barra de progreso junto a otros compradores para llegar al minimo.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
+                <span className="font-black text-white drop-shadow-md tracking-tight">3</span>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 mb-2">Reembolso</h4>
+              <p className="text-gray-600">
+                Mientras el lote este en progreso, puedes pedir el reembolso de tu dinero.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
+                <span className="font-black text-white drop-shadow-md tracking-tight">4</span>
+              </div>
+              <h4 className="text-xl font-bold text-gray-900 mb-2">Recibí tu pedido</h4>
+              <p className="text-gray-600">
+                Cuando el lote se completa, el dinero se libera y tu recibes el producto dentro de las 24-72h.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 text-center">
+            <Link
+              href="/como-funciona"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
+            >
               Conocer más detalles →
             </Link>
           </div>
@@ -847,23 +855,23 @@ export default function HomePrincipal() {
                 <div className="relative h-40 bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
                   <span className="text-6xl">🏭</span>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                  
+
                   <div className="absolute top-3 right-3 bg-blue-600 text-white px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1">
                     ✓ Verificada
                   </div>
-                  
+
                   <div className="absolute bottom-3 left-3 right-3">
                     <h4 className="font-bold text-white text-lg line-clamp-1">
                       {factory.itemData.name}
                     </h4>
                   </div>
                 </div>
-                
+
                 <div className="p-4">
                   <p className="text-sm text-gray-600 mb-3 line-clamp-2 h-10">
                     {factory.itemData.description || 'Fabricante verificado'}
                   </p>
-                  
+
                   {factory.itemData.address && (
                     <div className="bg-slate-50 rounded px-3 py-2 flex items-start gap-2">
                       <span className="text-slate-400 mt-0.5">📍</span>
@@ -889,7 +897,7 @@ export default function HomePrincipal() {
           <h3 className="text-3xl font-black text-center mb-12">
             ¿Por qué comprar en MayoristaMovil?
           </h3>
-          
+
           <div className="grid md:grid-cols-4 gap-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
@@ -900,7 +908,7 @@ export default function HomePrincipal() {
                 Accedes a precios mayoristas directos de fabrica comprando pocas cantidades.
               </p>
             </div>
-            
+
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
                 🚚
@@ -920,7 +928,7 @@ export default function HomePrincipal() {
                 Puedes comprar de forma tranquila con nuestras fabricas verificadas.
               </p>
             </div>
-            
+
             <div className="text-center">
               <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
                 🔒
@@ -959,7 +967,7 @@ export default function HomePrincipal() {
                 La plataforma de compra mayorista fraccionada más grande de Argentina.
               </p>
             </div>
-            
+
             <div>
               <h4 className="font-bold text-lg mb-4">Compradores</h4>
               <ul className="space-y-2 text-gray-300">
@@ -969,17 +977,17 @@ export default function HomePrincipal() {
                 <li><Link href="/politicas" className="hover:text-white transition">Políticas de compra</Link></li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-bold text-lg mb-4">Vendedores</h4>
               <ul className="space-y-2 text-gray-300">
                 <li><Link href="/vender" className="hover:text-white transition">Vender en MayoristaMovil</Link></li>
                 <li><Link href="/verificacion" className="hover:text-white transition">Verificación de fábrica</Link></li>
-                <li><Link href="/dashboard/fabricante" className="hover:text-white transition">Panel de fabricante</Link></li>
+                <li><Link href="/dashboard/fabricante" className="hover:text-white transition">Panel de vendedor</Link></li>
                 <li><Link href="/comisiones" className="hover:text-white transition">Comisiones y tarifas</Link></li>
               </ul>
             </div>
-            
+
             <div>
               <h4 className="font-bold text-lg mb-4">Seguinos</h4>
               <div className="flex gap-4 mb-6">
@@ -1009,7 +1017,7 @@ export default function HomePrincipal() {
                 <p className="text-xs text-gray-400">© 2025 Todos los derechos reservados</p>
               </div>
             </div>
-            
+
             <div className="flex gap-6 text-sm text-gray-400">
               <Link href="/terminos" className="hover:text-white transition">Términos y condiciones</Link>
               <Link href="/privacidad" className="hover:text-white transition">Privacidad</Link>

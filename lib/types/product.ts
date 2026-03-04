@@ -1,5 +1,5 @@
 // lib/types/product.ts
-// ✅ ACTUALIZADO - per_km con opción roundTrip + bloqueo sin dirección
+// ✅ ACTUALIZADO - agregado sellerType para identificar fabricante, distribuidor o mayorista
 
 export type ProfitType = "percentage" | "fixed";
 
@@ -12,7 +12,7 @@ export type OwnLogisticsPricing =
   | {
       type: "per_km";
       pricePerKm: number;
-      roundTrip: boolean;  // ✅ NUEVO: true = ida y vuelta, false = solo ida
+      roundTrip: boolean;  // ✅ true = ida y vuelta, false = solo ida
     }
   | {
       type: "zones";
@@ -75,11 +75,31 @@ export const CATEGORY_LABELS: Record<ProductCategory, string> = {
   otros: "Otros",
 };
 
+// ✅ NUEVO: Tipo de vendedor
+export type SellerType = "manufacturer" | "distributor" | "wholesaler";
+
+// ✅ Labels amigables para el tipo de vendedor
+export const SELLER_TYPE_LABELS: Record<SellerType, string> = {
+  manufacturer: "Fabricante",
+  distributor: "Distribuidor",
+  wholesaler: "Mayorista",
+};
+
+// ✅ Colores para la etiqueta del tipo de vendedor (usados en el explorador)
+export const SELLER_TYPE_COLORS: Record<SellerType, string> = {
+  manufacturer: "bg-blue-100 text-blue-800",
+  distributor: "bg-purple-100 text-purple-800",
+  wholesaler: "bg-green-100 text-green-800",
+};
+
 export interface Product {
   id?: string;
 
   /* 🏭 PROPIETARIO */
   factoryId: string;
+
+  // ✅ NUEVO: tipo de vendedor que publicó el producto
+  sellerType?: SellerType;
 
   /* 📦 BÁSICO */
   name: string;

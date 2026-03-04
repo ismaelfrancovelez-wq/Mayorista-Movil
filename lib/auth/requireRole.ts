@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { db } from "../firebase-admin";
 
 export async function requireRole(
-  role: "manufacturer" | "retailer"
+  role: "manufacturer" | "retailer" | "distributor" | "wholesaler"
 ): Promise<string> {
   const userId = cookies().get("userId")?.value;
   const activeRole = cookies().get("activeRole")?.value;

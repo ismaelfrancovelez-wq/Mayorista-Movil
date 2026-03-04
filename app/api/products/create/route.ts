@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireRole } from "../../../../lib/auth/requireRole";
-import { validateShippingConfig } from "../../../../lib/shipping/validateShippingConfig";
+import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { validateShippingConfig } from "../../../../lib/shipping/validateShippingConfig";
 import rateLimit from "../../../../lib/rate-limit";
 
 // ✅ Crear el limitador
@@ -13,10 +13,11 @@ const limiter = rateLimit({
 
 export async function POST(req: Request) {
   // ✅ Verificar rate limit
-  const ip = req.headers.get('x-forwarded-for') || 
-             req.headers.get('x-real-ip') || 
-             'unknown';
-  
+  const ip =
+    req.headers.get("x-forwarded-for") ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
+
   try {
     await limiter.check(5, ip); // Máximo 5 productos por minuto
   } catch {
@@ -28,9 +29,64 @@ export async function POST(req: Request) {
 
   try {
     /* ===============================
-       🔒 SOLO FABRICANTES
+       🔒 SOLO VENDEDORES AUTORIZADOS
+       Acepta: fabricante, distribuidor o mayorista
     =============================== */
-    const factoryId = await requireRole("manufacturer");
+    const userId = cookies().get("userId")?.value;
+    const activeRole = cookies().get("activeRole")?.value;
+
+    // Verificar que el usuario esté logueado
+    if (!userId) {
+      return NextResponse.json(
+        { error: "No autorizado" },
+        { status: 401 }
+      );
+    }
+
+    // ✅ Verificar que tenga un rol de vendedor válido
+    const sellerRoles = ["manufacturer", "distributor", "wholesaler"];
+    if (!activeRole || !sellerRoles.includes(activeRole)) {
+      return NextResponse.json(
+        { error: "Solo fabricantes, distribuidores o mayoristas pueden crear productos" },
+        { status: 403 }
+      );
+    }
+
+    // ✅ Verificar en base de datos que el rol sea real
+    const userSnap = await db.collection("users").doc(userId).get();
+    if (!userSnap.exists) {
+      return NextResponse.json(
+        { error: "Usuario no encontrado" },
+        { status: 401 }
+      );
+    }
+
+    const userData = userSnap.data();
+    const userType = userData?.usertype;
+    const activeRoleDB = userData?.activeRole;
+    const roles = userData?.roles || [];
+
+    const hasSellerRole =
+      sellerRoles.includes(userType) ||
+      sellerRoles.includes(activeRoleDB) ||
+      roles.some((r: string) => sellerRoles.includes(r));
+
+    if (!hasSellerRole) {
+      return NextResponse.json(
+        { error: "No tenés permiso para crear productos" },
+        { status: 403 }
+      );
+    }
+
+    // ✅ El sellerType es el rol activo del usuario
+    // Si activeRole de la cookie es válido lo usamos, sino usamos el de la DB
+    const sellerType = sellerRoles.includes(activeRole)
+      ? activeRole
+      : sellerRoles.includes(activeRoleDB)
+      ? activeRoleDB
+      : userType;
+
+    const factoryId = userId;
 
     const body = await req.json();
 
@@ -45,7 +101,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ NUEVO: Validación de descripción obligatoria
+    // ✅ Validación de descripción obligatoria
     if (
       !body.description ||
       typeof body.description !== "string" ||
@@ -64,10 +120,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (
-      typeof body.minimumOrder !== "number" ||
-      body.minimumOrder <= 0
-    ) {
+    if (typeof body.minimumOrder !== "number" || body.minimumOrder <= 0) {
       return NextResponse.json(
         { error: "Pedido mínimo inválido" },
         { status: 400 }
@@ -108,13 +161,17 @@ export async function POST(req: Request) {
     const productRef = await db.collection("products").add({
       factoryId, // 🔒 siempre desde cookie / rol
 
+      // ✅ NUEVO: guardar el tipo de vendedor automáticamente
+      sellerType,
+
       name: body.name,
       description: body.description.trim(),
 
       // etiqueta de unidad opcional ("500g", "1kg", "750ml", etc.)
-      unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim()
-        ? body.unitLabel.trim().substring(0, 20)
-        : null,
+      unitLabel:
+        typeof body.unitLabel === "string" && body.unitLabel.trim()
+          ? body.unitLabel.trim().substring(0, 20)
+          : null,
 
       price: body.price,
       minimumOrder: body.minimumOrder,
@@ -125,7 +182,7 @@ export async function POST(req: Request) {
       // ✅ categoría del producto
       category: body.category || "otros",
 
-      // 🖼️ imágenes del producto (array de URLs) - ✅ ACTUALIZADO
+      // 🖼️ imágenes del producto (array de URLs)
       imageUrls: Array.isArray(body.imageUrls) ? body.imageUrls : [],
 
       // 🚚 reglas de envío
@@ -138,7 +195,7 @@ export async function POST(req: Request) {
       // 📊 estado
       active: true,
 
-      // 🆕 NUEVO: Por defecto NO es intermediario
+      // Por defecto NO es intermediario
       // Solo el admin podrá cambiarlo después
       isIntermediary: false,
 
@@ -153,9 +210,6 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error("❌ CREATE PRODUCT ERROR:", error);
 
-    /* ===============================
-       ⚠️ ERROR CONTROLADO
-    =============================== */
     return NextResponse.json(
       { error: error?.message ?? "Error al crear producto" },
       { status: 400 }

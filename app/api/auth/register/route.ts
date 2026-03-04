@@ -13,8 +13,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Validar usertyper
-    if (!usertype || !["manufacturer", "retailer"].includes(usertype)) {
+    // ✅ ACTUALIZADO: ahora acepta los 4 roles
+    if (!usertype || !["manufacturer", "retailer", "distributor", "wholesaler"].includes(usertype)) {
       return NextResponse.json(
         { error: "Tipo de usuario inválido" },
         { status: 400 }
@@ -26,7 +26,6 @@ export async function POST(req: Request) {
     const userId = decoded.uid;
     const email = decoded.email;
 
-    // ✅ FIX: Usar userId como ID del documento
     const userRef = db.collection("users").doc(userId);
     const userSnap = await userRef.get();
 
@@ -45,7 +44,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // ✅ FIX: Crear usuario con userId como ID del documento
+    // Crear usuario nuevo
     await userRef.set({
       userId,
       email,
@@ -54,20 +53,37 @@ export async function POST(req: Request) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    // 🆕 FIX: Crear documento de fabricante con email y userId
+    // Crear documento según el rol
     if (usertype === "manufacturer") {
       await db.collection("manufacturers").doc(userId).set({
-        userId,  // 🆕 AGREGAR
-        email,   // 🆕 AGREGAR
+        userId,
+        email,
         createdAt: FieldValue.serverTimestamp(),
       });
     }
 
-    // 🆕 FIX: Crear documento de revendedor con email y userId
     if (usertype === "retailer") {
       await db.collection("retailers").doc(userId).set({
-        userId,  // 🆕 AGREGAR
-        email,   // 🆕 AGREGAR
+        userId,
+        email,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    // ✅ NUEVO: Crear documento para distribuidor
+    if (usertype === "distributor") {
+      await db.collection("distributors").doc(userId).set({
+        userId,
+        email,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    // ✅ NUEVO: Crear documento para mayorista
+    if (usertype === "wholesaler") {
+      await db.collection("wholesalers").doc(userId).set({
+        userId,
+        email,
         createdAt: FieldValue.serverTimestamp(),
       });
     }

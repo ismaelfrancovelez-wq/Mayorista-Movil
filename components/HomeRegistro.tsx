@@ -1,9 +1,5 @@
 // components/HomeRegistro.tsx - Landing Page con proceso unificado
-// ✅ MEJORAS:
-//   - Promise.all para cargar productos y fábricas en paralelo (antes 2 llamadas secuenciales)
-//   - Skeleton loading states profesionales
-//   - SEO: <main> semántico con aria-labels
-//   - Sección "Cómo funciona" agregada para conversión
+// ✅ ACTUALIZADO: agregados roles distribuidor y mayorista
 
 "use client";
 
@@ -54,7 +50,7 @@ const HOW_IT_WORKS = [
     step: "01",
     icon: "🛒",
     title: "Elegí tu rol",
-    desc: "¿Sos revendedor o fabricante? Registrate gratis en menos de 2 minutos.",
+    desc: "¿Sos revendedor, fabricante, distribuidor o mayorista? Registrate gratis en menos de 2 minutos.",
   },
   {
     step: "02",
@@ -82,7 +78,7 @@ export default function HomeRegistro() {
   const [featuredFactories, setFeaturedFactories] = useState<FeaturedFactory[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ CORRECCIÓN: Promise.all — ambas llamadas en paralelo
+  // ✅ Promise.all — ambas llamadas en paralelo
   useEffect(() => {
     async function loadFeatured() {
       try {
@@ -108,7 +104,8 @@ export default function HomeRegistro() {
     loadFeatured();
   }, []);
 
-  const handleRoleSelection = (role: "retailer" | "manufacturer") => {
+  // ✅ ACTUALIZADO: ahora acepta los 4 roles
+  const handleRoleSelection = (role: "retailer" | "manufacturer" | "distributor" | "wholesaler") => {
     localStorage.setItem("selectedRole", role);
     router.push("/login");
   };
@@ -146,14 +143,16 @@ export default function HomeRegistro() {
           </h1>
 
           <p className="text-xl text-white/75 mb-12 max-w-2xl mx-auto leading-relaxed">
-            Unís a revendedores con fabricantes. Sin intermediarios. Con compras
+            Unís a revendedores con fabricantes, distribuidores y mayoristas. Sin intermediarios. Con compras
             grupales para que todos puedan acceder.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center max-w-xl mx-auto mb-8">
+          {/* ✅ ACTUALIZADO: 4 botones en grilla 2x2 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto mb-8">
+
             <button
               onClick={() => handleRoleSelection("retailer")}
-              className="w-full sm:w-auto px-10 py-5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-lg font-bold rounded-2xl transition-all transform hover:scale-105 hover:-translate-y-0.5 shadow-2xl shadow-blue-900/40 flex items-center justify-center gap-3"
+              className="w-full px-8 py-5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-lg font-bold rounded-2xl transition-all transform hover:scale-105 hover:-translate-y-0.5 shadow-2xl shadow-blue-900/40 flex items-center justify-center gap-3"
             >
               <span className="text-2xl">🛒</span>
               Soy Revendedor
@@ -161,11 +160,30 @@ export default function HomeRegistro() {
 
             <button
               onClick={() => handleRoleSelection("manufacturer")}
-              className="w-full sm:w-auto px-10 py-5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-lg font-bold rounded-2xl transition-all transform hover:scale-105 hover:-translate-y-0.5 shadow-2xl shadow-amber-900/40 flex items-center justify-center gap-3"
+              className="w-full px-8 py-5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-white text-lg font-bold rounded-2xl transition-all transform hover:scale-105 hover:-translate-y-0.5 shadow-2xl shadow-amber-900/40 flex items-center justify-center gap-3"
             >
               <span className="text-2xl">🏭</span>
               Soy Fabricante
             </button>
+
+            {/* ✅ NUEVO: Distribuidor */}
+            <button
+              onClick={() => handleRoleSelection("distributor")}
+              className="w-full px-8 py-5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white text-lg font-bold rounded-2xl transition-all transform hover:scale-105 hover:-translate-y-0.5 shadow-2xl shadow-purple-900/40 flex items-center justify-center gap-3"
+            >
+              <span className="text-2xl">🚛</span>
+              Soy Distribuidor
+            </button>
+
+            {/* ✅ NUEVO: Mayorista */}
+            <button
+              onClick={() => handleRoleSelection("wholesaler")}
+              className="w-full px-8 py-5 bg-green-600 hover:bg-green-500 active:bg-green-700 text-white text-lg font-bold rounded-2xl transition-all transform hover:scale-105 hover:-translate-y-0.5 shadow-2xl shadow-green-900/40 flex items-center justify-center gap-3"
+            >
+              <span className="text-2xl">🏪</span>
+              Soy Mayorista
+            </button>
+
           </div>
 
           <p className="text-sm text-white/50">
@@ -351,19 +369,40 @@ export default function HomeRegistro() {
           <p className="text-blue-200 text-lg mb-10 leading-relaxed">
             Registrate gratis hoy y accedé a precios de fábrica desde el primer pedido.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+
+          {/* ✅ ACTUALIZADO: 4 botones en grilla 2x2 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">
+
             <button
               onClick={() => handleRoleSelection("retailer")}
-              className="px-10 py-4 bg-white text-blue-700 font-bold rounded-2xl hover:bg-blue-50 transition-colors shadow-lg hover:scale-105 transform"
+              className="px-8 py-4 bg-white text-blue-700 font-bold rounded-2xl hover:bg-blue-50 transition-colors shadow-lg hover:scale-105 transform flex items-center justify-center gap-2"
             >
               🛒 Empezar como Revendedor
             </button>
+
             <button
               onClick={() => handleRoleSelection("manufacturer")}
-              className="px-10 py-4 bg-amber-500 text-white font-bold rounded-2xl hover:bg-amber-400 transition-colors shadow-lg hover:scale-105 transform"
+              className="px-8 py-4 bg-amber-500 text-white font-bold rounded-2xl hover:bg-amber-400 transition-colors shadow-lg hover:scale-105 transform flex items-center justify-center gap-2"
             >
               🏭 Empezar como Fabricante
             </button>
+
+            {/* ✅ NUEVO: Distribuidor */}
+            <button
+              onClick={() => handleRoleSelection("distributor")}
+              className="px-8 py-4 bg-purple-500 text-white font-bold rounded-2xl hover:bg-purple-400 transition-colors shadow-lg hover:scale-105 transform flex items-center justify-center gap-2"
+            >
+              🚛 Empezar como Distribuidor
+            </button>
+
+            {/* ✅ NUEVO: Mayorista */}
+            <button
+              onClick={() => handleRoleSelection("wholesaler")}
+              className="px-8 py-4 bg-green-500 text-white font-bold rounded-2xl hover:bg-green-400 transition-colors shadow-lg hover:scale-105 transform flex items-center justify-center gap-2"
+            >
+              🏪 Empezar como Mayorista
+            </button>
+
           </div>
         </div>
       </section>

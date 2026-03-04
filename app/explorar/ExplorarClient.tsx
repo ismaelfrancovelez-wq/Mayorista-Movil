@@ -1,9 +1,8 @@
-// app/explorar/ExplorarClient.tsx - DISEÑO ORIGINAL + PAGINACIÓN + SECCIÓN LOTES POR CERRAR
 "use client";
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { ProductCategory, CATEGORY_LABELS } from "../../lib/types/product";
+import { ProductCategory, CATEGORY_LABELS, SellerType, SELLER_TYPE_LABELS, SELLER_TYPE_COLORS } from "../../lib/types/product";
 
 type Product = {
   id: string;
@@ -13,13 +12,15 @@ type Product = {
   category: ProductCategory;
   featured: boolean;
   shippingMethods: string[];
-  imageUrls?: string[];   // ✅ ACTUALIZADO: array en lugar de imageUrl string
-  // Datos del fabricante
+  imageUrls?: string[];
+  // Datos del vendedor
   manufacturerName?: string;
   manufacturerImageUrl?: string;
   manufacturerVerified?: boolean;
   isIntermediary?: boolean;
   unitLabel?: string;
+  // ✅ NUEVO: tipo de vendedor
+  sellerType?: SellerType;
 };
 
 // ✅ NUEVO: tipo para lotes por cerrar
@@ -41,17 +42,15 @@ type ClosingSoonLot = {
 type SortOption = "price_asc" | "price_desc" | "min_asc" | "min_desc" | "name";
 
 export default function ExplorarClient({ initialProducts }: { initialProducts: Product[] }) {
-  // ✅ FIX (compatibilidad paginación): allProducts contiene TODOS los productos cargados
-  // hasta ahora (página 1 viene del servidor, páginas siguientes se cargan con "Cargar más")
   const [allProducts, setAllProducts] = useState<Product[]>(initialProducts);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>(initialProducts);
 
   // ✅ Estado de paginación
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(initialProducts.length === 20); // si vinieron 20, puede haber más
+  const [hasMore, setHasMore] = useState(initialProducts.length === 20);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // ✅ NUEVO: estado de lotes por cerrar
+  // ✅ Estado de lotes por cerrar
   const [closingSoon, setClosingSoon] = useState<ClosingSoonLot[]>([]);
   const [loadingClosing, setLoadingClosing] = useState(true);
 
@@ -65,7 +64,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
   const [onlyFeatured, setOnlyFeatured] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("name");
 
-  // ✅ NUEVO: cargar lotes por cerrar al montar
+  // ✅ Cargar lotes por cerrar al montar
   useEffect(() => {
     async function fetchClosingSoon() {
       try {
@@ -86,19 +85,16 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
   useEffect(() => {
     let result = [...allProducts];
 
-    // 🔍 Búsqueda por nombre
     if (searchTerm) {
       result = result.filter(p =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    // 📂 Filtro de categoría
     if (selectedCategory !== "all") {
       result = result.filter(p => p.category === selectedCategory);
     }
 
-    // 💰 Filtro de precio
     if (minPrice) {
       result = result.filter(p => p.price >= Number(minPrice));
     }
@@ -106,7 +102,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
       result = result.filter(p => p.price <= Number(maxPrice));
     }
 
-    // 📦 Filtro de pedido mínimo
     if (minOrder) {
       result = result.filter(p => p.minimumOrder >= Number(minOrder));
     }
@@ -114,12 +109,10 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
       result = result.filter(p => p.minimumOrder <= Number(maxOrder));
     }
 
-    // ⭐ Solo destacados
     if (onlyFeatured) {
       result = result.filter(p => p.featured);
     }
 
-    // 🔢 Ordenamiento
     switch (sortBy) {
       case "price_asc":
         result.sort((a, b) => a.price - b.price);
@@ -164,7 +157,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
       const data = await res.json();
       const newProducts: Product[] = data.products || [];
 
-      // Agregar los nuevos productos a los ya cargados (evitando duplicados por id)
       setAllProducts(prev => {
         const existingIds = new Set(prev.map(p => p.id));
         const unique = newProducts.filter(p => !existingIds.has(p.id));
@@ -192,10 +184,18 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
     setSortBy("name");
   }
 
+  // ✅ NUEVO: helper para obtener la etiqueta y color del tipo de vendedor
+  function getSellerBadge(sellerType?: SellerType) {
+    if (!sellerType) return null;
+    const label = SELLER_TYPE_LABELS[sellerType];
+    const colors = SELLER_TYPE_COLORS[sellerType];
+    return { label, colors };
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-6">
-        
+
         {/* Botón Volver */}
         <button
           onClick={() => window.history.back()}
@@ -214,7 +214,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
           </p>
         </div>
 
-        {/* ✅ NUEVO: SECCIÓN LOTES A PUNTO DE CERRAR — siempre visible */}
+        {/* SECCIÓN LOTES A PUNTO DE CERRAR */}
         {(true) && (
           <div className="mb-10">
             <div className="flex items-center justify-between mb-4">
@@ -327,11 +327,11 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
         )}
 
         <div className="grid lg:grid-cols-4 gap-6">
-          
+
           {/* SIDEBAR DE FILTROS */}
           <aside className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow p-6 sticky top-6">
-              
+
               <div className="flex justify-between items-center mb-4">
                 <h2 className="font-semibold text-lg">Filtros</h2>
                 <button
@@ -344,9 +344,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
 
               {/* Búsqueda */}
               <div className="mb-5">
-                <label className="block text-sm font-medium mb-2">
-                  Buscar
-                </label>
+                <label className="block text-sm font-medium mb-2">Buscar</label>
                 <input
                   type="text"
                   placeholder="Nombre del producto..."
@@ -358,16 +356,15 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
 
               {/* Categoría */}
               <div className="mb-5">
-                <label className="block text-sm font-medium mb-2">
-                  Categoría
-                </label>
+                <label className="block text-sm font-medium mb-2">Categoría</label>
                 <select
                   className="w-full border rounded px-3 py-2 text-sm"
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value as ProductCategory | "all")}
                 >
                   <option value="all">Todas las categorías</option>
-                  {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                  {/* ✅ CORREGIDO: tipado como [string, string][] para evitar error "unknown" */}
+                  {(Object.entries(CATEGORY_LABELS) as [string, string][]).map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
                     </option>
@@ -377,9 +374,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
 
               {/* Rango de precio */}
               <div className="mb-5">
-                <label className="block text-sm font-medium mb-2">
-                  Precio
-                </label>
+                <label className="block text-sm font-medium mb-2">Precio</label>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="number"
@@ -400,9 +395,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
 
               {/* Pedido mínimo */}
               <div className="mb-5">
-                <label className="block text-sm font-medium mb-2">
-                  Pedido mínimo
-                </label>
+                <label className="block text-sm font-medium mb-2">Pedido mínimo</label>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="number"
@@ -435,9 +428,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
 
               {/* Ordenar */}
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Ordenar por
-                </label>
+                <label className="block text-sm font-medium mb-2">Ordenar por</label>
                 <select
                   className="w-full border rounded px-3 py-2 text-sm"
                   value={sortBy}
@@ -456,10 +447,10 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
 
           {/* LISTA DE PRODUCTOS */}
           <div className="lg:col-span-3">
-            
+
             {/* Contador de resultados */}
             <div className="mb-4 text-sm text-gray-600">
-              {filteredProducts.length} producto{filteredProducts.length !== 1 && 's'} encontrado{filteredProducts.length !== 1 && 's'}
+              {filteredProducts.length} producto{filteredProducts.length !== 1 && "s"} encontrado{filteredProducts.length !== 1 && "s"}
               {hasMore && " (hay más por cargar)"}
             </div>
 
@@ -478,127 +469,150 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
             ) : (
               <>
                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {filteredProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden flex flex-col"
-                    >
-                      {/* IMAGEN DEL PRODUCTO */}
-                      <div className="relative h-48 bg-gray-200 overflow-hidden">
-                        {product.imageUrls && product.imageUrls.length > 0 ? (
-                          <img
-                            src={product.imageUrls[0]}
-                            alt={product.name}
-                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                            <svg
-                              className="w-16 h-16 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                              />
-                            </svg>
-                          </div>
-                        )}
-                        
-                        {/* Badge destacado sobre la imagen */}
-                        {product.featured && (
-                          <div className="absolute top-2 left-2">
-                            <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-medium">
-                              ⭐ Destacado
-                            </span>
-                          </div>
-                        )}
+                  {filteredProducts.map((product) => {
+                    // ✅ NUEVO: obtener etiqueta del tipo de vendedor
+                    const sellerBadge = getSellerBadge(product.sellerType);
 
-                        {/* AVATAR DEL FABRICANTE estilo Instagram - esquina inferior izquierda */}
-                        <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
-                          <div className="relative">
-                            <div className={`w-9 h-9 rounded-full p-0.5 shadow ${product.manufacturerVerified ? 'bg-blue-500' : 'bg-white/80'}`}>
-                              <div className="w-full h-full rounded-full overflow-hidden bg-white">
-                                {product.manufacturerImageUrl ? (
-                                  <img
-                                    src={product.manufacturerImageUrl}
-                                    alt={product.manufacturerName || "Fabricante"}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
-                                    {product.manufacturerName ? product.manufacturerName.charAt(0).toUpperCase() : "F"}
-                                  </div>
-                                )}
-                              </div>
+                    return (
+                      <div
+                        key={product.id}
+                        className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden flex flex-col"
+                      >
+                        {/* IMAGEN DEL PRODUCTO */}
+                        <div className="relative h-48 bg-gray-200 overflow-hidden">
+                          {product.imageUrls && product.imageUrls.length > 0 ? (
+                            <img
+                              src={product.imageUrls[0]}
+                              alt={product.name}
+                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                              <svg
+                                className="w-16 h-16 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                />
+                              </svg>
                             </div>
-                            {/* Check verificado */}
-                            {product.manufacturerVerified && (
-                              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white">
-                                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
+                          )}
+
+                          {/* Badge destacado */}
+                          {product.featured && (
+                            <div className="absolute top-2 left-2">
+                              <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-medium">
+                                ⭐ Destacado
+                              </span>
+                            </div>
+                          )}
+
+                          {/* AVATAR DEL VENDEDOR - esquina inferior izquierda */}
+                          <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
+                            <div className="relative">
+                              <div className={`w-9 h-9 rounded-full p-0.5 shadow ${product.manufacturerVerified ? "bg-blue-500" : "bg-white/80"}`}>
+                                <div className="w-full h-full rounded-full overflow-hidden bg-white">
+                                  {product.manufacturerImageUrl ? (
+                                    <img
+                                      src={product.manufacturerImageUrl}
+                                      alt={product.manufacturerName || "Vendedor"}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
+                                      {product.manufacturerName
+                                        ? product.manufacturerName.charAt(0).toUpperCase()
+                                        : "V"}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
+                              {/* Check verificado */}
+                              {product.manufacturerVerified && (
+                                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white">
+                                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Badge intermediario */}
+                            {product.isIntermediary && (
+                              <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-semibold shadow">
+                                Intermediario
+                              </span>
                             )}
                           </div>
-                          {/* Badge intermediario */}
-                          {product.isIntermediary && (
-                            <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-semibold shadow">
-                              Intermediario
+                        </div>
+
+                        {/* CONTENIDO DEL CARD */}
+                        <div className="p-6 flex flex-col flex-grow">
+
+                          {/* ✅ NUEVO: Nombre del vendedor + etiqueta de tipo */}
+                          <div className="flex items-center gap-2 mb-2">
+                            {product.manufacturerName && (
+                              <p className="text-xs text-gray-400 truncate">
+                                {product.manufacturerName}
+                              </p>
+                            )}
+                            {/* ✅ Etiqueta "Fabricante", "Distribuidor" o "Mayorista" */}
+                            {sellerBadge && (
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${sellerBadge.colors}`}>
+                                {sellerBadge.label}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Nombre del producto */}
+                          <h2 className="text-lg font-semibold mb-2 line-clamp-2">
+                            {product.name}
+                          </h2>
+
+                          {/* Categoría */}
+                          <p className="text-xs text-gray-500 mb-3">
+                            {CATEGORY_LABELS[product.category]}
+                          </p>
+
+                          {/* Precio */}
+                          <p className="text-gray-900 mb-1">
+                            <span className="font-medium">Precio:</span>{" "}
+                            <span className="font-bold text-gray-900">
+                              ${product.price.toLocaleString("es-AR")}
+                              {product.unitLabel && (
+                                <span className="text-gray-500 font-normal text-sm"> / {product.unitLabel}</span>
+                              )}
                             </span>
-                          )}
+                          </p>
+
+                          {/* Pedido mínimo */}
+                          <p className="text-sm text-gray-600 mb-4">
+                            Pedido mínimo: {product.minimumOrder}{" "}
+                            {product.unitLabel
+                              ? `unidades (${product.unitLabel} c/u)`
+                              : "unidades"}
+                          </p>
+
+                          {/* Botón */}
+                          <Link
+                            href={`/explorar/${product.id}`}
+                            className="mt-auto w-full bg-blue-600 text-white text-center py-2 rounded-lg hover:bg-blue-700 transition font-medium"
+                          >
+                            Ver producto →
+                          </Link>
                         </div>
                       </div>
-
-                      {/* CONTENIDO DEL CARD */}
-                      <div className="p-6 flex flex-col flex-grow">
-                        {/* Nombre fabricante */}
-                        {product.manufacturerName && (
-                          <p className="text-xs text-gray-400 mb-1 truncate">
-                            {product.manufacturerName}
-                          </p>
-                        )}
-
-                        {/* Nombre */}
-                        <h2 className="text-lg font-semibold mb-2 line-clamp-2">
-                          {product.name}
-                        </h2>
-
-                        {/* Categoría */}
-                        <p className="text-xs text-gray-500 mb-3">
-                          {CATEGORY_LABELS[product.category]}
-                        </p>
-
-                        {/* Precio */}
-                        <p className="text-gray-900 mb-1">
-                          <span className="font-medium">Precio:</span>{" "}
-                          <span className="font-bold text-gray-900">
-                            ${product.price.toLocaleString("es-AR")}{product.unitLabel && <span className="text-gray-500 font-normal text-sm"> / {product.unitLabel}</span>}
-                          </span>
-                        </p>
-
-                        {/* Pedido mínimo */}
-                        <p className="text-sm text-gray-600 mb-4">
-                          Pedido mínimo: {product.minimumOrder} {product.unitLabel ? `unidades (${product.unitLabel} c/u)` : "unidades"}
-                        </p>
-
-                        {/* Botón */}
-                        <Link
-                          href={`/explorar/${product.id}`}
-                          className="mt-auto w-full bg-blue-600 text-white text-center py-2 rounded-lg hover:bg-blue-700 transition font-medium"
-                        >
-                          Ver producto →
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
-                {/* ✅ BOTÓN "CARGAR MÁS" — solo aparece si hay más páginas disponibles */}
+                {/* BOTÓN CARGAR MÁS */}
                 {hasMore && (
                   <div className="mt-8 text-center">
                     <button
