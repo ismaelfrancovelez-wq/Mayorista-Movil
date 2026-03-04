@@ -115,8 +115,10 @@ export async function GET(req: Request) {
         shippingMethods: data.shipping?.methods ?? [],
         unitLabel: data.unitLabel || null,
         isIntermediary: data.isIntermediary || false,
+        // ✅ NUEVO: variantes para mostrar medidas y precios en la card del explorador
+        variants: Array.isArray(data.variants) ? data.variants : [],
 
-        // ✅ NUEVO: datos del vendedor para mostrar en el explorador
+        // ✅ datos del vendedor para mostrar en el explorador
         sellerType,
         manufacturerName: seller?.name || null,
         manufacturerImageUrl: seller?.imageUrl || null,

@@ -19,9 +19,11 @@ export async function GET() {
       );
     }
 
-    if (role !== "manufacturer") {
+    // ✅ CORREGIDO: permitir fabricante, distribuidor y mayorista
+    const sellerRoles = ["manufacturer", "distributor", "wholesaler"];
+    if (!role || !sellerRoles.includes(role)) {
       return NextResponse.json(
-        { error: "Solo fabricantes pueden acceder a esta ruta" },
+        { error: "Solo vendedores pueden acceder a esta ruta" },
         { status: 403 }
       );
     }
@@ -38,13 +40,15 @@ export async function GET() {
       return {
         id: doc.id,
         name: data.name,
-        description: data.description || "",         // ✅ para edición
+        description: data.description || "",
         price: data.price,
         minimumOrder: data.minimumOrder,
-        netProfitPerUnit: data.netProfitPerUnit || 0, // ✅ para edición
+        netProfitPerUnit: data.netProfitPerUnit || 0,
         category: data.category || "otros",
-        imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [], // ✅ actualizado
-        shipping: data.shipping || null,              // ✅ para edición
+        unitLabel: data.unitLabel || null,            // ✅ para edición de variantes
+        variants: Array.isArray(data.variants) ? data.variants : [], // ✅ para edición de variantes
+        imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
+        shipping: data.shipping || null,
         active: data.active !== false,
         featured: data.featured || false,
         featuredUntil: data.featuredUntil?.toDate()?.toISOString() || null,

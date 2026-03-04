@@ -8,7 +8,9 @@ export async function POST(req: Request) {
     const userId = cookies().get("userId")?.value;
     const role = cookies().get("activeRole")?.value;
 
-    if (!userId || role !== "manufacturer") {
+    // ✅ CORREGIDO: permitir fabricante, distribuidor y mayorista
+    const sellerRoles = ["manufacturer", "distributor", "wholesaler"];
+    if (!userId || !role || !sellerRoles.includes(role)) {
       return NextResponse.json(
         { error: "No autorizado" },
         { status: 401 }
@@ -24,7 +26,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verificar que el producto pertenece al fabricante
+    // Verificar que el producto pertenece al vendedor
     const productRef = db.collection("products").doc(productId);
     const productSnap = await productRef.get();
 

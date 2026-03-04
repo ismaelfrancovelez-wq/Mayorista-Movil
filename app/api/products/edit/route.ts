@@ -1,7 +1,7 @@
 // app/api/products/edit/route.ts
 
 import { NextResponse } from "next/server";
-import { requireRole } from "../../../../lib/auth/requireRole";
+import { requireSellerRole } from "../../../../lib/auth/requireRole";
 import { validateShippingConfig } from "../../../../lib/shipping/validateShippingConfig";
 import { db } from "../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
@@ -28,9 +28,10 @@ export async function POST(req: Request) {
 
   try {
     /* ===============================
-       🔒 SOLO FABRICANTES
+       🔒 SOLO VENDEDORES (fabricante, distribuidor, mayorista)
     =============================== */
-    const userId = await requireRole("manufacturer");
+    // ✅ CORREGIDO: permite fabricante, distribuidor y mayorista
+    const userId = await requireSellerRole();
 
     const body = await req.json();
 

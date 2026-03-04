@@ -5,9 +5,17 @@ import { cookies } from "next/headers";
 import { db } from "../../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
+// ✅ Helper: obtiene la colección correcta según el rol
+function getCollectionForRole(role: string): string {
+  if (role === "distributor") return "distributors";
+  if (role === "wholesaler") return "wholesalers";
+  return "manufacturers";
+}
+
 export async function POST(req: Request) {
   try {
     const userId = cookies().get("userId")?.value;
+    const role = cookies().get("activeRole")?.value || "manufacturer";
 
     if (!userId) {
       return NextResponse.json(
@@ -78,12 +86,13 @@ export async function POST(req: Request) {
     }
 
     // TODO: Subir archivo a Firebase Storage
-    // const afipUrl = await uploadToStorage(afipDoc, userId);
     const afipUrl = `pending-upload/${userId}/afip-${Date.now()}.pdf`; // Placeholder
 
     // 💾 Crear solicitud completa
     const verificationRequest = {
       manufacturerId: userId,
+      // ✅ NUEVO: guardamos el rol para que el admin sepa qué tipo de vendedor es
+      sellerType: role,
       
       // Empresa
       legalName,
@@ -129,9 +138,10 @@ export async function POST(req: Request) {
     // Guardar solicitud
     await db.collection('verification_requests').add(verificationRequest);
 
-    // Actualizar estado en perfil del fabricante
+    // ✅ CORREGIDO: actualizar estado en la colección correcta según el rol
+    const collection = getCollectionForRole(role);
     await db
-      .collection('manufacturers')
+      .collection(collection)
       .doc(userId)
       .set(
         {
@@ -155,8 +165,7 @@ export async function POST(req: Request) {
         { merge: true }
       );
 
-    // TODO: Notificar a admins
-    console.log(`✅ Nueva solicitud de verificación: ${legalName} (${userId})`);
+    console.log(`✅ Nueva solicitud de verificación: ${legalName} (${userId}) [${role}]`);
 
     return NextResponse.json({
       success: true,

@@ -21,6 +21,8 @@ type Product = {
   unitLabel?: string;
   // ✅ NUEVO: tipo de vendedor
   sellerType?: SellerType;
+  // ✅ NUEVO: variantes de medida/precio
+  variants?: { unitLabel: string; price: number; minimumOrder: number }[];
 };
 
 // ✅ NUEVO: tipo para lotes por cerrar
@@ -592,12 +594,31 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                           </p>
 
                           {/* Pedido mínimo */}
-                          <p className="text-sm text-gray-600 mb-4">
+                          <p className="text-sm text-gray-600 mb-3">
                             Pedido mínimo: {product.minimumOrder}{" "}
                             {product.unitLabel
                               ? `unidades (${product.unitLabel} c/u)`
                               : "unidades"}
                           </p>
+
+                          {/* ✅ NUEVO: Variantes de medida y precio */}
+                          {product.variants && product.variants.length > 0 && (
+                            <div className="mb-4">
+                              <p className="text-xs text-gray-500 mb-1.5 font-medium">Otras presentaciones:</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {product.variants.map((v, i) => (
+                                  <span
+                                    key={i}
+                                    className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full border border-gray-200"
+                                  >
+                                    <span className="font-medium">{v.unitLabel}</span>
+                                    <span className="text-gray-400">·</span>
+                                    <span>${v.price.toLocaleString("es-AR")}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Botón */}
                           <Link

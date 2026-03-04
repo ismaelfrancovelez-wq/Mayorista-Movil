@@ -10,9 +10,9 @@ type Props = {
   allowPickup: boolean;
   allowFactoryShipping: boolean;
   hasFactoryAddress: boolean;
-  noShipping?: boolean;           // fabricante no realiza envíos — solo fraccionado plataforma
-  unitLabel?: string;             // ej: "500g", "1kg", "750ml" — se muestra junto al precio
-  initialCommissionRate?: number; // ✅ NUEVO: viene del servidor, porcentaje real del usuario
+  noShipping?: boolean;
+  unitLabel?: string;
+  initialCommissionRate?: number;
 };
 
 type ShippingMode = "pickup" | "factory" | "platform";
@@ -36,52 +36,36 @@ export default function ProductPurchaseClient({
   const [qty, setQty] = useState(1);
   const isFraccionado = qty < MF;
 
-  /* ─── Shipping state ─── */
   const [selectedShipping, setSelectedShipping] = useState<ShippingMode>(() => {
     if (noShipping) return "platform";
     if (allowPickup) return "pickup";
     if (allowFactoryShipping) return "factory";
     return "platform";
   });
-  // Ref para leer selectedShipping dentro de useEffect sin que sea una dependencia
-  // (evita que el efecto se re-ejecute en cada cambio de modo de envío)
   const selectedShippingRef = useRef(selectedShipping);
   useEffect(() => { selectedShippingRef.current = selectedShipping; }, [selectedShipping]);
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingKm, setShippingKm] = useState<number | null>(null);
   const [loadingShipping, setLoadingShipping] = useState(false);
 
-  /* ─── MercadoPago status ─── */
   const [mpConnected, setMpConnected] = useState<boolean | null>(null);
   const [loadingMPStatus, setLoadingMPStatus] = useState(true);
 
-  /* ─── Reserva flow ─── */
   const [reserving, setReserving] = useState(false);
   const [reserved, setReserved] = useState(false);
   const [reserveError, setReserveError] = useState<string | null>(null);
 
-  // ✅ FIX: tanto pickup como platform usan el flujo de reserva cuando son fraccionados
   const usesReserveFlow = isFraccionado && (selectedShipping === "platform" || selectedShipping === "pickup");
 
-  // ✅ CORREGIDO: inicializa con el valor real del servidor (sin esperar ninguna llamada)
   const [commissionRate, setCommissionRate] = useState<number>(initialCommissionRate);
 
-  /* ─── Chequeo MP ─── */
   useEffect(() => {
     async function checkFactoryMPStatus() {
       setLoadingMPStatus(true);
       try {
-        if (!factoryId) {
-          setMpConnected(false);
-          return;
-        }
-        const mpRes = await fetch(
-          `/api/manufacturers/mp-status-public?factoryId=${factoryId}`
-        );
-        if (!mpRes.ok) {
-          setMpConnected(false);
-          return;
-        }
+        if (!factoryId) { setMpConnected(false); return; }
+        const mpRes = await fetch(`/api/manufacturers/mp-status-public?factoryId=${factoryId}`);
+        if (!mpRes.ok) { setMpConnected(false); return; }
         const mpData = await mpRes.json();
         setMpConnected(mpData.connected === true);
       } catch (err) {
@@ -94,7 +78,6 @@ export default function ProductPurchaseClient({
     checkFactoryMPStatus();
   }, [factoryId]);
 
-  /* ─── Cálculo de envío fraccionado (plataforma) ─── */
   const calculatePlatformShipping = useCallback(async () => {
     setLoadingShipping(true);
     try {
@@ -117,11 +100,8 @@ export default function ProductPurchaseClient({
     }
   }, [productId]);
 
-  /* ─── Cálculo de envío directo (fábrica) ─── */
   useEffect(() => {
     if (isFraccionado) {
-      // Solo calcular envío de plataforma si el usuario tiene "platform" seleccionado.
-      // Si tiene "pickup", no hace falta calcular nada — el costo es $0.
       if (selectedShippingRef.current === "platform") {
         calculatePlatformShipping();
       }
@@ -137,7 +117,6 @@ export default function ProductPurchaseClient({
           body: JSON.stringify({ productId, qty }),
         });
         const data = await res.json();
-
         if (data && typeof data.shippingCost === "number" && data.shippingMode) {
           setSelectedShipping(data.shippingMode);
           setShippingCost(data.shippingCost);
@@ -160,31 +139,23 @@ export default function ProductPurchaseClient({
     calculateDirectShipping();
   }, [qty, MF, productId, isFraccionado, calculatePlatformShipping]);
 
-  /* ─── Totales ─── */
   const productSubtotal = price * qty;
-  // ✅ CORREGIDO: usa el porcentaje real del usuario en vez de 0.12 hardcodeado
   const commission = isFraccionado ? Math.round(productSubtotal * (commissionRate / 100)) : 0;
   const totalToCharge = useMemo(
     () => productSubtotal + commission + shippingCost,
     [productSubtotal, commission, shippingCost]
   );
 
-  /* ─── ¿Puede comprar? ─── */
-  const shippingNeedsAddress =
-    selectedShipping === "factory" || selectedShipping === "platform";
+  const shippingNeedsAddress = selectedShipping === "factory" || selectedShipping === "platform";
   const blockedByAddress = shippingNeedsAddress && !hasFactoryAddress;
 
-  /* ─── FLUJO RESERVA ─── */
   async function handleReserve() {
     if (blockedByAddress) return;
     if (mpConnected === false) {
-      alert("⚠️ Este producto no está disponible para compra.\n\nEl fabricante aún no ha vinculado su cuenta de Mercado Pago.");
+      alert("⚠️ Este producto no está disponible para compra.\n\nEl vendedor aún no ha vinculado su cuenta de Mercado Pago.");
       return;
     }
-    if (loadingMPStatus) {
-      alert("⏳ Verificando disponibilidad...");
-      return;
-    }
+    if (loadingMPStatus) { alert("⏳ Verificando disponibilidad..."); return; }
 
     setReserving(true);
     setReserveError(null);
@@ -208,7 +179,6 @@ export default function ProductPurchaseClient({
         return;
       }
 
-      // ✅ NUEVO: guardar el commissionRate real devuelto por la API
       if (typeof data.commissionRate === "number") {
         setCommissionRate(data.commissionRate);
       }
@@ -222,30 +192,22 @@ export default function ProductPurchaseClient({
     }
   }
 
-  /* ─── FLUJO PAGO ─── */
   async function handleCheckout() {
     if (blockedByAddress) return;
     if (noShipping && !isFraccionado) {
-      alert("⚠️ Este fabricante no realiza envíos directos.\n\nSolo podés comprar mediante pedidos fraccionados — la plataforma gestiona el envío.");
+      alert("⚠️ Este vendedor no realiza envíos directos.\n\nSolo podés comprar mediante pedidos fraccionados — la plataforma gestiona el envío.");
       return;
     }
     if (mpConnected === false) {
-      alert("⚠️ Este producto no está disponible para compra.\n\nEl fabricante aún no ha vinculado su cuenta de Mercado Pago.");
+      alert("⚠️ Este producto no está disponible para compra.\n\nEl vendedor aún no ha vinculado su cuenta de Mercado Pago.");
       return;
     }
-    if (loadingMPStatus) {
-      alert("⏳ Verificando disponibilidad...");
-      return;
-    }
+    if (loadingMPStatus) { alert("⏳ Verificando disponibilidad..."); return; }
 
     const orderType = isFraccionado ? "fraccionado" : "directa";
     const lotType = isFraccionado
-      ? selectedShipping === "pickup"
-        ? "fraccionado_retiro"
-        : "fraccionado_envio"
-      : selectedShipping === "pickup"
-      ? "directa_retiro"
-      : "directa_envio";
+      ? selectedShipping === "pickup" ? "fraccionado_retiro" : "fraccionado_envio"
+      : selectedShipping === "pickup" ? "directa_retiro" : "directa_envio";
 
     const res = await fetch("/api/payments/mercadopago", {
       method: "POST",
@@ -265,26 +227,18 @@ export default function ProductPurchaseClient({
       }),
     });
 
-    if (!res.ok) {
-      alert("Error iniciando pago");
-      return;
-    }
+    if (!res.ok) { alert("Error iniciando pago"); return; }
 
     const data = await res.json();
-    if (data?.init_point) {
-      window.location.href = data.init_point;
-    }
+    if (data?.init_point) { window.location.href = data.init_point; }
   }
 
-  /* ─── RENDER: confirmación de reserva ─── */
   if (reserved) {
     return (
       <div className="border rounded-xl p-6 mt-8 bg-white shadow">
         <div className="bg-green-50 border-2 border-green-400 rounded-xl p-6 text-center">
           <div className="text-4xl mb-3">✅</div>
-          <h3 className="text-lg font-bold text-green-800 mb-2">
-            ¡Lugar reservado!
-          </h3>
+          <h3 className="text-lg font-bold text-green-800 mb-2">¡Lugar reservado!</h3>
           {selectedShipping === "pickup" ? (
             <p className="text-sm text-green-700">
               Tu lugar en el lote está confirmado. Cuando el lote alcance el mínimo,
@@ -299,9 +253,8 @@ export default function ProductPurchaseClient({
                 final y el link de pago.
               </p>
               <p className="text-xs text-green-600 mt-3">
-                El envío estimado es{" "}
-                <strong>${formatNumber(shippingCost)}</strong> si pagás solo. Si
-                se suman más personas de tu zona, ese precio baja.
+                El envío estimado es <strong>${formatNumber(shippingCost)}</strong> si pagás solo.
+                Si se suman más personas de tu zona, ese precio baja.
               </p>
             </>
           )}
@@ -310,7 +263,6 @@ export default function ProductPurchaseClient({
     );
   }
 
-  /* ─── RENDER NORMAL ─── */
   return (
     <div className="border rounded-xl p-6 mt-8 bg-white shadow">
 
@@ -320,11 +272,10 @@ export default function ProductPurchaseClient({
           <div className="flex items-start gap-3">
             <div className="text-2xl">⚠️</div>
             <div>
-              <p className="font-semibold text-red-900 mb-1">
-                Producto no disponible para compra
-              </p>
+              <p className="font-semibold text-red-900 mb-1">Producto no disponible para compra</p>
+              {/* ✅ CORREGIDO: texto genérico en vez de "fabricante" */}
               <p className="text-sm text-red-700">
-                El fabricante aún no ha vinculado su cuenta de Mercado Pago.
+                El vendedor aún no ha vinculado su cuenta de Mercado Pago.
                 Por favor, intentá más tarde.
               </p>
             </div>
@@ -332,17 +283,16 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* ⚠️ Sin dirección del fabricante */}
+      {/* ⚠️ Sin dirección del vendedor */}
       {!hasFactoryAddress && (
         <div className="mb-6 bg-amber-50 border-2 border-amber-300 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <div className="text-2xl">📍</div>
             <div>
-              <p className="font-semibold text-amber-900 mb-1">
-                Compra no disponible momentáneamente
-              </p>
+              <p className="font-semibold text-amber-900 mb-1">Compra no disponible momentáneamente</p>
+              {/* ✅ CORREGIDO: texto genérico en vez de "fabricante" */}
               <p className="text-sm text-amber-700">
-                El fabricante aún no configuró su dirección.
+                El vendedor aún no configuró su dirección.
                 No es posible calcular el envío ni procesar la compra hasta que lo haga.
               </p>
             </div>
@@ -350,19 +300,20 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* ℹ️ Sin envío del fabricante */}
+      {/* ℹ️ Sin envío directo */}
       {noShipping && (
         <div className="mb-6 bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <div className="text-2xl">🚚</div>
             <div>
+              {/* ✅ CORREGIDO: texto genérico en vez de "fabricante" */}
               <p className="font-semibold text-indigo-900 mb-1">
-                Este fabricante no realiza envíos directos
+                Este vendedor no realiza envíos directos
               </p>
               <p className="text-sm text-indigo-700">
                 {isFraccionado
                   ? "Podés sumarte a un pedido fraccionado — la plataforma coordina el envío y lo dividís con otros compradores."
-                  : "Para pedidos del mínimo o más, el envío lo coordinás directamente con el fabricante."}
+                  : "Para pedidos del mínimo o más, el envío lo coordinás directamente con el vendedor."}
               </p>
             </div>
           </div>
@@ -431,9 +382,7 @@ export default function ProductPurchaseClient({
                 <>
                   Envío por plataforma: ${formatNumber(shippingCost)}
                   {shippingKm !== null && (
-                    <span className="text-sm text-gray-600 ml-1">
-                      ({shippingKm} km)
-                    </span>
+                    <span className="text-sm text-gray-600 ml-1">({shippingKm} km)</span>
                   )}
                 </>
               )}
@@ -457,9 +406,7 @@ export default function ProductPurchaseClient({
                 <>
                   Envío por fábrica: ${formatNumber(shippingCost)}
                   {shippingKm !== null && (
-                    <span className="text-sm text-gray-600 ml-1">
-                      ({shippingKm} km)
-                    </span>
+                    <span className="text-sm text-gray-600 ml-1">({shippingKm} km)</span>
                   )}
                 </>
               )}
@@ -481,24 +428,22 @@ export default function ProductPurchaseClient({
           <p>Comisión ({commissionRate}%): $ {formatNumber(commission)}</p>
         )}
         <p>Envío: $ {formatNumber(shippingCost)}</p>
-        <p className="font-semibold mt-2 text-base">
-          Total: $ {formatNumber(totalToCharge)}
-        </p>
+        <p className="font-semibold mt-2 text-base">Total: $ {formatNumber(totalToCharge)}</p>
       </div>
 
-      {/* AVISO: fraccionado + plataforma (envío dividido) */}
+      {/* AVISO fraccionado + plataforma */}
       {usesReserveFlow && selectedShipping === "platform" && !loadingShipping && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
           <p className="text-sm text-blue-800">
             <strong>💡 El envío podría ser menor.</strong> Buscamos otros
             compradores en tu zona para dividir el costo. Si se suman, pagás
-            menos de{" "}
-            <strong>${formatNumber(shippingCost)}</strong>.
+            menos de <strong>${formatNumber(shippingCost)}</strong>.
             El precio final lo ves en el email cuando el lote cierre.
           </p>
         </div>
       )}
-      {/* AVISO: fraccionado + retiro */}
+
+      {/* AVISO fraccionado + retiro */}
       {usesReserveFlow && selectedShipping === "pickup" && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
           <p className="text-sm text-green-800">
@@ -514,8 +459,8 @@ export default function ProductPurchaseClient({
         <div className="bg-red-50 border border-red-300 rounded-lg p-3 mb-4">
           <p className="text-sm text-red-700">{reserveError}</p>
           {reserveError.includes("dirección") && (
-            
-             <a href="/dashboard/pedidos-fraccionados/perfil"
+            <a
+              href="/dashboard/pedidos-fraccionados/perfil"
               className="text-sm font-semibold text-red-800 underline mt-1 block"
             >
               Ir a configurar dirección
@@ -524,7 +469,7 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* BOTÓN: Reservar o Pagar */}
+      {/* BOTÓN */}
       {usesReserveFlow ? (
         <button
           onClick={handleReserve}
@@ -542,7 +487,8 @@ export default function ProductPurchaseClient({
             : loadingMPStatus
             ? "Verificando disponibilidad..."
             : blockedByAddress
-            ? "No disponible — el fabricante no configuró su dirección"
+            // ✅ CORREGIDO: texto genérico en vez de "fabricante"
+            ? "No disponible — el vendedor no configuró su dirección"
             : mpConnected === false
             ? "Producto no disponible"
             : selectedShipping === "pickup"
@@ -563,7 +509,8 @@ export default function ProductPurchaseClient({
           {loadingMPStatus
             ? "Verificando disponibilidad..."
             : blockedByAddress
-            ? "No disponible — el fabricante no configuró su dirección"
+            // ✅ CORREGIDO: texto genérico en vez de "fabricante"
+            ? "No disponible — el vendedor no configuró su dirección"
             : mpConnected === false
             ? "Producto no disponible"
             : noShipping && !isFraccionado

@@ -2,13 +2,16 @@ import { cookies } from "next/headers";
 import { db } from "../firebase-admin";
 
 export async function requireRole(
-  role: "manufacturer" | "retailer" | "distributor" | "wholesaler"
+  role: "manufacturer" | "retailer" | "distributor" | "wholesaler" | string[]
 ): Promise<string> {
   const userId = cookies().get("userId")?.value;
   const activeRole = cookies().get("activeRole")?.value;
 
+  // Normalizar a array para comparación uniforme
+  const allowedRoles = Array.isArray(role) ? role : [role];
+
   // ❌ Validación básica de cookies
-  if (!userId || activeRole !== role) {
+  if (!userId || !activeRole || !allowedRoles.includes(activeRole)) {
     throw new Error("No autorizado");
   }
 
@@ -23,18 +26,18 @@ export async function requireRole(
     const userData = userSnap.data();
 
     const userType = userData?.usertype;
-    const activeRoleDB = userData?.activeRole; // ✅ también leer activeRole de Firestore
+    const activeRoleDB = userData?.activeRole;
     const roles = userData?.roles || [];
 
-    // ✅ Validar rol: acepta usertype, activeRole de Firestore, "both", o array roles
+    // ✅ Validar que tiene alguno de los roles permitidos
     const hasRole =
-      userType === role ||
+      allowedRoles.includes(userType) ||
       userType === "both" ||
-      activeRoleDB === role ||
-      roles.includes(role);
+      allowedRoles.includes(activeRoleDB) ||
+      allowedRoles.some((r) => roles.includes(r));
 
     if (!hasRole) {
-      throw new Error(`Usuario no tiene el rol '${role}' asignado`);
+      throw new Error(`Usuario no tiene ninguno de los roles permitidos`);
     }
 
     return userId;
@@ -42,4 +45,9 @@ export async function requireRole(
     console.error("❌ Error en requireRole:", error);
     throw new Error("No autorizado - validación de rol falló");
   }
+}
+
+// ✅ Helper para los 3 roles vendedores (fabricante, distribuidor, mayorista)
+export async function requireSellerRole(): Promise<string> {
+  return requireRole(["manufacturer", "distributor", "wholesaler"]);
 }

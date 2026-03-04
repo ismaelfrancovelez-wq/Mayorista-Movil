@@ -4,12 +4,21 @@ import { db } from "../../../../lib/firebase-admin";
 import { FeaturedType, FeaturedDuration, FEATURED_PRICES, FEATURED_SLOTS } from "../../../../lib/types/featured";
 import { createPreference } from "../../../../lib/mercadopago";
 
+// ✅ Helper: obtiene la colección correcta según el rol
+function getCollectionForRole(role: string): string {
+  if (role === "distributor") return "distributors";
+  if (role === "wholesaler") return "wholesalers";
+  return "manufacturers";
+}
+
 export async function POST(req: Request) {
   try {
     const userId = cookies().get("userId")?.value;
     const role = cookies().get("activeRole")?.value;
 
-    if (!userId || role !== "manufacturer") {
+    // ✅ CORREGIDO: permite fabricante, distribuidor y mayorista
+    const sellerRoles = ["manufacturer", "distributor", "wholesaler"];
+    if (!userId || !role || !sellerRoles.includes(role)) {
       return NextResponse.json(
         { error: "No autorizado" },
         { status: 401 }
@@ -88,18 +97,20 @@ export async function POST(req: Request) {
         imageUrl: product.imageUrl || "",
       };
     } else {
-      const factorySnap = await db.collection("manufacturers").doc(itemId).get();
+      // ✅ CORREGIDO: busca en la colección correcta según el rol
+      const collection = getCollectionForRole(role);
+      const factorySnap = await db.collection(collection).doc(itemId).get();
       
       if (!factorySnap.exists) {
         return NextResponse.json(
-          { error: "Fábrica no encontrada" },
+          { error: "Perfil de vendedor no encontrado" },
           { status: 404 }
         );
       }
 
       if (itemId !== userId) {
         return NextResponse.json(
-          { error: "Esta fábrica no te pertenece" },
+          { error: "Este perfil no te pertenece" },
           { status: 403 }
         );
       }
@@ -107,7 +118,7 @@ export async function POST(req: Request) {
       const factory = factorySnap.data()!;
 
       metadata = {
-        name: factory.businessName || factory.name || "Mi fábrica",
+        name: factory.businessName || factory.name || "Mi empresa",
         description: factory.description || "",
         imageUrl: factory.imageUrl || "",
       };
@@ -116,7 +127,7 @@ export async function POST(req: Request) {
     const amount = FEATURED_PRICES[duration];
 
     const preference = await createPreference({
-      title: `Destacar ${type === "product" ? "producto" : "fábrica"} por ${duration} días`,
+      title: `Destacar ${type === "product" ? "producto" : "empresa"} por ${duration} días`,
       unit_price: amount,
       quantity: 1,
       metadata: {
