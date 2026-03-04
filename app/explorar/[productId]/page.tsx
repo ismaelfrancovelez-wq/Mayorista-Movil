@@ -1,5 +1,5 @@
 // app/explorar/[productId]/page.tsx
-// ✅ ACTUALIZADO: muestra variantes de medida/precio/mínimo como pills seleccionables
+// ✅ ACTUALIZADO: soporte para fabricante, distribuidor y mayorista
 
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
@@ -9,7 +9,6 @@ import ProductPurchaseClient from "../../../components/products/ProductPurchaseC
 import ShippingSimulatorSection from "../../../components/ShippingSimulatorSection";
 import ImageCarousel from "../../../components/products/ImageCarousel";
 import Link from "next/link";
-// ✅ NUEVO: import del selector de variantes (client component)
 import VariantSelectorClient from "../../../components/products/VariantSelectorClient";
 
 export const revalidate = 30;
@@ -23,29 +22,55 @@ async function getProduct(
   return { id: snap.id, ...data };
 }
 
-async function getManufacturerInfo(factoryId: string) {
-  console.log("🔍 Buscando manufacturer con ID:", factoryId);
-  const snap = await db.collection("manufacturers").doc(factoryId).get();
-  if (!snap.exists) {
-    console.log("❌ Manufacturer NO encontrado");
-    return null;
+// ✅ NUEVO: busca el vendedor en las 3 colecciones según el sellerType del producto
+async function getSellerInfo(factoryId: string, sellerType?: string) {
+  // Determinar en qué colección buscar primero
+  const collectionsToTry: { collection: string; label: string }[] = [];
+
+  if (sellerType === "distributor") {
+    collectionsToTry.push({ collection: "distributors", label: "Distribuidor" });
+  } else if (sellerType === "wholesaler") {
+    collectionsToTry.push({ collection: "wholesalers", label: "Mayorista" });
+  } else if (sellerType === "manufacturer") {
+    collectionsToTry.push({ collection: "manufacturers", label: "Fabricante" });
+  } else {
+    // No tiene sellerType guardado → probamos las 3 colecciones
+    collectionsToTry.push(
+      { collection: "manufacturers", label: "Fabricante" },
+      { collection: "distributors", label: "Distribuidor" },
+      { collection: "wholesalers", label: "Mayorista" }
+    );
   }
-  const data = snap.data();
-  const isVerified = data?.verification?.status === "verified";
-  console.log("✅ Manufacturer encontrado:", {
-    businessName: data?.businessName,
-    verificationStatus: data?.verification?.status,
-    isVerified: isVerified,
-  });
-  return {
-    businessName: data?.businessName || "Fabricante",
-    profileImageUrl: data?.profileImageUrl || "",
-    address: data?.address || null,
-    phone: data?.phone || "",
-    email: data?.email || "",
-    schedule: data?.schedule || null,
-    verified: isVerified,
-  };
+
+  for (const { collection, label } of collectionsToTry) {
+    const snap = await db.collection(collection).doc(factoryId).get();
+    if (snap.exists) {
+      const data = snap.data();
+      const isVerified = data?.verification?.status === "verified";
+      console.log(`✅ Vendedor encontrado en colección "${collection}":`, {
+        businessName: data?.businessName,
+        isVerified,
+      });
+      return {
+        businessName: data?.businessName || label,
+        profileImageUrl: data?.profileImageUrl || "",
+        address: data?.address || null,
+        phone: data?.phone || "",
+        email: data?.email || "",
+        schedule: data?.schedule || null,
+        verified: isVerified,
+        sellerType: collection === "manufacturers"
+          ? "manufacturer"
+          : collection === "distributors"
+          ? "distributor"
+          : "wholesaler",
+        sellerLabel: label,
+      };
+    }
+  }
+
+  console.log("❌ Vendedor no encontrado en ninguna colección para ID:", factoryId);
+  return null;
 }
 
 async function getFraccionadoProgress(productId: string) {
@@ -74,7 +99,12 @@ export default async function ProductDetailPage({
     return <div className="p-8">Producto no encontrado</div>;
   }
 
-  const manufacturerInfo = await getManufacturerInfo(product.factoryId);
+  // ✅ NUEVO: buscamos en la colección correcta según el sellerType del producto
+  const sellerInfo = await getSellerInfo(
+    product.factoryId,
+    (product as any).sellerType
+  );
+
   const minimumOrder = Number(product.minimumOrder) || 0;
 
   const images: string[] =
@@ -92,15 +122,14 @@ export default async function ProductDetailPage({
   const noShipping = product.shipping?.noShipping === true;
   const unitLabel: string | null = (product as any).unitLabel || null;
   const hasFactoryAddress = !!(
-    manufacturerInfo?.address?.formattedAddress ||
-    manufacturerInfo?.address?.lat
+    sellerInfo?.address?.formattedAddress ||
+    sellerInfo?.address?.lat
   );
 
-  // ✅ NUEVO: variantes del producto
+  // Variantes del producto
   const variants: { unitLabel: string; price: number; minimumOrder: number }[] =
     Array.isArray((product as any).variants) ? (product as any).variants : [];
 
-  // ✅ Lista completa: presentación base + variantes adicionales
   const allVariants = [
     {
       unitLabel: unitLabel || "",
@@ -112,6 +141,16 @@ export default async function ProductDetailPage({
   ];
 
   const hasVariants = variants.length > 0;
+
+  // ✅ Colores por tipo de vendedor
+  const sellerBadgeColors: Record<string, string> = {
+    manufacturer: "bg-blue-100 text-blue-800",
+    distributor: "bg-purple-100 text-purple-800",
+    wholesaler: "bg-green-100 text-green-800",
+  };
+  const sellerColor = sellerInfo
+    ? sellerBadgeColors[sellerInfo.sellerType] || "bg-gray-100 text-gray-800"
+    : "bg-gray-100 text-gray-800";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -176,7 +215,7 @@ export default async function ProductDetailPage({
                 {product.name}
               </h1>
 
-              {/* ✅ Si tiene variantes → pills interactivos; si no → vista original */}
+              {/* Si tiene variantes → pills interactivos; si no → vista original */}
               {hasVariants ? (
                 <VariantSelectorClient
                   allVariants={allVariants}
@@ -263,31 +302,32 @@ export default async function ProductDetailPage({
                 </>
               )}
 
-              {/* INFO DEL FABRICANTE */}
-              {manufacturerInfo && (
+              {/* ✅ INFO DEL VENDEDOR — título y badge dinámicos */}
+              {sellerInfo && (
                 <div className="border-t border-gray-100 pt-3 mb-3 mt-3">
+                  {/* ✅ Título dinámico: "Información del Fabricante/Distribuidor/Mayorista" */}
                   <h3 className="text-xs font-semibold text-gray-900 mb-2">
-                    Información del Fabricante
+                    Información del {sellerInfo.sellerLabel}
                   </h3>
 
                   <div className="flex items-center gap-2 mb-2">
                     <div className="relative flex-shrink-0">
-                      <div className={`w-9 h-9 rounded-full p-0.5 ${manufacturerInfo.verified ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                      <div className={`w-9 h-9 rounded-full p-0.5 ${sellerInfo.verified ? 'bg-blue-500' : 'bg-gray-200'}`}>
                         <div className="w-full h-full rounded-full overflow-hidden bg-white">
-                          {manufacturerInfo.profileImageUrl ? (
+                          {sellerInfo.profileImageUrl ? (
                             <img
-                              src={manufacturerInfo.profileImageUrl}
-                              alt={manufacturerInfo.businessName}
+                              src={sellerInfo.profileImageUrl}
+                              alt={sellerInfo.businessName}
                               className="w-full h-full object-cover"
                             />
                           ) : (
                             <div className="w-full h-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
-                              {manufacturerInfo.businessName.charAt(0).toUpperCase()}
+                              {sellerInfo.businessName.charAt(0).toUpperCase()}
                             </div>
                           )}
                         </div>
                       </div>
-                      {manufacturerInfo.verified && (
+                      {sellerInfo.verified && (
                         <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-blue-500 rounded-full flex items-center justify-center border border-white">
                           <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -296,9 +336,13 @@ export default async function ProductDetailPage({
                       )}
                     </div>
                     <div>
-                      <p className="font-semibold text-xs text-gray-900">{manufacturerInfo.businessName}</p>
+                      <p className="font-semibold text-xs text-gray-900">{sellerInfo.businessName}</p>
                       <div className="flex flex-wrap gap-1 mt-0.5">
-                        {manufacturerInfo.verified && (
+                        {/* ✅ Badge con color según tipo: azul=fabricante, violeta=distribuidor, verde=mayorista */}
+                        <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-semibold ${sellerColor}`}>
+                          {sellerInfo.sellerLabel}
+                        </span>
+                        {sellerInfo.verified && (
                           <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded-full font-semibold">
                             ✓ Verificado
                           </span>
@@ -315,26 +359,27 @@ export default async function ProductDetailPage({
                   <div className="space-y-1 text-xs text-gray-700">
                     <p>
                       <span className="font-medium">Empresa:</span>{" "}
-                      {manufacturerInfo.businessName}
+                      {sellerInfo.businessName}
                     </p>
-                    {manufacturerInfo.email && (
+                    {sellerInfo.email && (
                       <p>
                         <span className="font-medium">Email:</span>{" "}
-                        {manufacturerInfo.email}
+                        {sellerInfo.email}
                       </p>
                     )}
-                    {manufacturerInfo.phone && (
+                    {sellerInfo.phone && (
                       <p>
                         <span className="font-medium">Teléfono:</span>{" "}
-                        {manufacturerInfo.phone}
+                        {sellerInfo.phone}
                       </p>
                     )}
-                    {manufacturerInfo.verified && (
+                    {sellerInfo.verified && (
                       <div className="flex items-center gap-1.5 text-green-600 mt-1">
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
-                        <span className="text-xs font-medium">Fabricante Verificado</span>
+                        {/* ✅ Texto dinámico: "Fabricante Verificado" / "Distribuidor Verificado" / etc */}
+                        <span className="text-xs font-medium">{sellerInfo.sellerLabel} Verificado</span>
                       </div>
                     )}
                     {product.isIntermediary && (
