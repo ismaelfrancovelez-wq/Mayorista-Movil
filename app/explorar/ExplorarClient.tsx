@@ -582,16 +582,24 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                             {CATEGORY_LABELS[product.category]}
                           </p>
 
-                          {/* Precio */}
-                          <p className="text-gray-900 mb-1">
-                            <span className="font-medium">Precio:</span>{" "}
+                          {/* Precio — muestra presentación base + todas las variantes en la misma línea */}
+                          <div className="mb-3">
+                            <span className="font-medium text-gray-900">Precio: </span>
                             <span className="font-bold text-gray-900">
                               ${product.price.toLocaleString("es-AR")}
                               {product.unitLabel && (
                                 <span className="text-gray-500 font-normal text-sm"> / {product.unitLabel}</span>
                               )}
                             </span>
-                          </p>
+                            {/* ✅ Variantes inline junto al precio base */}
+                            {product.variants && product.variants.length > 0 && product.variants.map((v, i) => (
+                              <span key={i} className="text-gray-500 text-sm">
+                                {"  "}·{"  "}
+                                <span className="font-semibold text-gray-800">${v.price.toLocaleString("es-AR")}</span>
+                                <span className="text-gray-400"> / {v.unitLabel}</span>
+                              </span>
+                            ))}
+                          </div>
 
                           {/* Pedido mínimo */}
                           <p className="text-sm text-gray-600 mb-3">
@@ -600,25 +608,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                               ? `unidades (${product.unitLabel} c/u)`
                               : "unidades"}
                           </p>
-
-                          {/* ✅ NUEVO: Variantes de medida y precio */}
-                          {product.variants && product.variants.length > 0 && (
-                            <div className="mb-4">
-                              <p className="text-xs text-gray-500 mb-1.5 font-medium">Otras presentaciones:</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {product.variants.map((v, i) => (
-                                  <span
-                                    key={i}
-                                    className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full border border-gray-200"
-                                  >
-                                    <span className="font-medium">{v.unitLabel}</span>
-                                    <span className="text-gray-400">·</span>
-                                    <span>${v.price.toLocaleString("es-AR")}</span>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
 
                           {/* Botón */}
                           <Link

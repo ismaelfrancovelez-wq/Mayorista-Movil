@@ -102,9 +102,8 @@ export default function ProductPurchaseClient({
 
   useEffect(() => {
     if (isFraccionado) {
-      if (selectedShippingRef.current === "platform") {
-        calculatePlatformShipping();
-      }
+      // ✅ CORREGIDO: siempre recalcula envío plataforma cuando qty cambia a fraccionado
+      calculatePlatformShipping();
       return;
     }
 

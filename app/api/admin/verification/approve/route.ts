@@ -5,6 +5,13 @@ import { requireAdmin } from "../../../../../lib/auth/requireAdmin";
 import { db } from "../../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
+// ✅ Helper: obtiene la colección correcta según el sellerType
+function getCollectionForRole(sellerType?: string): string {
+  if (sellerType === "distributor") return "distributors";
+  if (sellerType === "wholesaler") return "wholesalers";
+  return "manufacturers";
+}
+
 export async function POST(req: Request) {
   try {
     // ✅ VERIFICAR QUE SEA ADMIN
@@ -41,8 +48,9 @@ export async function POST(req: Request) {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // ✅ ACTUALIZAR PERFIL DEL FABRICANTE
-    await db.collection("manufacturers").doc(manufacturerId).set({
+    // ✅ CORREGIDO: escribir en la colección correcta según el sellerType de la solicitud
+    const collection = getCollectionForRole(verificationData.sellerType);
+    await db.collection(collection).doc(manufacturerId).set({
       verification: {
         status: "verified",
         verifiedAt: FieldValue.serverTimestamp(),
@@ -54,8 +62,7 @@ export async function POST(req: Request) {
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    // 📧 TODO: Enviar email de notificación al fabricante
-    console.log(`✅ Verificación aprobada: ${manufacturerId}`);
+    console.log(`✅ Verificación aprobada: ${manufacturerId} [${collection}]`);
 
     return NextResponse.json({
       success: true,

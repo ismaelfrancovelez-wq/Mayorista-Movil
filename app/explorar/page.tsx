@@ -1,18 +1,11 @@
-// app/explorar/page.tsx - DISEÑO ORIGINAL + OPTIMIZADO
+// app/explorar/page.tsx
 
 import { db } from "../../lib/firebase-admin";
-import { ProductCategory, CATEGORY_LABELS } from "../../lib/types/product";
+import { ProductCategory, SellerType } from "../../lib/types/product";
 import ExplorarClient from "./ExplorarClient";
 
-// ✅ FIX ERROR 20: Antes tenía AMBOS:
-//   export const dynamic = 'force-dynamic'   → nunca cachear
-//   export const revalidate = 10             → cachear 10 segundos
-// Estos se contradicen. force-dynamic hace que revalidate sea ignorado,
-// lo que significa que cada visita hacía una query nueva a Firestore.
-// La página de explorar NO necesita ser completamente dinámica —
-// los productos cambian poco. Usamos SOLO revalidate = 10 para tener caché
-// de 10 segundos, que es suficiente frescura y reduce carga en Firestore.
-export const revalidate = 10;
+// ✅ revalidate = 0 para que el nombre del vendedor siempre esté actualizado
+export const revalidate = 0;
 
 type Product = {
   id: string;
@@ -22,13 +15,14 @@ type Product = {
   category: ProductCategory;
   featured: boolean;
   shippingMethods: string[];
-  imageUrls?: string[];   // ✅ ACTUALIZADO: array en lugar de imageUrl string
-  // Datos del fabricante
+  imageUrls?: string[];
   manufacturerName?: string;
   manufacturerImageUrl?: string;
   manufacturerVerified?: boolean;
   isIntermediary?: boolean;
   unitLabel?: string;
+  sellerType?: SellerType;
+  variants?: { unitLabel: string; price: number; minimumOrder: number }[];
 };
 
 async function getProducts(): Promise<Product[]> {
@@ -38,42 +32,76 @@ async function getProducts(): Promise<Product[]> {
       .where("active", "==", true)
       .get();
 
-    // Obtener IDs de fabricantes únicos para consulta batch
     const factoryIds = [...new Set(
       snap.docs.map(doc => doc.data().factoryId).filter(Boolean)
     )] as string[];
 
-    // Fetch fabricantes en batch (Firestore soporta hasta 10 por 'in')
-    const manufacturerMap: Record<string, {
+    // ✅ CORREGIDO: buscar vendedores en las 3 colecciones
+    const sellerMap: Record<string, {
       businessName?: string;
       profileImageUrl?: string;
       verified?: boolean;
+      sellerType?: SellerType;
     }> = {};
 
     if (factoryIds.length > 0) {
+      // Dividir en chunks de 10 (límite de Firestore)
       const chunks: string[][] = [];
       for (let i = 0; i < factoryIds.length; i += 10) {
         chunks.push(factoryIds.slice(i, i + 10));
       }
-      for (const chunk of chunks) {
-        const manuSnap = await db
-          .collection("manufacturers")
-          .where("__name__", "in", chunk)
-          .get();
-        manuSnap.docs.forEach(doc => {
-          const data = doc.data();
-          manufacturerMap[doc.id] = {
-            businessName: data.businessName || "",
-            profileImageUrl: data.profileImageUrl || "",
-            verified: data.verification?.status === "verified",
-          };
-        });
-      }
+
+      // Buscar en las 3 colecciones en paralelo
+      await Promise.all(
+        chunks.map(async (chunk) => {
+          const [manuSnap, distSnap, whoSnap] = await Promise.all([
+            db.collection("manufacturers").where("__name__", "in", chunk).get(),
+            db.collection("distributors").where("__name__", "in", chunk).get(),
+            db.collection("wholesalers").where("__name__", "in", chunk).get(),
+          ]);
+
+          manuSnap.docs.forEach(doc => {
+            const data = doc.data();
+            sellerMap[doc.id] = {
+              businessName: data.businessName || "",
+              profileImageUrl: data.profileImageUrl || "",
+              verified: data.verification?.status === "verified",
+              sellerType: "manufacturer",
+            };
+          });
+
+          distSnap.docs.forEach(doc => {
+            const data = doc.data();
+            // Solo sobreescribir si no hay datos de manufacturer
+            // (un usuario solo puede estar en una colección)
+            sellerMap[doc.id] = {
+              businessName: data.businessName || "",
+              profileImageUrl: data.profileImageUrl || "",
+              verified: data.verification?.status === "verified",
+              sellerType: "distributor",
+            };
+          });
+
+          whoSnap.docs.forEach(doc => {
+            const data = doc.data();
+            sellerMap[doc.id] = {
+              businessName: data.businessName || "",
+              profileImageUrl: data.profileImageUrl || "",
+              verified: data.verification?.status === "verified",
+              sellerType: "wholesaler",
+            };
+          });
+        })
+      );
     }
 
     const products = snap.docs.map((doc) => {
       const data = doc.data();
-      const manufacturer = data.factoryId ? manufacturerMap[data.factoryId] : null;
+      const seller = data.factoryId ? sellerMap[data.factoryId] : null;
+
+      // ✅ El sellerType puede venir del producto (más confiable) o del mapa
+      const sellerType = data.sellerType || seller?.sellerType || "manufacturer";
+
       return {
         id: doc.id,
         name: data.name || "Producto",
@@ -82,13 +110,15 @@ async function getProducts(): Promise<Product[]> {
         category: (data.category || "otros") as ProductCategory,
         featured: data.featured || false,
         shippingMethods: data.shipping?.methods || [],
-        imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : undefined,  // ✅ ACTUALIZADO
-        // Fabricante
-        manufacturerName: manufacturer?.businessName || undefined,
-        manufacturerImageUrl: manufacturer?.profileImageUrl || undefined,
-        manufacturerVerified: manufacturer?.verified || false,
+        imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : undefined,
+        manufacturerName: seller?.businessName || undefined,
+        manufacturerImageUrl: seller?.profileImageUrl || undefined,
+        manufacturerVerified: seller?.verified || false,
         isIntermediary: data.isIntermediary || false,
         unitLabel: data.unitLabel || undefined,
+        // ✅ NUEVO: sellerType y variants para mostrar en las cards
+        sellerType: sellerType as SellerType,
+        variants: Array.isArray(data.variants) ? data.variants : [],
       };
     });
 
@@ -101,6 +131,5 @@ async function getProducts(): Promise<Product[]> {
 
 export default async function ExplorarPage() {
   const products = await getProducts();
-
   return <ExplorarClient initialProducts={products} />;
 }

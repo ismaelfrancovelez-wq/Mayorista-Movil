@@ -5,6 +5,13 @@ import { requireAdmin } from "../../../../../lib/auth/requireAdmin";
 import { db } from "../../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
+// ✅ Helper: obtiene la colección correcta según el sellerType
+function getCollectionForRole(sellerType?: string): string {
+  if (sellerType === "distributor") return "distributors";
+  if (sellerType === "wholesaler") return "wholesalers";
+  return "manufacturers";
+}
+
 export async function POST(req: Request) {
   try {
     // ✅ VERIFICAR QUE SEA ADMIN
@@ -31,6 +38,8 @@ export async function POST(req: Request) {
       );
     }
 
+    const verificationData = verificationSnap.data()!;
+
     // ❌ ACTUALIZAR SOLICITUD
     await verificationRef.update({
       status: "rejected",
@@ -40,15 +49,15 @@ export async function POST(req: Request) {
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // ❌ ACTUALIZAR PERFIL DEL FABRICANTE
-    await db.collection("manufacturers").doc(manufacturerId).update({
+    // ✅ CORREGIDO: escribir en la colección correcta según el sellerType de la solicitud
+    const collection = getCollectionForRole(verificationData.sellerType);
+    await db.collection(collection).doc(manufacturerId).update({
       "verification.status": "rejected",
       "verification.rejectionReason": rejectionReason.trim(),
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    // 📧 TODO: Enviar email de notificación al fabricante con el motivo
-    console.log(`❌ Verificación rechazada: ${manufacturerId}`);
+    console.log(`❌ Verificación rechazada: ${manufacturerId} [${collection}]`);
     console.log(`Motivo: ${rejectionReason}`);
 
     return NextResponse.json({

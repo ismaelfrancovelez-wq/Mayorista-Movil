@@ -16,8 +16,7 @@ export async function GET() {
     );
   }
 
-  // ✅ FIX ERROR 9: Verificar que el userId de la cookie exista en Firestore
-  // Sin esto, una cookie manipulada con un ID inventado pasaría como válida
+  // ✅ Verificar que el userId de la cookie exista en Firestore
   try {
     const userSnap = await db
       .collection("users")
@@ -26,7 +25,6 @@ export async function GET() {
       .get();
 
     if (userSnap.empty) {
-      // El userId en la cookie no existe en la base de datos — cookie inválida o manipulada
       return NextResponse.json(
         { error: "No autenticado" },
         { status: 401 }
@@ -43,5 +41,7 @@ export async function GET() {
   return NextResponse.json({
     userId,
     role,
+    // ✅ NUEVO: también devolver activeRole para compatibilidad con páginas que lo usan
+    activeRole: role,
   });
 }
