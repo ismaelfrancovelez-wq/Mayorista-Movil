@@ -1,3 +1,6 @@
+// app/dashboard/fabricante/productos/[productId]/editar/page.tsx
+// ✅ MODIFICADO: agrega campo de stock opcional al editar
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,7 +13,6 @@ function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
 }
 
-// ✅ NUEVO: tipo para variantes
 interface ProductVariant {
   unitLabel: string;
   price: number | "";
@@ -33,6 +35,10 @@ export default function EditarProductoPage() {
   const [netProfitPerUnit, setNetProfitPerUnit] = useState<number | "">("");
   const [category, setCategory] = useState<ProductCategory>("otros");
   const [unitLabel, setUnitLabel] = useState("");
+
+  // ✅ NUEVO: control de stock
+  const [hasStock, setHasStock] = useState(false);
+  const [stock, setStock] = useState<number | "">("");
 
   /* ===============================
      📐 VARIANTES
@@ -111,6 +117,13 @@ export default function EditarProductoPage() {
         setNetProfitPerUnit(product.netProfitPerUnit ?? "");
         setCategory(product.category || "otros");
         setUnitLabel(product.unitLabel || "");
+
+        // ✅ NUEVO: cargar stock existente
+        // Si el producto tiene stock definido (incluyendo 0), activamos el control
+        if (product.stock !== null && product.stock !== undefined) {
+          setHasStock(true);
+          setStock(product.stock);
+        }
 
         // ✅ Cargar variantes existentes
         if (Array.isArray(product.variants) && product.variants.length > 0) {
@@ -231,6 +244,14 @@ export default function EditarProductoPage() {
     if (minimumOrder === "" || minimumOrder <= 0) { setError("Ingresá un pedido mínimo válido"); return; }
     if (netProfitPerUnit === "" || netProfitPerUnit < 0) { setError("Ingresá una ganancia neta válida (0 o mayor)"); return; }
 
+    // ✅ Validar stock si está activado
+    if (hasStock) {
+      if (stock === "" || Number(stock) < 0 || !Number.isInteger(Number(stock))) {
+        setError("El stock debe ser un número entero igual o mayor a 0");
+        return;
+      }
+    }
+
     // ✅ Validar variantes
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
@@ -280,6 +301,11 @@ export default function EditarProductoPage() {
         minimumOrder: Number(v.minimumOrder),
       }));
 
+      // ✅ Preparar stock:
+      // Si el checkbox está desactivado → mandamos null (sin control)
+      // Si está activado → mandamos el número
+      const stockToSend = hasStock ? Number(stock) : null;
+
       const res = await fetch("/api/products/edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -294,7 +320,8 @@ export default function EditarProductoPage() {
           unitLabel: unitLabel.trim() || undefined,
           shipping,
           imageUrls: finalImageUrls,
-          variants: cleanVariants,  // ✅ NUEVO
+          variants: cleanVariants,
+          stock: stockToSend, // ✅ NUEVO
         }),
       });
 
@@ -463,6 +490,57 @@ export default function EditarProductoPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* ✅ NUEVO: CONTROL DE STOCK */}
+          <div className="border-t pt-4">
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                id="hasStockEdit"
+                checked={hasStock}
+                onChange={(e) => {
+                  setHasStock(e.target.checked);
+                  if (!e.target.checked) setStock("");
+                }}
+                className="mt-1"
+              />
+              <div className="flex-1">
+                <label htmlFor="hasStockEdit" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                  Controlar stock disponible
+                </label>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  El producto se pausa automáticamente cuando llega a 0 unidades.
+                </p>
+              </div>
+            </div>
+
+            {hasStock && (
+              <div className="mt-3 ml-7">
+                <label className="block text-xs text-gray-500 mb-1">
+                  Unidades disponibles actualmente
+                </label>
+                <input
+                  type="number"
+                  placeholder="Ej: 500"
+                  className="border rounded px-3 py-2 text-sm w-48"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))}
+                  min={0}
+                  step={1}
+                />
+                {stock !== "" && Number(stock) === 0 && (
+                  <p className="text-xs text-amber-600 mt-1.5 font-medium">
+                    ⚠️ Si guardás con stock 0, el producto se <strong>pausa</strong> automáticamente. Los compradores no podrán reservarlo.
+                  </p>
+                )}
+                {stock !== "" && Number(stock) > 0 && (
+                  <p className="text-xs text-green-600 mt-1.5">
+                    ✅ {Number(stock).toLocaleString("es-AR")} unidades disponibles.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div>

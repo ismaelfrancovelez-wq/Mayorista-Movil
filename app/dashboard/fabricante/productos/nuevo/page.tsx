@@ -1,5 +1,5 @@
 // app/dashboard/fabricante/productos/nuevo/page.tsx
-// ✅ ACTUALIZADO: soporte para variantes (medida + precio + mínimo)
+// ✅ MODIFICADO: agrega campo de stock opcional
 
 "use client";
 
@@ -16,7 +16,7 @@ function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
 }
 
-// ✅ NUEVO: tipo para las variantes
+// ✅ tipo para las variantes
 interface ProductVariant {
   unitLabel: string;
   price: number | "";
@@ -36,6 +36,12 @@ export default function NuevoProductoPage() {
   const [netProfitPerUnit, setNetProfitPerUnit] = useState<number | "">("");
   const [category, setCategory] = useState<ProductCategory>("otros");
   const [unitLabel, setUnitLabel] = useState("");
+
+  // ✅ NUEVO: stock opcional
+  // "" = sin control de stock (null en DB)
+  // número = unidades disponibles
+  const [stock, setStock] = useState<number | "">("");
+  const [hasStock, setHasStock] = useState(false); // checkbox para activar control de stock
 
   /* ===============================
      📐 VARIANTES (medida + precio + mínimo)
@@ -190,6 +196,14 @@ export default function NuevoProductoPage() {
     if (minimumOrder === "" || minimumOrder <= 0) { setError("Ingresá un pedido mínimo válido"); return; }
     if (netProfitPerUnit === "" || netProfitPerUnit < 0) { setError("Ingresá una ganancia neta válida (0 o mayor)"); return; }
 
+    // ✅ Validar stock si está activado
+    if (hasStock) {
+      if (stock === "" || Number(stock) < 0 || !Number.isInteger(Number(stock))) {
+        setError("El stock debe ser un número entero igual o mayor a 0");
+        return;
+      }
+    }
+
     // ✅ Validar variantes
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
@@ -255,6 +269,11 @@ export default function NuevoProductoPage() {
         minimumOrder: Number(v.minimumOrder),
       }));
 
+      // ✅ Preparar stock:
+      // Si el checkbox está desactivado → mandamos null (sin control)
+      // Si está activado → mandamos el número
+      const stockToSend = hasStock ? Number(stock) : null;
+
       const res = await fetch("/api/products/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -268,7 +287,8 @@ export default function NuevoProductoPage() {
           unitLabel: sanitizedUnitLabel || undefined,
           shipping,
           imageUrls,
-          variants: cleanVariants,  // ✅ NUEVO
+          variants: cleanVariants,
+          stock: stockToSend, // ✅ NUEVO
         }),
       });
 
@@ -509,6 +529,58 @@ export default function NuevoProductoPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* ✅ NUEVO: CONTROL DE STOCK */}
+          <div className="border-t pt-4">
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                id="hasStock"
+                checked={hasStock}
+                onChange={(e) => {
+                  setHasStock(e.target.checked);
+                  if (!e.target.checked) setStock("");
+                }}
+                className="mt-1"
+              />
+              <div className="flex-1">
+                <label htmlFor="hasStock" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                  Controlar stock disponible
+                </label>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Activá esto si querés que el producto se pause automáticamente cuando llegue a 0 unidades.
+                  Si no lo activás, el producto siempre aparece disponible.
+                </p>
+              </div>
+            </div>
+
+            {hasStock && (
+              <div className="mt-3 ml-7">
+                <label className="block text-xs text-gray-500 mb-1">
+                  Unidades disponibles actualmente
+                </label>
+                <input
+                  type="number"
+                  placeholder="Ej: 500"
+                  className="border rounded px-3 py-2 text-sm w-48"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))}
+                  min={0}
+                  step={1}
+                />
+                {stock !== "" && Number(stock) === 0 && (
+                  <p className="text-xs text-amber-600 mt-1.5 font-medium">
+                    ⚠️ Si ponés 0, el producto se crea como <strong>inactivo</strong> (sin stock). Los compradores no podrán reservarlo hasta que actualices el stock.
+                  </p>
+                )}
+                {stock !== "" && Number(stock) > 0 && (
+                  <p className="text-xs text-green-600 mt-1.5">
+                    ✅ Tenés {Number(stock).toLocaleString("es-AR")} unidades disponibles.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div>

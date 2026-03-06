@@ -1,25 +1,27 @@
 // app/api/cron/process-lots/route.ts
 //
-// GET — llamado por Vercel Cron cada 15 minutos.
+// ✅ MODIFICADO: ahora maneja 2 tipos de lotes:
 //
-// BLOQUE 4 impl 10: Cuando el lote se procesa, se calcula y guarda
-// paymentDeadlineAt en cada reserva (lotClosedAt + 24h, o +26h si cierra entre 22-8h).
-// El email muestra la hora límite exacta para que el revendedor sepa con precisión
-// cuándo vence su plazo — elimina el argumento "no me enteré".
+//   TIPO A — status "closed" con level1WindowExpiresAt vencida
+//   → Ya confirmados por el vendedor, listos para procesar pagos
+//   → Flujo original intacto
 //
-// ARQUITECTURA:
-//   1. Genera preferences MP en secuencial (~500ms c/u)
-//   2. Actualiza reservas en Firestore con Promise.all (paralelo)
-//   3. Manda todos los emails con resend.batch.send (1 sola llamada)
+//   TIPO B — status "awaiting_seller_confirmation" con confirmationDeadlineAt vencida
+//   → El vendedor NO respondió en 12hs → se cancela automáticamente
+//   → Se notifica a todos los compradores
 //
-// IDEMPOTENCIA: Lote se marca "processing" antes de empezar.
-// Si falla → revierte a "closed" para reintento en 15min.
+// El flujo de confirmación del vendedor ocurre en reserve/route.ts:
+//   1. Lote cierra → status "awaiting_seller_confirmation" + token + deadline 12hs
+//   2. Email al vendedor con link de confirmación
+//   3a. Vendedor confirma → status pasa a "closed" → cron lo procesa acá (TIPO A)
+//   3b. Vendedor cancela o no responde → cron lo cancela acá (TIPO B)
 
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { db } from "../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createSplitPreference } from "../../../../lib/mercadopago-split";
+import { sendEmail } from "../../../../lib/email/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -28,11 +30,11 @@ const CRON_SECRET = process.env.CRON_SECRET || "";
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.EMAIL_FROM || "onboarding@resend.dev";
 
-// ── BLOQUE 4 impl 10: calcular deadline de pago ────────────────────────────
-// Si el lote cierra entre las 22:00 y las 08:00 → +26h (margen nocturno)
-// Si cierra en horario diurno → +24h
+/* ====================================================
+   CALCULAR DEADLINE DE PAGO
+==================================================== */
 function calcPaymentDeadline(lotClosedAt: Date): Date {
-  // Plazo fijo de 48 horas desde el cierre del lote
+  // 72h desde el cierre del lote
   return new Date(lotClosedAt.getTime() + 72 * 60 * 60 * 1000);
 }
 
@@ -61,7 +63,6 @@ interface ReservationToProcess {
   commission: number;
   shippingCostEstimated: number;
   retailerId: string;
-  // BLOQUE 1: descuentos de racha guardados en la reserva
   shippingDiscount: number;
   commissionDiscount: number;
 }
@@ -76,8 +77,7 @@ interface ProcessedReservation extends ReservationToProcess {
 }
 
 /* ====================================================
-   HTML DEL EMAIL DE PAGO — BLOQUE 4 impl 10
-   Incluye hora límite exacta y descuentos de racha si aplica.
+   HTML DEL EMAIL DE PAGO
 ==================================================== */
 function buildPaymentEmailHtml(params: {
   retailerName: string;
@@ -91,9 +91,9 @@ function buildPaymentEmailHtml(params: {
   groupSize: number;
   shippingCostEstimated: number;
   isPickup: boolean;
-  paymentDeadlineStr: string;   // hora límite formateada
-  shippingDiscount: number;     // 0-1
-  commissionDiscount: number;   // 0-1
+  paymentDeadlineStr: string;
+  shippingDiscount: number;
+  commissionDiscount: number;
 }): string {
   const {
     retailerName, productName, qty, productSubtotal, commission,
@@ -113,7 +113,6 @@ function buildPaymentEmailHtml(params: {
         </div>`
       : "";
 
-  // Badge de descuento por racha
   const streakDiscountHtml =
     shippingDiscount > 0 || commissionDiscount > 0
       ? `<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px;margin:16px 0;text-align:center;">
@@ -123,7 +122,6 @@ function buildPaymentEmailHtml(params: {
         </div>`
       : "";
 
-  // IMPL 10: Bloque de hora límite exacta
   const deadlineHtml = `
     <div style="background:#fef9c3;border:2px solid #f59e0b;border-radius:8px;padding:16px;margin:20px 0;">
       <p style="margin:0;font-size:15px;font-weight:700;color:#92400e;">⏰ Tu plazo de pago</p>
@@ -148,7 +146,7 @@ function buildPaymentEmailHtml(params: {
 </head><body><div class="container">
   <div class="header"><h1>🎉 ¡Tu lote está listo — completá el pago!</h1></div>
   <p>¡Hola <strong>${retailerName}</strong>!</p>
-  <p>El lote de <strong>${productName}</strong> alcanzó el mínimo. Ahora podés confirmar tu compra con el precio final.</p>
+  <p>El lote de <strong>${productName}</strong> alcanzó el mínimo y el vendedor confirmó el stock. Ahora podés confirmar tu compra.</p>
   ${savingsHtml}
   ${streakDiscountHtml}
   <div class="section">
@@ -174,7 +172,8 @@ function buildPaymentEmailHtml(params: {
 }
 
 /* ====================================================
-   PROCESAR UN LOTE COMPLETO
+   PROCESAR UN LOTE CERRADO (TIPO A)
+   — El vendedor ya confirmó, mandar links de pago
 ==================================================== */
 async function processLotClosure(params: {
   lotId: string;
@@ -190,8 +189,15 @@ async function processLotClosure(params: {
       ? "http://localhost:3000"
       : "https://mayoristamovil.com");
 
-  const factorySnap = await db.collection("manufacturers").doc(factoryId).get();
-  const factoryMPUserId = factorySnap.data()?.mercadopago?.user_id || null;
+  // Buscar MP userId del vendedor en cualquier colección
+  let factoryMPUserId: string | null = null;
+  for (const col of ["manufacturers", "distributors", "wholesalers"]) {
+    const snap = await db.collection(col).doc(factoryId).get();
+    if (snap.exists) {
+      factoryMPUserId = snap.data()?.mercadopago?.user_id || null;
+      if (factoryMPUserId) break;
+    }
+  }
 
   const reservationsSnap = await db
     .collection("reservations")
@@ -224,7 +230,6 @@ async function processLotClosure(params: {
 
   console.log(`📦 [CRON] Lote ${lotId}: ${reservations.length} compradores`);
 
-  // IMPL 10: Calcular deadline de pago desde el momento actual (cierre del lote)
   const lotClosedNow = new Date();
   const paymentDeadlineAt = calcPaymentDeadline(lotClosedNow);
   const paymentDeadlineStr = formatDeadlineAR(paymentDeadlineAt);
@@ -247,7 +252,7 @@ async function processLotClosure(params: {
     ...(noGroupReservations.length > 0 ? [noGroupReservations] : []),
   ];
 
-  // Generar preferences MP (secuencial)
+  // Generar preferences MP (secuencial para no saturar la API)
   const processed: ProcessedReservation[] = [];
 
   for (const group of allGroups) {
@@ -262,7 +267,6 @@ async function processLotClosure(params: {
       const isPickup = reservation.shippingMode === "pickup";
       const rawShipping = isPickup ? 0 : shippingPerPerson;
 
-      // BLOQUE 1: aplicar descuentos de racha guardados en la reserva
       const shippingFinal = isPickup
         ? 0
         : Math.round(rawShipping * (1 - reservation.shippingDiscount));
@@ -300,7 +304,7 @@ async function processLotClosure(params: {
             failure: `${baseUrl}/failure`,
             pending: `${baseUrl}/pending`,
           },
-          factoryMPUserId,
+          factoryMPUserId: factoryMPUserId ?? undefined,
           shippingCost: shippingFinal,
           productTotal: reservation.productSubtotal,
           commission: commissionFinal,
@@ -324,7 +328,7 @@ async function processLotClosure(params: {
 
   console.log(`✅ [CRON] Preferences MP generadas: ${processed.length}`);
 
-  // Actualizar reservas en Firestore (paralelo) — incluye paymentDeadlineAt (IMPL 10)
+  // Actualizar reservas en Firestore (paralelo)
   await Promise.all(
     processed.map((r) =>
       db.collection("reservations").doc(r.docId).update({
@@ -334,7 +338,7 @@ async function processLotClosure(params: {
         commissionFinal: r.commissionFinal,
         totalFinal: r.totalFinal,
         paymentLink: r.paymentLink,
-        paymentDeadlineAt: r.paymentDeadlineAt,   // IMPL 10: deadline exacto
+        paymentDeadlineAt: r.paymentDeadlineAt,
         updatedAt: FieldValue.serverTimestamp(),
       })
     )
@@ -361,7 +365,7 @@ async function processLotClosure(params: {
         groupSize: r.groupSize,
         shippingCostEstimated: r.shippingCostEstimated,
         isPickup: r.shippingMode === "pickup",
-        paymentDeadlineStr,             // IMPL 10
+        paymentDeadlineStr,
         shippingDiscount: r.shippingDiscount,
         commissionDiscount: r.commissionDiscount,
       }),
@@ -392,6 +396,103 @@ async function processLotClosure(params: {
 }
 
 /* ====================================================
+   CANCELAR LOTE VENCIDO (TIPO B)
+   — El vendedor no respondió en 12hs → cancelar todo
+==================================================== */
+async function cancelExpiredConfirmationLot(lotId: string, lotData: any) {
+  console.log(`⏰ [CRON] Lote ${lotId} venció sin confirmación del vendedor. Cancelando...`);
+
+  // Marcar el lote como cancelado
+  await db.collection("lots").doc(lotId).update({
+    status: "cancelled_no_confirmation",
+    cancelledAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  // Buscar todas las reservas pending_lot de este lote
+  const reservationsSnap = await db
+    .collection("reservations")
+    .where("lotId", "==", lotId)
+    .where("status", "==", "pending_lot")
+    .get();
+
+  if (reservationsSnap.empty) {
+    console.warn(`⚠️ [CRON] Lote ${lotId} cancelado pero no tenía reservas`);
+    return 0;
+  }
+
+  const productName = lotData.productName || "Producto";
+
+  // Cancelar todas las reservas en un batch
+  const batch = db.batch();
+  reservationsSnap.docs.forEach((doc) => {
+    batch.update(doc.ref, {
+      status: "cancelled",
+      cancellationReason: "seller_no_confirmation",
+      cancelledAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+  await batch.commit();
+
+  console.log(`✅ [CRON] ${reservationsSnap.size} reservas canceladas para lote ${lotId}`);
+
+  // Notificar a los compradores por email
+  for (const doc of reservationsSnap.docs) {
+    const r = doc.data();
+    if (!r.retailerEmail) continue;
+
+    const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f5f5f5;}
+  .container{background:white;border-radius:8px;padding:30px;box-shadow:0 2px 4px rgba(0,0,0,.1);}
+  .header{text-align:center;border-bottom:3px solid #dc2626;padding-bottom:20px;margin-bottom:30px;}
+  .header h1{color:#dc2626;margin:0;font-size:22px;}
+  .info{background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:16px;margin:16px 0;}
+  .section{margin:20px 0;padding:16px;background:#f9fafb;border-radius:6px;border-left:4px solid #dc2626;}
+  .footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:14px;}
+</style>
+</head><body><div class="container">
+  <div class="header"><h1>❌ Lote Cancelado — ${productName}</h1></div>
+  <p>Hola <strong>${r.retailerName}</strong>,</p>
+  <p>El lote de <strong>${productName}</strong> fue cancelado porque el vendedor no confirmó la disponibilidad de stock a tiempo.</p>
+  <div class="info">
+    <p style="margin:0;font-weight:600;color:#991b1b;">¿Qué pasa con tu dinero?</p>
+    <p style="margin:8px 0 0;color:#7f1d1d;font-size:14px;">
+      No se realizó ningún cobro. Tu reserva fue cancelada sin costo y no se procesó ningún pago.
+    </p>
+  </div>
+  <div class="section">
+    <p style="margin:0;font-weight:600;">¿Qué podés hacer?</p>
+    <ul style="margin:10px 0;padding-left:20px;font-size:14px;color:#374151;">
+      <li>Buscar el mismo producto de otro vendedor en el explorador</li>
+      <li>Reservar un lugar en el próximo lote cuando haya stock disponible</li>
+    </ul>
+  </div>
+  <p style="text-align:center;">
+    <a href="https://mayoristamovil.com/explorar" style="display:inline-block;background:#2563eb;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
+      Ver otros productos →
+    </a>
+  </p>
+  <div class="footer"><p><strong>Mayorista Móvil</strong></p></div>
+</div></body></html>`;
+
+    try {
+      await sendEmail({
+        to: r.retailerEmail,
+        subject: `❌ Lote cancelado — ${productName}`,
+        html,
+      });
+    } catch (err) {
+      console.error(`❌ [CRON] Error enviando email cancelación a ${r.retailerEmail}:`, err);
+    }
+  }
+
+  return reservationsSnap.size;
+}
+
+/* ====================================================
    HANDLER PRINCIPAL DEL CRON
 ==================================================== */
 export async function GET(req: Request) {
@@ -404,23 +505,23 @@ export async function GET(req: Request) {
   console.log(`🕐 [CRON] process-lots: ${now.toISOString()}`);
 
   try {
-    const lotsSnap = await db
+    let processedA = 0;
+    let processedB = 0;
+    let errors = 0;
+
+    /* ─────────────────────────────────────────────────
+       TIPO A: Lotes "closed" con ventana Nivel 1 vencida
+       → El vendedor confirmó, procesar pagos
+    ───────────────────────────────────────────────── */
+    const lotsClosedSnap = await db
       .collection("lots")
       .where("status", "==", "closed")
       .where("level1WindowExpiresAt", "<=", now)
       .get();
 
-    if (lotsSnap.empty) {
-      console.log("✅ [CRON] Sin lotes pendientes.");
-      return NextResponse.json({ ok: true, processed: 0 });
-    }
+    console.log(`📦 [CRON] Lotes TIPO A (closed): ${lotsClosedSnap.size}`);
 
-    console.log(`📦 [CRON] Lotes a procesar: ${lotsSnap.size}`);
-
-    let processed = 0;
-    let errors = 0;
-
-    for (const lotDoc of lotsSnap.docs) {
+    for (const lotDoc of lotsClosedSnap.docs) {
       const lotData = lotDoc.data();
       const lotId = lotDoc.id;
 
@@ -444,12 +545,12 @@ export async function GET(req: Request) {
           updatedAt: FieldValue.serverTimestamp(),
         });
 
-        processed++;
-        console.log(`✅ [CRON] Lote ${lotId} procesado (${processed}/${lotsSnap.size})`);
+        processedA++;
+        console.log(`✅ [CRON] Lote TIPO A procesado: ${lotId}`);
 
       } catch (lotErr) {
         errors++;
-        console.error(`❌ [CRON] Error en lote ${lotId}:`, lotErr);
+        console.error(`❌ [CRON] Error en lote TIPO A ${lotId}:`, lotErr);
 
         try {
           await db.collection("lots").doc(lotId).update({
@@ -463,8 +564,34 @@ export async function GET(req: Request) {
       }
     }
 
-    console.log(`🏁 [CRON] Fin. Procesados: ${processed}, Errores: ${errors}`);
-    return NextResponse.json({ ok: true, processed, errors });
+    /* ─────────────────────────────────────────────────
+       TIPO B: Lotes "awaiting_seller_confirmation" vencidos
+       → El vendedor NO respondió en 12hs → cancelar
+    ───────────────────────────────────────────────── */
+    const lotsAwaitingSnap = await db
+      .collection("lots")
+      .where("status", "==", "awaiting_seller_confirmation")
+      .where("confirmationDeadlineAt", "<=", now)
+      .get();
+
+    console.log(`📦 [CRON] Lotes TIPO B (vencidos sin confirmación): ${lotsAwaitingSnap.size}`);
+
+    for (const lotDoc of lotsAwaitingSnap.docs) {
+      const lotData = lotDoc.data();
+      const lotId = lotDoc.id;
+
+      try {
+        const cancelledCount = await cancelExpiredConfirmationLot(lotId, lotData);
+        processedB++;
+        console.log(`✅ [CRON] Lote TIPO B cancelado: ${lotId} (${cancelledCount} compradores notificados)`);
+      } catch (lotErr) {
+        errors++;
+        console.error(`❌ [CRON] Error cancelando lote TIPO B ${lotId}:`, lotErr);
+      }
+    }
+
+    console.log(`🏁 [CRON] Fin. Procesados A: ${processedA}, Cancelados B: ${processedB}, Errores: ${errors}`);
+    return NextResponse.json({ ok: true, processedA, processedB, errors });
 
   } catch (error: any) {
     console.error("❌ [CRON] Error general:", error);

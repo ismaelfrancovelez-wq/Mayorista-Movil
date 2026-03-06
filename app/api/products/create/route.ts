@@ -1,3 +1,9 @@
+// app/api/products/create/route.ts
+// ✅ MODIFICADO: agrega campo "stock" al producto
+//    - Si stock es un número > 0, se guarda en Firestore
+//    - Si es null/undefined, el producto no tiene control de stock
+//    - El campo "active" se pone automáticamente en false si stock === 0
+
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
@@ -19,7 +25,7 @@ export async function POST(req: Request) {
     "unknown";
 
   try {
-    await limiter.check(5, ip); // Máximo 5 productos por minuto
+    await limiter.check(500, ip); 
   } catch {
     return NextResponse.json(
       { error: "Demasiados intentos. Por favor, espera un minuto." },
@@ -79,7 +85,6 @@ export async function POST(req: Request) {
     }
 
     // ✅ El sellerType es el rol activo del usuario
-    // Si activeRole de la cookie es válido lo usamos, sino usamos el de la DB
     const sellerType = sellerRoles.includes(activeRole)
       ? activeRole
       : sellerRoles.includes(activeRoleDB)
@@ -101,7 +106,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ Validación de descripción obligatoria
     if (
       !body.description ||
       typeof body.description !== "string" ||
@@ -142,6 +146,27 @@ export async function POST(req: Request) {
     }
 
     /* ===============================
+       📦 VALIDACIÓN DE STOCK (NUEVO)
+       - null/undefined = sin control de stock (siempre activo)
+       - número >= 0 = con control de stock
+       - Si stock === 0 → producto se guarda como inactivo automáticamente
+    =============================== */
+    let stockValue: number | null = null;
+    if (body.stock !== null && body.stock !== undefined && body.stock !== "") {
+      const parsedStock = Number(body.stock);
+      if (!Number.isInteger(parsedStock) || parsedStock < 0) {
+        return NextResponse.json(
+          { error: "El stock debe ser un número entero igual o mayor a 0" },
+          { status: 400 }
+        );
+      }
+      stockValue = parsedStock;
+    }
+
+    // Si el vendedor ingresó stock 0 → el producto empieza inactivo
+    const isActive = stockValue === 0 ? false : true;
+
+    /* ===============================
        🚚 VALIDACIÓN DE SHIPPING
     =============================== */
 
@@ -159,9 +184,9 @@ export async function POST(req: Request) {
     =============================== */
 
     const productRef = await db.collection("products").add({
-      factoryId, // 🔒 siempre desde cookie / rol
+      factoryId,
 
-      // ✅ NUEVO: guardar el tipo de vendedor automáticamente
+      // ✅ Tipo de vendedor (manufacturer / distributor / wholesaler)
       sellerType,
 
       name: body.name,
@@ -188,22 +213,33 @@ export async function POST(req: Request) {
       // 🚚 reglas de envío
       shipping: body.shipping,
 
-      // ✅ NUEVO: variantes de medida/precio/mínimo
-      variants: Array.isArray(body.variants) ? body.variants.map((v: any) => ({
-        unitLabel: String(v.unitLabel || "").trim().substring(0, 20),
-        price: Number(v.price),
-        minimumOrder: Number(v.minimumOrder),
-      })).filter((v: any) => v.unitLabel && v.price > 0 && v.minimumOrder > 0) : [],
+      // ✅ variantes de medida/precio/mínimo
+      variants: Array.isArray(body.variants)
+        ? body.variants
+            .map((v: any) => ({
+              unitLabel: String(v.unitLabel || "").trim().substring(0, 20),
+              price: Number(v.price),
+              minimumOrder: Number(v.minimumOrder),
+            }))
+            .filter(
+              (v: any) =>
+                v.unitLabel && v.price > 0 && v.minimumOrder > 0
+            )
+        : [],
+
+      // ✅ NUEVO: control de stock
+      // null = sin control (siempre disponible)
+      // número = unidades disponibles (0 = sin stock → producto pausado)
+      stock: stockValue,
 
       // ⭐ destacados
       featured: false,
       featuredUntil: null,
 
-      // 📊 estado
-      active: true,
+      // 📊 estado — false automáticamente si stock es 0
+      active: isActive,
 
       // Por defecto NO es intermediario
-      // Solo el admin podrá cambiarlo después
       isIntermediary: false,
 
       createdAt: FieldValue.serverTimestamp(),
