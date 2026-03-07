@@ -1,9 +1,4 @@
 // app/dashboard/fabricante/confirmar-stock/page.tsx
-//
-// Página a la que llega el vendedor cuando hace click en el email.
-// URL: /dashboard/fabricante/confirmar-stock?token=XXX
-//
-// Muestra los detalles del lote y 2 botones: Confirmar / No tengo stock
 
 "use client";
 
@@ -13,7 +8,9 @@ import { useSearchParams, useRouter } from "next/navigation";
 export default function ConfirmarStockPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const token = searchParams.get("token");
+
+  // ✅ CORRECCIÓN: searchParams puede ser null, usamos ?. y ?? para evitarlo
+  const token = searchParams?.get("token") ?? null;
 
   const [lotInfo, setLotInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -24,7 +21,6 @@ export default function ConfirmarStockPage() {
   useEffect(() => {
     if (!token) { setError("Token inválido"); setLoading(false); return; }
 
-    // Buscar info del lote por token via API
     async function fetchLotInfo() {
       try {
         const res = await fetch(`/api/lots/lot-by-token?token=${token}`);
@@ -144,7 +140,6 @@ export default function ConfirmarStockPage() {
           <p className="text-gray-500 text-sm mt-1">Un lote de tu producto está listo para despacho</p>
         </div>
 
-        {/* Info del lote */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">
           <h2 className="font-semibold text-blue-900 mb-3">Detalles del lote</h2>
           <div className="space-y-2 text-sm">
@@ -163,7 +158,6 @@ export default function ConfirmarStockPage() {
           </div>
         </div>
 
-        {/* Plazo */}
         {deadline && (
           <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6">
             <p className="text-amber-800 text-sm font-medium">
@@ -179,7 +173,6 @@ export default function ConfirmarStockPage() {
           </div>
         )}
 
-        {/* Botones */}
         <div className="space-y-3">
           <button
             onClick={() => handleAction("confirm")}
