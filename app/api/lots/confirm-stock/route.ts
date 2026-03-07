@@ -100,7 +100,7 @@ export async function POST(req: Request) {
 /* ====================================================
    CANCELAR LOTE Y NOTIFICAR COMPRADORES
 ==================================================== */
-export async function cancelLotAndNotifyBuyers(
+async function cancelLotAndNotifyBuyers(
   lotId: string,
   lotData: any,
   reason: "seller_cancelled" | "timeout"
