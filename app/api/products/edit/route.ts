@@ -27,17 +27,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    /* ===============================
-       🔒 SOLO VENDEDORES (fabricante, distribuidor, mayorista)
-    =============================== */
-    // ✅ CORREGIDO: permite fabricante, distribuidor y mayorista
     const userId = await requireSellerRole();
-
     const body = await req.json();
 
-    /* ===============================
-       📦 VALIDAR productId
-    =============================== */
     if (!body.productId || typeof body.productId !== "string") {
       return NextResponse.json({ error: "productId requerido" }, { status: 400 });
     }
@@ -53,9 +45,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Este producto no te pertenece" }, { status: 403 });
     }
 
-    /* ===============================
-       📦 VALIDACIONES
-    =============================== */
     if (!body.name || typeof body.name !== "string") {
       return NextResponse.json({ error: "Nombre de producto inválido" }, { status: 400 });
     }
@@ -82,9 +71,6 @@ export async function POST(req: Request) {
 
     validateShippingConfig(body.shipping);
 
-    /* ===============================
-       ✅ PROCESAR VARIANTES
-    =============================== */
     const cleanVariants = Array.isArray(body.variants)
       ? body.variants
           .map((v: any) => ({
@@ -95,9 +81,22 @@ export async function POST(req: Request) {
           .filter((v: any) => v.unitLabel && v.price > 0 && v.minimumOrder > 0)
       : [];
 
-    /* ===============================
-       💾 ACTUALIZAR PRODUCTO
-    =============================== */
+    // ✅ NUEVO: procesar stock
+    // body.stock === null  → sin control de stock (guardamos null)
+    // body.stock === 0     → sin stock disponible (guardamos 0, badge rojo)
+    // body.stock > 0       → con stock (guardamos el número)
+    let stockValue: number | null = null;
+    if (body.stock !== null && body.stock !== undefined && body.stock !== "") {
+      const parsedStock = Number(body.stock);
+      if (!Number.isInteger(parsedStock) || parsedStock < 0) {
+        return NextResponse.json(
+          { error: "El stock debe ser un número entero igual o mayor a 0" },
+          { status: 400 }
+        );
+      }
+      stockValue = parsedStock;
+    }
+
     await productRef.update({
       name: body.name.trim().substring(0, 100),
       description: body.description.trim().substring(0, 1000),
@@ -110,8 +109,9 @@ export async function POST(req: Request) {
       unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim()
         ? body.unitLabel.trim().substring(0, 20)
         : null,
-      // ✅ NUEVO: guardar variantes
       variants: cleanVariants,
+      // ✅ NUEVO: guardar stock en Firestore
+      stock: stockValue,
       updatedAt: FieldValue.serverTimestamp(),
     });
 

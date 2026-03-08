@@ -123,6 +123,9 @@ export async function GET(req: Request) {
         manufacturerName: seller?.name || null,
         manufacturerImageUrl: seller?.imageUrl || null,
         manufacturerVerified: seller?.verified || false,
+
+        // ✅ NUEVO: stock para badge "Sin stock"
+        stock: data.stock !== undefined ? data.stock : null,
       };
     });
 

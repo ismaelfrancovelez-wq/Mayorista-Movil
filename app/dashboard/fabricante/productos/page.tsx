@@ -21,6 +21,7 @@ export default function ProductosFabricantePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     loadProducts();
@@ -68,6 +69,11 @@ export default function ProductosFabricantePage() {
     }
   }
 
+  // ✅ Filtro por nombre
+  const filtered = products.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  );
+
   if (loading) {
     return (
       <div className="p-8 max-w-6xl mx-auto">
@@ -78,12 +84,12 @@ export default function ProductosFabricantePage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      
+
       <BackButton className="mb-4" />
 
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold">Mis productos</h1>
-        
+
         <Link
           href="/dashboard/fabricante/productos/nuevo"
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
@@ -91,6 +97,43 @@ export default function ProductosFabricantePage() {
           ➕ Añadir producto
         </Link>
       </div>
+
+      {/* ✅ BUSCADOR */}
+      {products.length > 0 && (
+        <div className="relative mb-6">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Buscar por nombre..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Contador de resultados */}
+      {search && (
+        <p className="text-sm text-gray-500 mb-4">
+          {filtered.length === 0
+            ? "No se encontraron productos"
+            : `${filtered.length} de ${products.length} productos`}
+        </p>
+      )}
 
       {products.length === 0 && (
         <div className="bg-white rounded-xl shadow p-12 text-center">
@@ -104,8 +147,17 @@ export default function ProductosFabricantePage() {
         </div>
       )}
 
+      {products.length > 0 && filtered.length === 0 && (
+        <div className="bg-white rounded-xl shadow p-12 text-center">
+          <p className="text-gray-500">No hay productos que coincidan con <strong>"{search}"</strong>.</p>
+          <button onClick={() => setSearch("")} className="mt-3 text-blue-600 text-sm hover:underline">
+            Limpiar búsqueda
+          </button>
+        </div>
+      )}
+
       <div className="grid md:grid-cols-3 gap-6">
-        {products.map((p) => (
+        {filtered.map((p) => (
           <div
             key={p.id}
             className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden"
@@ -135,7 +187,7 @@ export default function ProductosFabricantePage() {
                   </svg>
                 </div>
               )}
-              
+
               {/* Badge destacado */}
               {p.featured && (
                 <span className="absolute top-4 right-4 inline-block text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-medium">
@@ -160,7 +212,7 @@ export default function ProductosFabricantePage() {
                 </p>
               </div>
 
-              {/* ✅ BOTONES: Editar + Eliminar */}
+              {/* BOTONES: Editar + Eliminar */}
               <div className="flex flex-col gap-2">
                 <Link
                   href={`/dashboard/fabricante/productos/${p.id}/editar`}
