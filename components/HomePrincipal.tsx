@@ -427,10 +427,10 @@ export default function HomePrincipal() {
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex-1 text-center md:text-left">
                 <h2 className="text-3xl md:text-4xl font-black text-white mb-3 leading-tight">
-                  COMPRA A PRECIOS DE FABRICA
+                  ENCONTRA Y COMPRA TODO A PRECIO DE FABRICA
                 </h2>
                 <p className="text-xl md:text-2xl text-white/90 font-semibold mb-2">
-                  Incluso sin llegar al mínimo, solo lo que necesites.
+                  Incluso sin llegar al mínimos, solo lo que necesites.
                 </p>
                 <p className="text-white/80 text-lg max-w-2xl">
                   Unite a otros compradores y revendedores para acceder a precios de fabrica comprando solo las unidades que necesitás.
