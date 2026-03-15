@@ -6,7 +6,6 @@ import { cookies } from "next/headers";
 import { db } from "../../../lib/firebase-admin";
 import type { Product } from "../../../lib/types/product";
 import ProductPurchaseClient from "../../../components/products/ProductPurchaseClient";
-import ShippingSimulatorSection from "../../../components/ShippingSimulatorSection";
 import ImageCarousel from "../../../components/products/ImageCarousel";
 import Link from "next/link";
 import VariantSelectorClient from "../../../components/products/VariantSelectorClient";
@@ -418,11 +417,7 @@ export default async function ProductDetailPage({
           </div>
         </div>
 
-        {userId && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-4">
-            <ShippingSimulatorSection productId={product.id} />
-          </div>
-        )}
+           
 
       </div>
     </div>

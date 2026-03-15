@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import ShippingSimulatorSection from "../ShippingSimulatorSection";
 
 type Props = {
   price: number;
@@ -55,6 +56,8 @@ export default function ProductPurchaseClient({
   const [reserved, setReserved] = useState(false);
   const [reserveError, setReserveError] = useState<string | null>(null);
 
+  const [showSimulator, setShowSimulator] = useState(false);
+
   const usesReserveFlow = isFraccionado && (selectedShipping === "platform" || selectedShipping === "pickup");
 
   const [commissionRate, setCommissionRate] = useState<number>(initialCommissionRate);
@@ -102,7 +105,6 @@ export default function ProductPurchaseClient({
 
   useEffect(() => {
     if (isFraccionado) {
-      // ✅ CORREGIDO: siempre recalcula envío plataforma cuando qty cambia a fraccionado
       calculatePlatformShipping();
       return;
     }
@@ -272,7 +274,6 @@ export default function ProductPurchaseClient({
             <div className="text-2xl">⚠️</div>
             <div>
               <p className="font-semibold text-red-900 mb-1">Producto no disponible para compra</p>
-              {/* ✅ CORREGIDO: texto genérico en vez de "fabricante" */}
               <p className="text-sm text-red-700">
                 El vendedor aún no ha vinculado su cuenta de Mercado Pago.
                 Por favor, intentá más tarde.
@@ -289,7 +290,6 @@ export default function ProductPurchaseClient({
             <div className="text-2xl">📍</div>
             <div>
               <p className="font-semibold text-amber-900 mb-1">Compra no disponible momentáneamente</p>
-              {/* ✅ CORREGIDO: texto genérico en vez de "fabricante" */}
               <p className="text-sm text-amber-700">
                 El vendedor aún no configuró su dirección.
                 No es posible calcular el envío ni procesar la compra hasta que lo haga.
@@ -305,7 +305,6 @@ export default function ProductPurchaseClient({
           <div className="flex items-start gap-3">
             <div className="text-2xl">🚚</div>
             <div>
-              {/* ✅ CORREGIDO: texto genérico en vez de "fabricante" */}
               <p className="font-semibold text-indigo-900 mb-1">
                 Este vendedor no realiza envíos directos
               </p>
@@ -354,6 +353,7 @@ export default function ProductPurchaseClient({
                 setShippingKm(null);
                 setReserved(false);
                 setReserveError(null);
+                setShowSimulator(false);
               }}
               disabled={mpConnected === false}
             />
@@ -431,16 +431,27 @@ export default function ProductPurchaseClient({
       </div>
 
       {/* AVISO fraccionado + plataforma */}
-      {usesReserveFlow && selectedShipping === "platform" && !loadingShipping && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <p className="text-sm text-blue-800">
-            <strong>💡 El envío podría ser menor.</strong> Buscamos otros
-            compradores en tu zona para dividir el costo. Si se suman, pagás
-            menos de <strong>${formatNumber(shippingCost)}</strong>.
-            El precio final lo ves en el email cuando el lote cierre.
-          </p>
-        </div>
-      )}
+{usesReserveFlow && selectedShipping === "platform" && !loadingShipping && (
+  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+    <div className="text-sm text-blue-800">
+      <strong>💡 El envío podría ser menor.</strong> Buscamos otros
+      compradores en tu zona para dividir el costo. Si se suman, pagás
+      menos de <strong>${formatNumber(shippingCost)}</strong>.
+      El precio final lo ves en el email cuando el lote cierre.{" "}
+      <button
+        onClick={() => setShowSimulator(!showSimulator)}
+        className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
+      >
+        {showSimulator ? "Ocultar simulador ↑" : "Simular ahorro →"}
+      </button>
+    </div>
+    {showSimulator && (
+      <div className="mt-3 border-t border-blue-200 pt-3">
+        <ShippingSimulatorSection productId={productId} />
+      </div>
+    )}
+  </div>
+)}
 
       {/* AVISO fraccionado + retiro */}
       {usesReserveFlow && selectedShipping === "pickup" && (
@@ -453,13 +464,13 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* Error de reserva */}
+   {/* Error de reserva */}
       {reserveError && (
         <div className="bg-red-50 border border-red-300 rounded-lg p-3 mb-4">
           <p className="text-sm text-red-700">{reserveError}</p>
           {reserveError.includes("dirección") && (
-            <a
-              href="/dashboard/pedidos-fraccionados/perfil"
+            
+              <a href="/dashboard/pedidos-fraccionados/perfil"
               className="text-sm font-semibold text-red-800 underline mt-1 block"
             >
               Ir a configurar dirección
@@ -486,7 +497,6 @@ export default function ProductPurchaseClient({
             : loadingMPStatus
             ? "Verificando disponibilidad..."
             : blockedByAddress
-            // ✅ CORREGIDO: texto genérico en vez de "fabricante"
             ? "No disponible — el vendedor no configuró su dirección"
             : mpConnected === false
             ? "Producto no disponible"
@@ -508,7 +518,6 @@ export default function ProductPurchaseClient({
           {loadingMPStatus
             ? "Verificando disponibilidad..."
             : blockedByAddress
-            // ✅ CORREGIDO: texto genérico en vez de "fabricante"
             ? "No disponible — el vendedor no configuró su dirección"
             : mpConnected === false
             ? "Producto no disponible"
