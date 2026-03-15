@@ -118,7 +118,7 @@ export default async function AdminProductIntermediaryPage() {
               El console.log en getAdminProducts() es suficiente para debug. */}
         </div>
 
-        {/* INFORMACIÓN */}
+        {/* INFORMACIÓNn */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
           <h3 className="font-semibold text-blue-900 mb-2">
             ℹ️ ¿Qué es un producto intermediario?
