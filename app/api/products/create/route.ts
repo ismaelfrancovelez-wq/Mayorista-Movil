@@ -2,6 +2,7 @@
 // ✅ MODIFICADO:
 //   - stock=0 ya NO desactiva el producto (active siempre es true)
 //   - El badge "Sin stock" lo muestra el frontend en ExplorarClient
+//   - ✅ NUEVO: se guarda "nameLower" para poder hacer búsquedas por nombre
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -57,7 +58,6 @@ export async function POST(req: Request) {
     if (typeof body.minimumOrder !== "number" || body.minimumOrder <= 0) return NextResponse.json({ error: "Pedido mínimo inválido" }, { status: 400 });
     if (typeof body.netProfitPerUnit !== "number" || body.netProfitPerUnit < 0) return NextResponse.json({ error: "Ganancia neta inválida" }, { status: 400 });
 
-    // ✅ STOCK: null = sin control | 0 = sin stock (pero sigue activo) | >0 = con stock
     let stockValue: number | null = null;
     if (body.stock !== null && body.stock !== undefined && body.stock !== "") {
       const parsedStock = Number(body.stock);
@@ -74,6 +74,8 @@ export async function POST(req: Request) {
       factoryId,
       sellerType,
       name: body.name,
+      // ✅ NUEVO: nameLower = nombre en minúsculas para búsquedas
+      nameLower: body.name.toLowerCase().trim(),
       description: body.description.trim(),
       unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim() ? body.unitLabel.trim().substring(0, 20) : null,
       price: body.price,
@@ -91,16 +93,10 @@ export async function POST(req: Request) {
             }))
             .filter((v: any) => v.unitLabel && v.price > 0 && v.minimumOrder > 0)
         : [],
-
-      // ✅ stock: null = sin control | 0 = sin stock | >0 = disponible
       stock: stockValue,
-
       featured: false,
       featuredUntil: null,
-
-      // ✅ SIEMPRE true: stock=0 muestra badge pero NO oculta el producto
       active: true,
-
       isIntermediary: false,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),

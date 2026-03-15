@@ -39,7 +39,7 @@ export async function GET(req: Request) {
 
     snap.docs.forEach((doc) => {
       const data = doc.data();
-      const MF = data.MF ?? 0;
+      const MF = data.minimumOrder ?? data.MF ?? 0;
       const accumulated = data.accumulatedQty ?? 0;
       const percentage =
         MF > 0 ? Math.min(accumulated / MF, 1) * 100 : 0;

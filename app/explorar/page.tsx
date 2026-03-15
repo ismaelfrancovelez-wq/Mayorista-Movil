@@ -1,13 +1,13 @@
 // app/explorar/page.tsx
-// ✅ MODIFICADO:
-//   - Trae productos active=true Y los con stock=0 (para mostrarlos con badge "Sin stock")
-//   - Pasa el campo "stock" a cada producto para que ExplorarClient muestre el badge
+// ✅ OPTIMIZADO: lee Firestore directamente, solo 20 productos iniciales
 
 import { db } from "../../lib/firebase-admin";
 import { ProductCategory, SellerType } from "../../lib/types/product";
 import ExplorarClient from "./ExplorarClient";
 
-export const revalidate = 0;
+export const revalidate = 60;
+
+const PAGE_SIZE = 20;
 
 type Product = {
   id: string;
@@ -25,87 +25,83 @@ type Product = {
   unitLabel?: string;
   sellerType?: SellerType;
   variants?: { unitLabel: string; price: number; minimumOrder: number }[];
-  stock?: number | null; // ✅ NUEVO
+  stock?: number | null;
 };
 
-async function getProducts(): Promise<Product[]> {
+async function getInitialProducts(): Promise<Product[]> {
   try {
-    // ✅ MODIFICADO: dos queries para no perder productos con stock=0
-    // Query 1: todos los productos activos (active=true)
-    // Query 2: productos con stock=0 (por compatibilidad con productos viejos que quedaron active=false)
-    const [activeSnap, outOfStockSnap] = await Promise.all([
-      db.collection("products").where("active", "==", true).get(),
-      db.collection("products").where("stock", "==", 0).get(),
-    ]);
+    const snap = await db
+      .collection("products")
+      .where("active", "==", true)
+      .orderBy("createdAt", "desc")
+      .limit(PAGE_SIZE)
+      .get();
 
-    // Unir sin duplicados usando un Map
-    const docsMap = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
-    activeSnap.docs.forEach(doc => docsMap.set(doc.id, doc));
-    outOfStockSnap.docs.forEach(doc => docsMap.set(doc.id, doc));
-    const allDocs = Array.from(docsMap.values());
+    if (snap.empty) return [];
 
-    const factoryIds = [...new Set(
-      allDocs.map(doc => doc.data().factoryId).filter(Boolean)
-    )] as string[];
+    const factoryIds = [
+      ...new Set(
+        snap.docs.map((doc) => doc.data().factoryId as string).filter(Boolean)
+      ),
+    ];
 
     const sellerMap: Record<string, {
-      businessName?: string;
-      profileImageUrl?: string;
-      verified?: boolean;
-      sellerType?: SellerType;
+      name: string;
+      imageUrl: string;
+      verified: boolean;
+      sellerType: SellerType;
     }> = {};
 
     if (factoryIds.length > 0) {
-      const chunks: string[][] = [];
-      for (let i = 0; i < factoryIds.length; i += 10) {
-        chunks.push(factoryIds.slice(i, i + 10));
-      }
+      // ✅ Busca con .doc(id).get() igual que explore/route.ts
+      // (en vez de where("__name__", "in", chunk) que puede fallar)
+      const [manuSnaps, distSnaps, whoSnaps] = await Promise.all([
+        Promise.all(factoryIds.map((id) => db.collection("manufacturers").doc(id).get())),
+        Promise.all(factoryIds.map((id) => db.collection("distributors").doc(id).get())),
+        Promise.all(factoryIds.map((id) => db.collection("wholesalers").doc(id).get())),
+      ]);
 
-      await Promise.all(
-        chunks.map(async (chunk) => {
-          const [manuSnap, distSnap, whoSnap] = await Promise.all([
-            db.collection("manufacturers").where("__name__", "in", chunk).get(),
-            db.collection("distributors").where("__name__", "in", chunk).get(),
-            db.collection("wholesalers").where("__name__", "in", chunk).get(),
-          ]);
+      manuSnaps.forEach((snap) => {
+        if (snap.exists) {
+          const data = snap.data()!;
+          sellerMap[snap.id] = {
+            name: data.businessName || data.name || "Fabricante",
+            imageUrl: data.profileImageUrl || data.imageUrl || "",
+            verified: data.verification?.status === "verified",
+            sellerType: "manufacturer",
+          };
+        }
+      });
 
-          manuSnap.docs.forEach(doc => {
-            const data = doc.data();
-            sellerMap[doc.id] = {
-              businessName: data.businessName || "",
-              profileImageUrl: data.profileImageUrl || "",
-              verified: data.verification?.status === "verified",
-              sellerType: "manufacturer",
-            };
-          });
+      distSnaps.forEach((snap) => {
+        if (snap.exists) {
+          const data = snap.data()!;
+          sellerMap[snap.id] = {
+            name: data.businessName || data.name || "Distribuidor",
+            imageUrl: data.profileImageUrl || data.imageUrl || "",
+            verified: data.verification?.status === "verified",
+            sellerType: "distributor",
+          };
+        }
+      });
 
-          distSnap.docs.forEach(doc => {
-            const data = doc.data();
-            sellerMap[doc.id] = {
-              businessName: data.businessName || "",
-              profileImageUrl: data.profileImageUrl || "",
-              verified: data.verification?.status === "verified",
-              sellerType: "distributor",
-            };
-          });
-
-          whoSnap.docs.forEach(doc => {
-            const data = doc.data();
-            sellerMap[doc.id] = {
-              businessName: data.businessName || "",
-              profileImageUrl: data.profileImageUrl || "",
-              verified: data.verification?.status === "verified",
-              sellerType: "wholesaler",
-            };
-          });
-        })
-      );
+      whoSnaps.forEach((snap) => {
+        if (snap.exists) {
+          const data = snap.data()!;
+          sellerMap[snap.id] = {
+            name: data.businessName || data.name || "Mayorista",
+            imageUrl: data.profileImageUrl || data.imageUrl || "",
+            verified: data.verification?.status === "verified",
+            sellerType: "wholesaler",
+          };
+        }
+      });
     }
 
-    const products = allDocs.map((doc) => {
+    return snap.docs.map((doc) => {
       const data = doc.data();
       const seller = data.factoryId ? sellerMap[data.factoryId] : null;
-      const sellerType = data.sellerType || seller?.sellerType || "manufacturer";
+      const sellerType = (data.sellerType || seller?.sellerType || "manufacturer") as SellerType;
 
       return {
         id: doc.id,
@@ -115,23 +111,22 @@ async function getProducts(): Promise<Product[]> {
         category: (data.category || "otros") as ProductCategory,
         featured: data.featured || false,
         shippingMethods: data.shipping?.methods || [],
-        imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : undefined,
-        manufacturerName: seller?.businessName || undefined,
-        manufacturerImageUrl: seller?.profileImageUrl || undefined,
+        imageUrls: Array.isArray(data.imageUrls) && data.imageUrls.length > 0
+          ? data.imageUrls
+          : data.imageUrl
+          ? [data.imageUrl]
+          : [],
+        manufacturerName: seller?.name || undefined,
+        manufacturerImageUrl: seller?.imageUrl || undefined,
         manufacturerVerified: seller?.verified || false,
         isIntermediary: data.isIntermediary || false,
         unitLabel: data.unitLabel || undefined,
-        sellerType: sellerType as SellerType,
+        sellerType,
         variants: Array.isArray(data.variants) ? data.variants : [],
-        // ✅ NUEVO: pasar el stock al cliente
-        // null = sin control (siempre disponible, no muestra badge)
-        // 0    = sin stock (muestra badge rojo "Sin stock")
-        // >0   = con stock disponible (no muestra badge)
         stock: data.stock !== undefined ? data.stock : null,
       };
     });
 
-    return products;
   } catch (error) {
     console.error("Error cargando productos:", error);
     return [];
@@ -139,6 +134,6 @@ async function getProducts(): Promise<Product[]> {
 }
 
 export default async function ExplorarPage() {
-  const products = await getProducts();
+  const products = await getInitialProducts();
   return <ExplorarClient initialProducts={products} />;
 }

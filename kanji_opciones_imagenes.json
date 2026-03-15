@@ -1,0 +1,1900 @@
+[
+  {
+    "codigo": "WH-CH109",
+    "nombre": "Caloventor Tipo Split",
+    "ean": "4895091318013",
+    "opciones": [
+      "https://images.fravega.com/f500/f2eed5ee44166a33ec760bfca240fbdd.jpg",
+      "https://images.fravega.com/f500/f2eed5ee44166a33ec760bfca240fbdd.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_746998-MLA86343230188_062025-O.webp"
+    ],
+    "query_usada": "Caloventor Tipo Split WH-CH109"
+  },
+  {
+    "codigo": "WH-CH121CONV",
+    "nombre": "Convector",
+    "ean": "4895091318020",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_851775-MLA92789830356_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_851775-MLA92789830356_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_747953-MLA93081364608_092025-O.webp"
+    ],
+    "query_usada": "Convector WH-CH121CONV"
+  },
+  {
+    "codigo": "KJH-HEATGASBTL4000G",
+    "nombre": "Estufa Garrafera Plegable 4000",
+    "ean": "7146041686902",
+    "opciones": [
+      "https://images.fravega.com/f1000/9be0ed98c932904b2c3819232cbde6d1.jpg",
+      "https://images.fravega.com/f1000/9be0ed98c932904b2c3819232cbde6d1.jpg",
+      "https://kanji.com.ar/wp-content/uploads/2025/02/KJH-HEATGASBTL4000B-0-1.png"
+    ],
+    "query_usada": "Estufa Garrafera Plegable 4000 KJH-HEATGASBTL4000G"
+  },
+  {
+    "codigo": "KJH-405G",
+    "nombre": "Estufa de Halógeno 4 Velas",
+    "ean": "7146041689118",
+    "opciones": [
+      "https://images.fravega.com/f1000/62597e09f8f8e728ad50de800124af19.jpg",
+      "https://images.fravega.com/f1000/62597e09f8f8e728ad50de800124af19.jpg",
+      "https://images.fravega.com/f1000/e116fc7cc64c043d80a1082581beac54.jpg"
+    ],
+    "query_usada": "Estufa de Halógeno 4 Velas KJH-405G"
+  },
+  {
+    "codigo": "KJH-AA2900FCBC",
+    "nombre": "Aire Acondicionado Portátil",
+    "ean": "7273731533922",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_800527-MLA91475102506_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_800527-MLA91475102506_092025-O.webp",
+      "https://elreydelconfort.com.ar/4680-large_default/0114503_AIRE-PORTATIL-KANJI-KJH-AA2900FCBC-2900-W--FC.jpg"
+    ],
+    "query_usada": "Aire Acondicionado Portátil KJH-AA2900FCBC"
+  },
+  {
+    "codigo": "LG04-13CR",
+    "nombre": "Climatizador",
+    "ean": "4895091300582",
+    "opciones": [
+      "https://images.fravega.com/f1000/bf5230ab6b38dff461dfff34056e029b.jpg",
+      "https://images.fravega.com/f1000/bf5230ab6b38dff461dfff34056e029b.jpg",
+      "https://images.fravega.com/f500/ebaa76b96dafe3050c7b14144be880e6.png"
+    ],
+    "query_usada": "Climatizador LG04-13CR"
+  },
+  {
+    "codigo": "LG04-11CR",
+    "nombre": "Climatizador",
+    "ean": "4895091300575",
+    "opciones": [
+      "https://images.fravega.com/f500/4ca4bf17e2b4bb2c4f1e869f42374af5.png",
+      "https://images.fravega.com/f500/4ca4bf17e2b4bb2c4f1e869f42374af5.png",
+      "https://selexhogar.com.ar/wp-content/uploads/2023/10/32100.jpg"
+    ],
+    "query_usada": "Climatizador LG04-11CR"
+  },
+  {
+    "codigo": "KJH-SF380GE",
+    "nombre": "Heladera con Freezer Serie 380 Multi Door",
+    "ean": "7146045755284",
+    "opciones": [
+      "https://santimaria.com.ar/wp-content/uploads/2025/02/391093-1600-1600.webp",
+      "https://santimaria.com.ar/wp-content/uploads/2025/02/391093-1600-1600.webp",
+      "https://santimaria.com.ar/wp-content/uploads/2025/02/D_NQ_NP_726636-MLA80354765733_102024-O.webp"
+    ],
+    "query_usada": "Heladera con Freezer Serie 380 Multi Door KJH-SF380GE"
+  },
+  {
+    "codigo": "KJH-SBS400GE",
+    "nombre": "Heladera con Freezer Serie 400 Side by Side",
+    "ean": "7146045755116",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_907000-MLA107470672016_032026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_907000-MLA107470672016_032026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_653548-MLA108189141893_032026-O.webp"
+    ],
+    "query_usada": "Heladera con Freezer Serie 400 Side by Side KJH-SBS400GE"
+  },
+  {
+    "codigo": "KJH-50VIN-S",
+    "nombre": "Frigobar Retro Serie 50 Silver",
+    "ean": "7146045754980",
+    "opciones": [
+      "https://images.fravega.com/f1000/5c454304564d21cc4c5a00bd242ac75f.jpg",
+      "https://images.fravega.com/f1000/5c454304564d21cc4c5a00bd242ac75f.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_716102-MLA101085470599_122025-O.webp"
+    ],
+    "query_usada": "Frigobar Retro Serie 50 Silver KJH-50VIN-S"
+  },
+  {
+    "codigo": "KJH-50VIN-W",
+    "nombre": "Frigobar Retro Serie 50 Blanco",
+    "ean": "7146045754744",
+    "opciones": [
+      "https://http2.mlstatic.com/D_Q_NP_810100-MLU72400363718_102023-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_810100-MLU72400363718_102023-O.webp",
+      "https://images.fravega.com/f1000/e0a43891476bac5d8d4b09090989b1be.jpg"
+    ],
+    "query_usada": "Frigobar Retro Serie 50 Blanco KJH-50VIN-W"
+  },
+  {
+    "codigo": "KJH-50VIN-R",
+    "nombre": "Frigobar Retro Serie 50 Rojo",
+    "ean": "7146045754812",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_776537-MLA91890584559_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_776537-MLA91890584559_092025-O.webp",
+      "https://images.fravega.com/f300/2a13f00d9c98df7267018faf925ff232.png"
+    ],
+    "query_usada": "Frigobar Retro Serie 50 Rojo KJH-50VIN-R"
+  },
+  {
+    "codigo": "KJH-50VIN-B",
+    "nombre": "Frigobar Retro Serie 50 Negro",
+    "ean": "",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_822085-MLA88399426471_072025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_822085-MLA88399426471_072025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_2X_797020-MLA99516684578_112025-P.webp"
+    ],
+    "query_usada": "Frigobar Retro Serie 50 Negro KJH-50VIN-B"
+  },
+  {
+    "codigo": "KJH-HD260-W",
+    "nombre": "Heladera con Freezer Serie 260 Blanco",
+    "ean": "7146043159268",
+    "opciones": [
+      "https://images.fravega.com/f1000/2030831bcf8d9714298fd152e3368003.png",
+      "https://images.fravega.com/f1000/2030831bcf8d9714298fd152e3368003.png",
+      "https://images.fravega.com/f300/2a1c912723f833e77d7a2fb3f7330aac.jpg"
+    ],
+    "query_usada": "Heladera con Freezer Serie 260 Blanco KJH-HD260-W"
+  },
+  {
+    "codigo": "TFK-HF50-R",
+    "nombre": "Frigobar Serie 50 TFK Rojo",
+    "ean": "7146043155376",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_776537-MLA91890584559_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_776537-MLA91890584559_092025-O.webp",
+      "https://images.fravega.com/f300/2a13f00d9c98df7267018faf925ff232.png"
+    ],
+    "query_usada": "Frigobar Serie 50 TFK Rojo TFK-HF50-R"
+  },
+  {
+    "codigo": "TFK-HF50B",
+    "nombre": "Frigobar Serie 50 TFK Blanco",
+    "ean": "7146043155130",
+    "opciones": [
+      "https://images.fravega.com/f1000/0b181985c655ed62be4af1fb28531de2.jpg",
+      "https://images.fravega.com/f1000/0b181985c655ed62be4af1fb28531de2.jpg",
+      "http://dcdn-us.mitiendanube.com/stores/003/063/137/products/tfkhf50b-6ccd0afdf791bece9f17442852501152-640-0.webp"
+    ],
+    "query_usada": "Frigobar Serie 50 TFK Blanco TFK-HF50B"
+  },
+  {
+    "codigo": "TFK-HF50-B",
+    "nombre": "Frigobar Serie 50 TFK Negro",
+    "ean": "7146043155208",
+    "opciones": [
+      "https://images.fravega.com/f1000/101072046eaed4e7891894b9625024cf.jpg",
+      "https://images.fravega.com/f1000/101072046eaed4e7891894b9625024cf.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_668571-MLA103362529528_012026-O.webp"
+    ],
+    "query_usada": "Frigobar Serie 50 TFK Negro TFK-HF50-B"
+  },
+  {
+    "codigo": "TFK-HF50",
+    "nombre": "Frigobar Serie 50 TFK Gris",
+    "ean": "7273731535070",
+    "opciones": [
+      "https://images.fravega.com/f1000/5c454304564d21cc4c5a00bd242ac75f.jpg",
+      "https://images.fravega.com/f1000/5c454304564d21cc4c5a00bd242ac75f.jpg",
+      "https://gasloni.com.ar/wp-content/uploads/sites/32/2025/01/WhatsApp-Image-2025-01-16-at-10.50.06.jpeg"
+    ],
+    "query_usada": "Frigobar Serie 50 TFK Gris TFK-HF50"
+  },
+  {
+    "codigo": "TFK-FP50",
+    "nombre": "Freezer de Pozo Serie 50 TFK",
+    "ean": "7273731534844",
+    "opciones": [
+      "https://http2.mlstatic.com/D_Q_NP_622145-MLA99929754875_112025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_622145-MLA99929754875_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_857479-MLA81887521731_012025-O.webp"
+    ],
+    "query_usada": "Freezer de Pozo Serie 50 TFK TFK-FP50"
+  },
+  {
+    "codigo": "TFK-FP120",
+    "nombre": "Freezer de Pozo Serie 120 TFK",
+    "ean": "7273731535452",
+    "opciones": [
+      "https://images.fravega.com/f300/2a3a7c13850952839a49914228a44c2b.jpg.webp",
+      "https://images.fravega.com/f300/2a3a7c13850952839a49914228a44c2b.jpg.webp",
+      "https://http2.mlstatic.com/D_Q_NP_772160-MLA81724750888_012025-O.webp"
+    ],
+    "query_usada": "Freezer de Pozo Serie 120 TFK TFK-FP120"
+  },
+  {
+    "codigo": "TFK-FPE150",
+    "nombre": "Freezer de Pozo Exhibidor Serie 150 TFK",
+    "ean": "7273731534912",
+    "opciones": [
+      "https://images.fravega.com/f500/ffdec239043449ba9abf8998f85cc50e.jpg",
+      "https://images.fravega.com/f500/ffdec239043449ba9abf8998f85cc50e.jpg",
+      "https://www.megatone.net/images/Articulos/33/415/66/zoom/MKT0066VTT-6.webp"
+    ],
+    "query_usada": "Freezer de Pozo Exhibidor Serie 150 TFK TFK-FPE150"
+  },
+  {
+    "codigo": "TFK-HB90-R",
+    "nombre": "Bajo Mesada Serie 90 TFK Rojo",
+    "ean": "7146041697588",
+    "opciones": [],
+    "query_usada": "Bajo Mesada Serie 90 TFK Rojo TFK-HB90-R"
+  },
+  {
+    "codigo": "TFK-HB90B",
+    "nombre": "Bajo Mesada Serie 90 TFK Blanco",
+    "ean": "7146041697656",
+    "opciones": [
+      "https://cyeonline.com.ar/wp-content/uploads/2025/07/bajomesada-telef-90-1.jpg",
+      "https://cyeonline.com.ar/wp-content/uploads/2025/07/bajomesada-telef-90-1.jpg",
+      "https://images.fravega.com/f500/896845cddea408927d0c27878d496bc4.jpg"
+    ],
+    "query_usada": "Bajo Mesada Serie 90 TFK Blanco TFK-HB90B"
+  },
+  {
+    "codigo": "TFK-HB90",
+    "nombre": "Bajo Mesada Serie 90 TFK Gris",
+    "ean": "7273731534776",
+    "opciones": [],
+    "query_usada": "Bajo Mesada Serie 90 TFK Gris TFK-HB90"
+  },
+  {
+    "codigo": "TFK-HD140",
+    "nombre": "Heladera con Freezer Serie 140 TFK Gris",
+    "ean": "7273731535148",
+    "opciones": [
+      "https://mall.icbc.com.ar/38791703-large_default/heladera-telefunken-tfk-hd140-140-litros-2-puertas-lh.jpg",
+      "https://mall.icbc.com.ar/38791703-large_default/heladera-telefunken-tfk-hd140-140-litros-2-puertas-lh.jpg",
+      "https://http2.mlstatic.com/D_Q_NP_2X_800306-MLA99422753402_112025-P.webp"
+    ],
+    "query_usada": "Heladera con Freezer Serie 140 TFK Gris TFK-HD140"
+  },
+  {
+    "codigo": "TFK-HD140B",
+    "nombre": "Heladera con Freezer Serie 140 TFK Blanco",
+    "ean": "7146043181702",
+    "opciones": [
+      "https://http2.mlstatic.com/D_Q_NP_770037-MLA99507958210_112025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_770037-MLA99507958210_112025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_2X_800306-MLA99422753402_112025-P.webp"
+    ],
+    "query_usada": "Heladera con Freezer Serie 140 TFK Blanco TFK-HD140B"
+  },
+  {
+    "codigo": "TFK-HD220",
+    "nombre": "Heladera con Freezer Serie 220 TFK Gris",
+    "ean": "7273731535520",
+    "opciones": [
+      "https://static.hendel.com/media/catalog/product/cache/b866fd8d147dcce474dc8744e477ca66/5/5/55803_0.jpg",
+      "https://static.hendel.com/media/catalog/product/cache/b866fd8d147dcce474dc8744e477ca66/5/5/55803_0.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_800306-MLA99422753402_112025-O.webp"
+    ],
+    "query_usada": "Heladera con Freezer Serie 220 TFK Gris TFK-HD220"
+  },
+  {
+    "codigo": "TFK-HD220B",
+    "nombre": "Heladera con Freezer Serie 220 TFK Blanco",
+    "ean": "7146041685462",
+    "opciones": [
+      "https://http2.mlstatic.com/D_Q_NP_717400-MLA99462214758_112025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_717400-MLA99462214758_112025-O.webp",
+      "https://habitar.com.ar/media/catalog/product/cache/abe9d8e7320d9521f4428af1180aca97/c/a/captura_de_pantalla_2025-11-24_201714.png"
+    ],
+    "query_usada": "Heladera con Freezer Serie 220 TFK Blanco TFK-HD220B"
+  },
+  {
+    "codigo": "TFK-HD220D",
+    "nombre": "Heladera con Freezer Serie 220 c/Dispenser TFK Con dispenser",
+    "ean": "7146041685394",
+    "opciones": [
+      "http://dcdn-us.mitiendanube.com/stores/001/381/842/products/d_776610-mla86999559241_062025-o-6eca6cfb46da87c6e117520702834438-640-0.webp",
+      "http://dcdn-us.mitiendanube.com/stores/001/381/842/products/d_776610-mla86999559241_062025-o-6eca6cfb46da87c6e117520702834438-640-0.webp",
+      "https://acdn-us.mitiendanube.com/stores/474/421/products/heladera-telefunken-tfk-hd220d-c-dispenser-220l-silver-3919f80bc20d2e83cb17683149526389-480-0.webp"
+    ],
+    "query_usada": "Heladera con Freezer Serie 220 c/Dispenser TFK Con dispenser TFK-HD220D"
+  },
+  {
+    "codigo": "TFK-260HEL",
+    "nombre": "Heladera Single Door Serie 260 c/Dispenser TFK Silver",
+    "ean": "7146043159268",
+    "opciones": [
+      "https://www.centerhogar.com.ar/9186-medium_default/heladera-telefunken-tfk-260hel-silver-con-dispenser-cfreezer-260-lts-c%C3%ADclica-1-puerta.jpg",
+      "https://www.centerhogar.com.ar/9186-medium_default/heladera-telefunken-tfk-260hel-silver-con-dispenser-cfreezer-260-lts-c%C3%ADclica-1-puerta.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_628255-MLA97521928872_112025-O.webp"
+    ],
+    "query_usada": "Heladera Single Door Serie 260 c/Dispenser TFK Silver TFK-260HEL"
+  },
+  {
+    "codigo": "TFK-HD300",
+    "nombre": "Heladera con Freezer Serie 300 TFK Gris",
+    "ean": "7273731535384",
+    "opciones": [
+      "https://chaiaonline.com.ar/wp-content/uploads/2025/04/130834.png",
+      "https://chaiaonline.com.ar/wp-content/uploads/2025/04/130834.png",
+      "https://images.fravega.com/f1000/bc6627bd5ba32185edcd076cc12cee20.jpg"
+    ],
+    "query_usada": "Heladera con Freezer Serie 300 TFK Gris TFK-HD300"
+  },
+  {
+    "codigo": "TFK-HD300B",
+    "nombre": "Heladera con Freezer Serie 300 TFK Blanco",
+    "ean": "7146041684786",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_716501-MLA83209664979_032025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_716501-MLA83209664979_032025-O.webp",
+      "https://images.fravega.com/f1000/14239cc3a329b468c05f7c757e2d0af9.jpg"
+    ],
+    "query_usada": "Heladera con Freezer Serie 300 TFK Blanco TFK-HD300B"
+  },
+  {
+    "codigo": "TFK-HD300D",
+    "nombre": "Heladera con Freezer Serie 300 c/Dispenser TFK Con dispenser",
+    "ean": "7146041684854",
+    "opciones": [
+      "https://dcdn-us.mitiendanube.com/stores/001/381/842/products/d_776610-mla86999559241_062025-o-3042be374777198b7f17520703169925-240-0.webp",
+      "https://dcdn-us.mitiendanube.com/stores/001/381/842/products/d_776610-mla86999559241_062025-o-3042be374777198b7f17520703169925-240-0.webp",
+      "https://images.fravega.com/f1000/68eb8546eba3361670b72c2dac493de1.jpg"
+    ],
+    "query_usada": "Heladera con Freezer Serie 300 c/Dispenser TFK Con dispenser TFK-HD300D"
+  },
+  {
+    "codigo": "TFK-EX330",
+    "nombre": "Heladera Exhibidora Serie 330 TFK Blanco",
+    "ean": "7273731534394",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_911670-MLA99572984310_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_911670-MLA99572984310_122025-O.webp",
+      "https://images.fravega.com/f1000/fc6baf48cdc29bc267b36cd86140c587.jpg"
+    ],
+    "query_usada": "Heladera Exhibidora Serie 330 TFK Blanco TFK-EX330"
+  },
+  {
+    "codigo": "TFK-EX395",
+    "nombre": "Heladera Exhibidora Serie 395 TFK Blanco",
+    "ean": "7273731534226",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_748534-MLA81575425959_122024-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_748534-MLA81575425959_122024-O.webp",
+      "https://images.fravega.com/f1000/3f70f74a0c7b3f810e317302f627b676.jpg"
+    ],
+    "query_usada": "Heladera Exhibidora Serie 395 TFK Blanco TFK-EX395"
+  },
+  {
+    "codigo": "TFK-EX500",
+    "nombre": "Heladera Exhibidora Serie 500 TFK Blanco",
+    "ean": "7146043181498",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_875114-MLA99495451511_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_875114-MLA99495451511_112025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_626551-MLA101693501019_122025-O.webp"
+    ],
+    "query_usada": "Heladera Exhibidora Serie 500 TFK Blanco TFK-EX500"
+  },
+  {
+    "codigo": "DAFCB001-R",
+    "nombre": "Dispenser de Pie Rojo Rojo",
+    "ean": "7273731528454 / 7273731530020",
+    "opciones": [
+      "https://acdn-us.mitiendanube.com/stores/001/160/892/products/d_nq_np_2x_600700-mla82816525997_032025-f-11ad3946c8a70dd1b417696215606459-1024-1024.webp",
+      "https://acdn-us.mitiendanube.com/stores/001/160/892/products/d_nq_np_2x_600700-mla82816525997_032025-f-11ad3946c8a70dd1b417696215606459-1024-1024.webp",
+      "https://acdn-us.mitiendanube.com/stores/001/160/892/products/d_nq_np_2x_951796-mla82816496703_032025-f-3bcfcb67c50643b16217696215606114-1024-1024.webp"
+    ],
+    "query_usada": "Dispenser de Pie Rojo Rojo DAFCB001-R"
+  },
+  {
+    "codigo": "DAFCB001-B",
+    "nombre": "Dispenser de Pie Negro Negro",
+    "ean": "7273731528522 / 7273731530198",
+    "opciones": [
+      "https://acdn-us.mitiendanube.com/stores/006/084/082/products/d_nq_np_2x_961282-mla82189284045_012025-f-f00289ae5851481f6417655593617414-480-0.webp",
+      "https://acdn-us.mitiendanube.com/stores/006/084/082/products/d_nq_np_2x_961282-mla82189284045_012025-f-f00289ae5851481f6417655593617414-480-0.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_703532-MLA99625650925_112025-O.webp"
+    ],
+    "query_usada": "Dispenser de Pie Negro Negro DAFCB001-B"
+  },
+  {
+    "codigo": "DAFCB022-R",
+    "nombre": "Dispenser de Pie Rojo Rojo",
+    "ean": "",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_883116-MLA87436850345_072025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_883116-MLA87436850345_072025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_698433-MLA87436986775_072025-O.webp"
+    ],
+    "query_usada": "Dispenser de Pie Rojo Rojo DAFCB022-R"
+  },
+  {
+    "codigo": "DAFCB022-B",
+    "nombre": "Dispenser de Pie Negro Negro",
+    "ean": "",
+    "opciones": [
+      "https://images.fravega.com/f500/46e758495156215fa4020f87aaead2ae.jpg",
+      "https://images.fravega.com/f500/46e758495156215fa4020f87aaead2ae.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_691869-MLA98886393849_112025-O.webp"
+    ],
+    "query_usada": "Dispenser de Pie Negro Negro DAFCB022-B"
+  },
+  {
+    "codigo": "DAFCM001-B",
+    "nombre": "Dispenser de Mesada Negro Negro",
+    "ean": "7146043158964",
+    "opciones": [
+      "https://casamarvic.com.ar/3116-thickbox_default/dispenser-de-mesa-telefunken-dafcm001-b.jpg",
+      "https://casamarvic.com.ar/3116-thickbox_default/dispenser-de-mesa-telefunken-dafcm001-b.jpg",
+      "http://http2.mlstatic.com/D_693713-MLA99501008064_112025-C.jpg"
+    ],
+    "query_usada": "Dispenser de Mesada Negro Negro DAFCM001-B"
+  },
+  {
+    "codigo": "DAFCM002-B",
+    "nombre": "Dispenser de Mesada Negro Negro",
+    "ean": "7146043158896",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_884284-MLA87436918411_072025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_884284-MLA87436918411_072025-O.webp",
+      "https://www.gapinsumos.com.ar/wp-content/uploads/2024/10/1-Dispenser-Dosificador-Detergente-Cocina-Inoxid-Negro-Mate-Envio-gratis-10-09-2024_03_51_PM.webp"
+    ],
+    "query_usada": "Dispenser de Mesada Negro Negro DAFCM002-B"
+  },
+  {
+    "codigo": "VEN-FH1906",
+    "nombre": "Ventilador VEN 10\"",
+    "ean": "7146043163128",
+    "opciones": [],
+    "query_usada": "Ventilador VEN 10\" VEN-FH1906"
+  },
+  {
+    "codigo": "VEN-FH1505",
+    "nombre": "Turbo VEN 14\"",
+    "ean": "7146043163296",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2025/11/KJH-FH1405-1.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/11/KJH-FH1405-1.png",
+      "https://grupovitta.com.ar/web/image/132291-2510581b/4875%20ventilador%20vitta%20turbo%2020.webp"
+    ],
+    "query_usada": "Turbo VEN 14\" VEN-FH1505"
+  },
+  {
+    "codigo": "VEN-FH1711",
+    "nombre": "Turbo VEN 20\"",
+    "ean": "7146043163746",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2024/02/Ventilador-turbo-20.jpg",
+      "https://kanji.com.ar/wp-content/uploads/2024/02/Ventilador-turbo-20.jpg",
+      "https://static.hendel.com/media/catalog/product/cache/a750d17b4ec44423f191b163a5f214d1/4/0/40409.jpg"
+    ],
+    "query_usada": "Turbo VEN 20\" VEN-FH1711"
+  },
+  {
+    "codigo": "VEN-FH1211",
+    "nombre": "Ventilador VEN 18\"",
+    "ean": "7146043163364",
+    "opciones": [
+      "https://www.oscarbarbieri.com/pub/media/catalog/product/cache/6b8a0918cb156a84a91daef380689cb1/v/e/ventilador_panoramic_18_1_.jpg",
+      "https://www.oscarbarbieri.com/pub/media/catalog/product/cache/6b8a0918cb156a84a91daef380689cb1/v/e/ventilador_panoramic_18_1_.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_820610-MLA100573431916_122025-O.webp"
+    ],
+    "query_usada": "Ventilador VEN 18\" VEN-FH1211"
+  },
+  {
+    "codigo": "VEN-FH1611",
+    "nombre": "Ventilador VEN 18\" 3en1",
+    "ean": "7146043163432",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_2X_805115-MLA99615987653_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_2X_805115-MLA99615987653_112025-O.webp",
+      "https://kanji.com.ar/wp-content/uploads/2024/02/Ventilador-18-01.jpg"
+    ],
+    "query_usada": "Ventilador VEN 18\" 3en1 VEN-FH1611"
+  },
+  {
+    "codigo": "VEN-FH1512",
+    "nombre": "Ventilador VEN Pie 20\"",
+    "ean": "7146043163678",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_689329-MLA99454354600_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_689329-MLA99454354600_112025-O.webp",
+      "https://habitar.com.ar/media/catalog/product/cache/abe9d8e7320d9521f4428af1180aca97/c/a/captura_de_pantalla_2025-11-12_151246.png"
+    ],
+    "query_usada": "Ventilador VEN Pie 20\" VEN-FH1512"
+  },
+  {
+    "codigo": "VEN-FH1612",
+    "nombre": "Ventilador VEN Pie 20\" c/Control Remoto",
+    "ean": "7146043163500",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2024/02/Ventilador-20-con-control-remoto-01.jpg",
+      "https://kanji.com.ar/wp-content/uploads/2024/02/Ventilador-20-con-control-remoto-01.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_929348-MLA101402288378_122025-O.webp"
+    ],
+    "query_usada": "Ventilador VEN Pie 20\" c/Control Remoto VEN-FH1612"
+  },
+  {
+    "codigo": "TFK-FI2415001",
+    "nombre": "Ventilador Industrial VEN 24\"",
+    "ean": "7146043163982",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_625437-MLA102745490046_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_625437-MLA102745490046_122025-O.webp",
+      "https://kanji.com.ar/wp-content/uploads/2025/11/KJH-FI2415001-01_780x780.png"
+    ],
+    "query_usada": "Ventilador Industrial VEN 24\" TFK-FI2415001"
+  },
+  {
+    "codigo": "TFK-FI3020001",
+    "nombre": "Ventilador Industrial VEN 30\"",
+    "ean": "7146043164040",
+    "opciones": [
+      "https://static.hendel.com/media/catalog/product/cache/b866fd8d147dcce474dc8744e477ca66/5/5/55417_0.jpg",
+      "https://static.hendel.com/media/catalog/product/cache/b866fd8d147dcce474dc8744e477ca66/5/5/55417_0.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_792122-MLA80187610857_102024-O.webp"
+    ],
+    "query_usada": "Ventilador Industrial VEN 30\" TFK-FI3020001"
+  },
+  {
+    "codigo": "VDT-CFHB001WT-TFK",
+    "nombre": "Ventilador de Techo Aspas Retractiles Blanco TFK Blanco",
+    "ean": "7146043173578",
+    "opciones": [
+      "https://images.fravega.com/f1000/b5f003229d4c85a3048c5edbbe52aa77.jpg",
+      "https://images.fravega.com/f1000/b5f003229d4c85a3048c5edbbe52aa77.jpg",
+      "https://images.fravega.com/f500/b28560311ff99e2563e8bd90f705b342.jpg"
+    ],
+    "query_usada": "Ventilador de Techo Aspas Retractiles Blanco TFK Blanco VDT-CFHB001WT-TFK"
+  },
+  {
+    "codigo": "VDT-CFHB001BK-TFK",
+    "nombre": "Ventilador de Techo Aspas Retractiles Negro TFK Negro",
+    "ean": "7146043173646",
+    "opciones": [
+      "https://images.fravega.com/f1000/b28560311ff99e2563e8bd90f705b342.jpg",
+      "https://images.fravega.com/f1000/b28560311ff99e2563e8bd90f705b342.jpg",
+      "https://images.fravega.com/f300/0c1f82c564de20e66d428b6cba883407.jpg.webp"
+    ],
+    "query_usada": "Ventilador de Techo Aspas Retractiles Negro TFK Negro VDT-CFHB001BK-TFK"
+  },
+  {
+    "codigo": "VDT-CFWB001WT",
+    "nombre": "Ventilador de Techo Aspas Fijas Blanco Blanco",
+    "ean": "7146043173882",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_969312-MLA96878710601_102025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_969312-MLA96878710601_102025-O.webp",
+      "https://images.fravega.com/f1000/b5f003229d4c85a3048c5edbbe52aa77.jpg"
+    ],
+    "query_usada": "Ventilador de Techo Aspas Fijas Blanco Blanco VDT-CFWB001WT"
+  },
+  {
+    "codigo": "VDT-CFWB001BK",
+    "nombre": "Ventilador de Techo Aspas Fijas Negro Negro",
+    "ean": "7146043173714",
+    "opciones": [
+      "https://images.fravega.com/f1000/844d1c34a650b81cc277ff64a996e368.jpg",
+      "https://images.fravega.com/f1000/844d1c34a650b81cc277ff64a996e368.jpg",
+      "https://images.fravega.com/f300/f91331a5579833b24de4fcaa81d77428.jpg.webp"
+    ],
+    "query_usada": "Ventilador de Techo Aspas Fijas Negro Negro VDT-CFWB001BK"
+  },
+  {
+    "codigo": "TFK-WMCFWT",
+    "nombre": "Lavarropas Slim 6kg Blanco TFK Blanco",
+    "ean": "7273731535902",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_706260-MLA88397898659_072025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_706260-MLA88397898659_072025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_879887-MLA88057283166_072025-O.webp"
+    ],
+    "query_usada": "Lavarropas Slim 6kg Blanco TFK Blanco TFK-WMCFWT"
+  },
+  {
+    "codigo": "TFK-WMCFSL",
+    "nombre": "Lavarropas Slim 6kg Silver TFK Silver",
+    "ean": "7273731536510",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_877605-MLA99904727519_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_877605-MLA99904727519_112025-O.webp",
+      "https://images.fravega.com/f1000/114e56b5d440b7fb34fff241217c7107.jpg"
+    ],
+    "query_usada": "Lavarropas Slim 6kg Silver TFK Silver TFK-WMCFSL"
+  },
+  {
+    "codigo": "TFK-WMCFWT8K",
+    "nombre": "Lavarropas Slim 7.5kg Blanco TFK Blanco",
+    "ean": "7146043160226",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_2X_995690-MLA99852961335_112025-T.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_2X_995690-MLA99852961335_112025-T.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_2X_717467-MLA93722159794_102025-T.webp"
+    ],
+    "query_usada": "Lavarropas Slim 7.5kg Blanco TFK Blanco TFK-WMCFWT8K"
+  },
+  {
+    "codigo": "TFK-WMCFSL8K",
+    "nombre": "Lavarropas Slim 7.5kg Silver TFK Silver",
+    "ean": "7146041698400",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_2X_763158-MLA99934453735_112025-T.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_2X_763158-MLA99934453735_112025-T.webp",
+      "https://images.fravega.com/f1000/943592412277fb85f67e5dd56538f34d.jpg"
+    ],
+    "query_usada": "Lavarropas Slim 7.5kg Silver TFK Silver TFK-WMCFSL8K"
+  },
+  {
+    "codigo": "KJH-CC88A-01",
+    "nombre": "Limpiadora de Alfombras y Tapizados",
+    "ean": "7146043167492",
+    "opciones": [],
+    "query_usada": "Limpiadora de Alfombras y Tapizados KJH-CC88A-01"
+  },
+  {
+    "codigo": "WFVCKT31",
+    "nombre": "Aspiradora Inalámbrica 3 en 1",
+    "ean": "4895091318983",
+    "opciones": [
+      "https://tiribellihogar.com.ar/media/catalog/product/cache/5be8613c49569c873a50ed7e321cb477/0/1/011420_1.png",
+      "https://tiribellihogar.com.ar/media/catalog/product/cache/5be8613c49569c873a50ed7e321cb477/0/1/011420_1.png",
+      "https://tiribellihogar.com.ar/media/catalog/product/cache/5be8613c49569c873a50ed7e321cb477/0/1/011420_3.png"
+    ],
+    "query_usada": "Aspiradora Inalámbrica 3 en 1 WFVCKT31"
+  },
+  {
+    "codigo": "WFVCRK305A",
+    "nombre": "Aspiradora Robot",
+    "ean": "4895091306171",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_786856-MLA102931692916_012026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_786856-MLA102931692916_012026-O.webp",
+      "https://images.fravega.com/f1000/21562bc56b3b7a14a0f3ce05cf785caa.jpg"
+    ],
+    "query_usada": "Aspiradora Robot WFVCRK305A"
+  },
+  {
+    "codigo": "WFVCRK185",
+    "nombre": "Aspiradora Robot con Mapeo",
+    "ean": "4895091303965",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_746201-MLA91517522640_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_746201-MLA91517522640_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_869825-MLA91916496851_092025-O.webp"
+    ],
+    "query_usada": "Aspiradora Robot con Mapeo WFVCRK185"
+  },
+  {
+    "codigo": "WFVCRK196",
+    "nombre": "Aspiradora Robot",
+    "ean": "4895091318990",
+    "opciones": [
+      "https://http2.mlstatic.com/D_Q_NP_978669-MLA99938942595_112025-O.webp",
+      "https://images.fravega.com/f500/84780c5fc1ac4e4ef07bdab745186568.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_698978-MLA86375993312_062025-O.webp"
+    ],
+    "query_usada": "Aspiradora Robot WFVCRK196"
+  },
+  {
+    "codigo": "WFMPKT32",
+    "nombre": "Mopa Eléctrica Inalámbrica",
+    "ean": "4895091303941",
+    "opciones": [
+      "https://d2eebw31vcx88p.cloudfront.net/garbarino/uploads/69b5af86155cc256f594d02cffe75ebd6a6843d0.jpg",
+      "https://d2eebw31vcx88p.cloudfront.net/garbarino/uploads/69b5af86155cc256f594d02cffe75ebd6a6843d0.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_944183-MLA75751423647_042024-O.webp"
+    ],
+    "query_usada": "Mopa Eléctrica Inalámbrica WFMPKT32"
+  },
+  {
+    "codigo": "WH-PL2201",
+    "nombre": "Plancha a Vapor",
+    "ean": "4895091316989",
+    "opciones": [
+      "https://www.oscarbarbieri.com/pub/media/catalog/product/cache/7baadf0dec41407c7702efdbff940ecb/4/4/441.jpg",
+      "https://www.oscarbarbieri.com/pub/media/catalog/product/cache/7baadf0dec41407c7702efdbff940ecb/4/4/441.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_689553-MLA99595344140_122025-O.webp"
+    ],
+    "query_usada": "Plancha a Vapor WH-PL2201"
+  },
+  {
+    "codigo": "WH-PL2202",
+    "nombre": "Plancha a Vapor",
+    "ean": "8107370146887",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_769962-MLA93197721821_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_769962-MLA93197721821_092025-O.webp",
+      "https://www.mobilar.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBb2FBIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--9e17f94d53074b78784b5b4ad957b251b94bd71a/WESTINGHOUSE-52021.webp"
+    ],
+    "query_usada": "Plancha a Vapor WH-PL2202"
+  },
+  {
+    "codigo": "PLA-PL2201-WH",
+    "nombre": "Plancha a Vapor Inalámbrica",
+    "ean": "4895091316972",
+    "opciones": [
+      "https://www.mobilar.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBb1dBIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--43b61a9c2a012f0a4a01cd81ff745857fef112df/WESTINGHOUSE-52020.webp",
+      "https://www.mobilar.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBb1dBIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--43b61a9c2a012f0a4a01cd81ff745857fef112df/WESTINGHOUSE-52020.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_669915-MLA104887551252_012026-O.webp"
+    ],
+    "query_usada": "Plancha a Vapor Inalámbrica PLA-PL2201-WH"
+  },
+  {
+    "codigo": "CBCL605",
+    "nombre": "Afeitadora Corporal",
+    "ean": "7146043181870",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_751463-MLA105092314584_012026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_751463-MLA105092314584_012026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_830886-MLA105095390232_012026-O.webp"
+    ],
+    "query_usada": "Afeitadora Corporal CBCL605"
+  },
+  {
+    "codigo": "WHHS4004",
+    "nombre": "Plancha 2en1",
+    "ean": "4895091305495",
+    "opciones": [
+      "https://www.megatone.net/Images/Articulos/zoom2x/97/PLA4004WES.jpg",
+      "https://www.megatone.net/Images/Articulos/zoom2x/97/PLA4004WES.jpg",
+      "https://cyeonline.com.ar/wp-content/uploads/2025/01/Planchita-De-Pelo-2-En-1-Rizador-Westinghouse-1.jpg"
+    ],
+    "query_usada": "Plancha 2en1 WHHS4004"
+  },
+  {
+    "codigo": "WHHS3232",
+    "nombre": "Plancha 2en1",
+    "ean": "4895091302395",
+    "opciones": [],
+    "query_usada": "Plancha 2en1 WHHS3232"
+  },
+  {
+    "codigo": "WHHB5004",
+    "nombre": "Plancha para Pelo",
+    "ean": "4895091302388",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_604567-MLA92789185778_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_604567-MLA92789185778_092025-O.webp",
+      "https://riiing.com.ar/wp-content/uploads/2025/07/WHHB5004_01-1024x1024.png"
+    ],
+    "query_usada": "Plancha para Pelo WHHB5004"
+  },
+  {
+    "codigo": "WHHD8300",
+    "nombre": "Secador WH 8300",
+    "ean": "4895091302425",
+    "opciones": [
+      "https://miliffi.com.ar/wp-content/uploads/2023/05/Secador-de-pelo-westinghouse-8300.jpg",
+      "https://miliffi.com.ar/wp-content/uploads/2023/05/Secador-de-pelo-westinghouse-8300.jpg",
+      "https://riiing.com.ar/wp-content/uploads/2025/07/WHHD8300-02-1024x1024.png"
+    ],
+    "query_usada": "Secador WH 8300 WHHD8300"
+  },
+  {
+    "codigo": "WHHD1800",
+    "nombre": "Secador WH 1800",
+    "ean": "4895091303491",
+    "opciones": [
+      "https://cyeonline.com.ar/wp-content/uploads/2023/07/4895091303491_1.jpg",
+      "https://cyeonline.com.ar/wp-content/uploads/2023/07/4895091303491_1.jpg",
+      "https://casaraul.com.ar/wp-content/uploads/2023/09/secadorWH1800.png"
+    ],
+    "query_usada": "Secador WH 1800 WHHD1800"
+  },
+  {
+    "codigo": "WHHD2200",
+    "nombre": "Secador WH 2200",
+    "ean": "4895218318926",
+    "opciones": [
+      "https://cyeonline.com.ar/wp-content/uploads/2025/01/secador-wets-1.png",
+      "https://cyeonline.com.ar/wp-content/uploads/2025/01/secador-wets-1.png",
+      "https://dcdn-us.mitiendanube.com/stores/001/467/342/products/secador-westinghouse-hd2200-2000w-photoroom-29dcb73d434cba9c6817604489900698-480-0.webp"
+    ],
+    "query_usada": "Secador WH 2200 WHHD2200"
+  },
+  {
+    "codigo": "WHHB5001",
+    "nombre": "Cepillo Alisador WH",
+    "ean": "4895218318872",
+    "opciones": [
+      "https://cyeonline.com.ar/wp-content/uploads/2025/01/cepillo-elec-1.jpg",
+      "https://cyeonline.com.ar/wp-content/uploads/2025/01/cepillo-elec-1.jpg",
+      "https://www.aloise.com.ar/wp-content/uploads/2024/11/784563-2.jpg"
+    ],
+    "query_usada": "Cepillo Alisador WH WHHB5001"
+  },
+  {
+    "codigo": "WHHCL607",
+    "nombre": "Recortadora Vello Corporal",
+    "ean": "4895091322058",
+    "opciones": [
+      "https://http2.mlstatic.com/D_Q_NP_664763-MLA100936798970_122025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_664763-MLA100936798970_122025-O.webp",
+      "https://dcdn-us.mitiendanube.com/stores/093/345/products/20260129_1305_recortadora-en-bano-moderno_remix_01kg57ze92f75btm0j555enw50-1d36a9c22b8025ce8d17697126615147-480-0.webp"
+    ],
+    "query_usada": "Recortadora Vello Corporal WHHCL607"
+  },
+  {
+    "codigo": "WHHCL602",
+    "nombre": "Cortadora de Pelo WH",
+    "ean": "4895218319144",
+    "opciones": [
+      "https://images.fravega.com/f500/c51b572b230d68e82e8264373145846e.jpg",
+      "https://images.fravega.com/f500/c51b572b230d68e82e8264373145846e.jpg",
+      "https://images.fravega.com/f500/af4f219a27357a2d7ae3c6820692c971.jpg"
+    ],
+    "query_usada": "Cortadora de Pelo WH WHHCL602"
+  },
+  {
+    "codigo": "WHHCL603",
+    "nombre": "Cortadora de Pelo WH",
+    "ean": "4895091302494",
+    "opciones": [
+      "https://images.fravega.com/f300/3523f79ae953dca303ddbb600b538bad.jpg.webp",
+      "https://images.fravega.com/f300/3523f79ae953dca303ddbb600b538bad.jpg.webp",
+      "https://cyeonline.com.ar/wp-content/uploads/2023/07/4895091302494_1.jpg"
+    ],
+    "query_usada": "Cortadora de Pelo WH WHHCL603"
+  },
+  {
+    "codigo": "WHHCL609",
+    "nombre": "Cortadora de Pelo WH",
+    "ean": "4895091302500",
+    "opciones": [
+      "https://images.fravega.com/f1000/87ec1d3a68cdc8c44352a8d4370b7c00.png",
+      "https://images.fravega.com/f1000/87ec1d3a68cdc8c44352a8d4370b7c00.png",
+      "https://www.allcellymas.com.ar/wp-content/uploads/2020/04/1703887113cdc679bebbe282e170ab6fe0dca8445e.jpg"
+    ],
+    "query_usada": "Cortadora de Pelo WH WHHCL609"
+  },
+  {
+    "codigo": "WHHCL610",
+    "nombre": "Cortadora de Barba WH",
+    "ean": "4895091302463",
+    "opciones": [
+      "https://www.centerhogar.com.ar/6482-large_default/corta-barba-westinghouse-usb-whhcl610.jpg",
+      "https://www.centerhogar.com.ar/6482-large_default/corta-barba-westinghouse-usb-whhcl610.jpg",
+      "https://images.fravega.com/f1000/da16686b52c53a0d331b81c1b2306dc3.jpg"
+    ],
+    "query_usada": "Cortadora de Barba WH WHHCL610"
+  },
+  {
+    "codigo": "WHHCL8188",
+    "nombre": "Cortadora de Barba WH",
+    "ean": "4895218320318",
+    "opciones": [
+      "https://images.fravega.com/f1000/ff1ef186e4296101019c1bd29c336640.jpg",
+      "https://images.fravega.com/f1000/ff1ef186e4296101019c1bd29c336640.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_996528-MLA96767947582_112025-O.webp"
+    ],
+    "query_usada": "Cortadora de Barba WH WHHCL8188"
+  },
+  {
+    "codigo": "WHHCL8688T",
+    "nombre": "Cortadora de Barba WH",
+    "ean": "4895218320325",
+    "opciones": [
+      "https://images.fravega.com/f1000/acd5df36eb566e5d06d033f3979cd6f1.jpg",
+      "https://images.fravega.com/f1000/acd5df36eb566e5d06d033f3979cd6f1.jpg",
+      "https://www.oscarbarbieri.com/pub/media/catalog/product/cache/7baadf0dec41407c7702efdbff940ecb/a/a/aa36474d58f9f3492b7b77a4e94e0fd6.jpg"
+    ],
+    "query_usada": "Cortadora de Barba WH WHHCL8688T"
+  },
+  {
+    "codigo": "WHHCR2213",
+    "nombre": "Rizador WH",
+    "ean": "4895091322065",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_963133-MLU75111690549_032024-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_963133-MLU75111690549_032024-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_2X_664067-MLA105492917014_012026-P.webp"
+    ],
+    "query_usada": "Rizador WH WHHCR2213"
+  },
+  {
+    "codigo": "WHHD1403",
+    "nombre": "Cepillo Secador WH",
+    "ean": "4895091303507",
+    "opciones": [
+      "https://www.electromisiones.com.ar/48374-large_default/cepillo_secador_de_cabello_westinghouse_whhd1403_1300w_3_negro.jpg",
+      "https://www.electromisiones.com.ar/48374-large_default/cepillo_secador_de_cabello_westinghouse_whhd1403_1300w_3_negro.jpg",
+      "https://www.electromisiones.com.ar/48373-large_default/cepillo_secador_de_cabello_westinghouse_whhd1403_1300w_3_negro.jpg"
+    ],
+    "query_usada": "Cepillo Secador WH WHHD1403"
+  },
+  {
+    "codigo": "WH-CFE1450BL",
+    "nombre": "Cafetera Espresso c/Molinillo WH",
+    "ean": "4895091316583",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_787850-MLA100079387337_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_787850-MLA100079387337_122025-O.webp",
+      "https://fava.com.ar/media/catalog/product/cache/4e187a3216125186f353d1ef896e6af4/h/w/hwescaf022-2.jpg"
+    ],
+    "query_usada": "Cafetera Espresso c/Molinillo WH WH-CFE1450BL"
+  },
+  {
+    "codigo": "WH-CM1450MC01-W",
+    "nombre": "Cafetera Multicápsula WH Blanca Blanca",
+    "ean": "4895091303927",
+    "opciones": [
+      "https://d2eebw31vcx88p.cloudfront.net/garbarino/uploads/87f22e99814e495d8760f3dba67bbd8cf16784f7.jpg",
+      "https://d2eebw31vcx88p.cloudfront.net/garbarino/uploads/87f22e99814e495d8760f3dba67bbd8cf16784f7.jpg",
+      "https://www.oscarbarbieri.com/pub/media/catalog/product/cache/7baadf0dec41407c7702efdbff940ecb/c/a/cafetera_w.jpg"
+    ],
+    "query_usada": "Cafetera Multicápsula WH Blanca Blanca WH-CM1450MC01-W"
+  },
+  {
+    "codigo": "WH-CM1450MC01-B",
+    "nombre": "Cafetera Multicápsula WH Negra Negra",
+    "ean": "4895091304054",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_968818-MLA89574604122_082025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_968818-MLA89574604122_082025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_959080-MLA89575226220_082025-O.webp"
+    ],
+    "query_usada": "Cafetera Multicápsula WH Negra Negra WH-CM1450MC01-B"
+  },
+  {
+    "codigo": "CAF-CMF1000S01",
+    "nombre": "Cafetera de Filtro WH",
+    "ean": "4895218327300",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_776412-MLA83229018342_042025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_776412-MLA83229018342_042025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_637014-MLA95729136258_102025-O.webp"
+    ],
+    "query_usada": "Cafetera de Filtro WH CAF-CMF1000S01"
+  },
+  {
+    "codigo": "CAF-CMF1000S02",
+    "nombre": "Cafetera de Filtro WH",
+    "ean": "4895218327324",
+    "opciones": [
+      "https://fava.com.ar/media/catalog/product/cache/4e187a3216125186f353d1ef896e6af4/h/w/hwescaf010-1.jpg",
+      "https://fava.com.ar/media/catalog/product/cache/4e187a3216125186f353d1ef896e6af4/h/w/hwescaf010-1.jpg",
+      "https://fava.com.ar/media/catalog/product/cache/4e187a3216125186f353d1ef896e6af4/h/w/hwescaf010-2.jpg"
+    ],
+    "query_usada": "Cafetera de Filtro WH CAF-CMF1000S02"
+  },
+  {
+    "codigo": "CAF-CMF1000S03",
+    "nombre": "Cafetera de Filtro WH",
+    "ean": "4895218327348",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_717730-MLA83745814195_042025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_717730-MLA83745814195_042025-O.webp",
+      "https://fava.com.ar/media/catalog/product/cache/d9780df7585371b888d3a5b7170b3ef3/w/q/wq33.jpg"
+    ],
+    "query_usada": "Cafetera de Filtro WH CAF-CMF1000S03"
+  },
+  {
+    "codigo": "KJH-TM800SEC01",
+    "nombre": "Tostadora Blanca Blanca",
+    "ean": "8107370150518",
+    "opciones": [
+      "https://riiing.com.ar/wp-content/uploads/2025/07/KJH-TM800SEC01_01-1080x1080.png",
+      "https://riiing.com.ar/wp-content/uploads/2025/07/KJH-TM800SEC01_01-1080x1080.png",
+      "https://images.fravega.com/f1000/c60b70f6c3f443d3a8e5738cb9995752.jpg"
+    ],
+    "query_usada": "Tostadora Blanca Blanca KJH-TM800SEC01"
+  },
+  {
+    "codigo": "KJH-TM800SEC02-B",
+    "nombre": "Tostadora Azul",
+    "ean": "",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_800498-MLA91562733508_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_800498-MLA91562733508_092025-O.webp",
+      "https://images.fravega.com/f300/1158517a0207d5b8234898599fea2b32.jpg"
+    ],
+    "query_usada": "Tostadora Azul KJH-TM800SEC02-B"
+  },
+  {
+    "codigo": "WH-TM900-05",
+    "nombre": "Tostadora WH",
+    "ean": "4895091314763",
+    "opciones": [
+      "https://images.fravega.com/f1000/e6368403b86aa587f8e3235aa0589c26.jpg",
+      "https://images.fravega.com/f1000/e6368403b86aa587f8e3235aa0589c26.jpg",
+      "https://tiendacentro.com/wp-content/uploads/2025/03/2-3.png"
+    ],
+    "query_usada": "Tostadora WH WH-TM900-05"
+  },
+  {
+    "codigo": "WH-TM1000SEC01",
+    "nombre": "Tostadora WH",
+    "ean": "4895218317226",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_606882-MLA91997196183_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_606882-MLA91997196183_092025-O.webp",
+      "https://acdn-us.mitiendanube.com/stores/001/474/949/products/ngx-coolb-431-923c7ad000bf9d697e16270739144879-1024-1024.webp"
+    ],
+    "query_usada": "Tostadora WH WH-TM1000SEC01"
+  },
+  {
+    "codigo": "WH-TM1400SEC02",
+    "nombre": "Tostadora WH",
+    "ean": "",
+    "opciones": [
+      "https://acdn-us.mitiendanube.com/stores/001/160/892/products/tos1400wes-08de0e43e88b31e3f917465362813054-1024-1024.webp",
+      "https://acdn-us.mitiendanube.com/stores/001/160/892/products/tos1400wes-08de0e43e88b31e3f917465362813054-1024-1024.webp",
+      "https://images.fravega.com/f500/5af3f570b00784c00d603435326184db.jpg"
+    ],
+    "query_usada": "Tostadora WH WH-TM1400SEC02"
+  },
+  {
+    "codigo": "WH-TM800-01",
+    "nombre": "Tostadora WH 2 Rodajas",
+    "ean": "4895218314645",
+    "opciones": [],
+    "query_usada": "Tostadora WH 2 Rodajas WH-TM800-01"
+  },
+  {
+    "codigo": "WH-TM800-02",
+    "nombre": "Tostadora WH 2 Rodajas",
+    "ean": "4895218314683",
+    "opciones": [
+      "https://www.mobilar.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBb2lBIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--8426e017f53daabad65f90e2fff42ee439d6efdd/WESTINGHOUSE-52025.webp",
+      "https://www.mobilar.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBb2lBIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--8426e017f53daabad65f90e2fff42ee439d6efdd/WESTINGHOUSE-52025.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_905165-MLA82577727311_022025-O.webp"
+    ],
+    "query_usada": "Tostadora WH 2 Rodajas WH-TM800-02"
+  },
+  {
+    "codigo": "WH-TM800-03",
+    "nombre": "Tostadora WH 2 Rodajas",
+    "ean": "4895218314669",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_736547-MLA82639913087_022025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_736547-MLA82639913087_022025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_816521-MLA82639913095_022025-O.webp"
+    ],
+    "query_usada": "Tostadora WH 2 Rodajas WH-TM800-03"
+  },
+  {
+    "codigo": "WH-TM1400-05",
+    "nombre": "Tostadora WH 4 Rodajas",
+    "ean": "4895091321440",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_852425-MLA100065774295_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_852425-MLA100065774295_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_735350-MLA91956892687_092025-O.webp"
+    ],
+    "query_usada": "Tostadora WH 4 Rodajas WH-TM1400-05"
+  },
+  {
+    "codigo": "WH-BL0800LA01-W",
+    "nombre": "Licuadora WH Blanca Blanca",
+    "ean": "4895091310932",
+    "opciones": [
+      "https://images.fravega.com/f1000/96a93f9a39079b529ba40c249d49dee7.jpg",
+      "https://images.fravega.com/f1000/96a93f9a39079b529ba40c249d49dee7.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_753346-MLA99935797921_112025-O.webp"
+    ],
+    "query_usada": "Licuadora WH Blanca Blanca WH-BL0800LA01-W"
+  },
+  {
+    "codigo": "WH-BL0800LA02",
+    "nombre": "Licuadora WH Negra Negra",
+    "ean": "4895091310949",
+    "opciones": [
+      "https://www.megatone.net/images//Articulos/zoom2x/79/MKT2174DTS-1.jpg",
+      "https://www.megatone.net/images//Articulos/zoom2x/79/MKT2174DTS-1.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_684800-MLA98848054691_112025-O.webp"
+    ],
+    "query_usada": "Licuadora WH Negra Negra WH-BL0800LA02"
+  },
+  {
+    "codigo": "KJH-BL0300HM01W",
+    "nombre": "Batidora de Mano",
+    "ean": "7273731541224",
+    "opciones": [
+      "https://riiing.com.ar/wp-content/uploads/2025/07/KJH-BL0300HM01W-01-1024x1024.png",
+      "https://riiing.com.ar/wp-content/uploads/2025/07/KJH-BL0300HM01W-01-1024x1024.png",
+      "https://www.centerhogar.com.ar/8418-large_default/batidora-kanji-de-mano-kjh-bl0300hm01w-blanca.jpg"
+    ],
+    "query_usada": "Batidora de Mano KJH-BL0300HM01W"
+  },
+  {
+    "codigo": "WH-BL0800HB01",
+    "nombre": "Batidora Planetaria WH",
+    "ean": "4895218320219",
+    "opciones": [
+      "https://http2.mlstatic.com/D_Q_NP_845029-MLA84844046191_052025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_845029-MLA84844046191_052025-O.webp",
+      "https://d2eebw31vcx88p.cloudfront.net/garbarino/uploads/bd9ab553426b24cb43d7114d3e0493aa0d0100ba.jpg.webp"
+    ],
+    "query_usada": "Batidora Planetaria WH WH-BL0800HB01"
+  },
+  {
+    "codigo": "LIC-BL0800LA01-KJN",
+    "nombre": "Minipimer Negro Negro",
+    "ean": "7146043176784",
+    "opciones": [
+      "https://statics.dinoonline.com.ar/imagenes/full_600x600_ma/4183687_4_f.jpg",
+      "https://statics.dinoonline.com.ar/imagenes/full_600x600_ma/4183687_4_f.jpg",
+      "https://statics.dinoonline.com.ar/imagenes/full_600x600_ma/4183687_f.jpg"
+    ],
+    "query_usada": "Minipimer Negro Negro LIC-BL0800LA01-KJN"
+  },
+  {
+    "codigo": "KJH-JM044",
+    "nombre": "Exprimidor Eléctrico 40W",
+    "ean": "7146041695058",
+    "opciones": [
+      "https://images.fravega.com/f1000/cc0cf6f3f96c47deda1df876750ee392.jpg",
+      "https://images.fravega.com/f1000/cc0cf6f3f96c47deda1df876750ee392.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_649763-MLA93502390950_102025-O.webp"
+    ],
+    "query_usada": "Exprimidor Eléctrico 40W KJH-JM044"
+  },
+  {
+    "codigo": "WH-SJ001SL",
+    "nombre": "Extractor de Jugos WH",
+    "ean": "7273731530570",
+    "opciones": [
+      "https://images.fravega.com/f500/d3e860c4fd9ca0c12fdd084aa516bc59.jpg",
+      "https://images.fravega.com/f500/d3e860c4fd9ca0c12fdd084aa516bc59.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_854148-MLA98274503440_112025-O.webp"
+    ],
+    "query_usada": "Extractor de Jugos WH WH-SJ001SL"
+  },
+  {
+    "codigo": "KJH-PE15003M-BLK",
+    "nombre": "Pava Mate Negro Negro",
+    "ean": "",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_651913-MLA93202931253_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_651913-MLA93202931253_092025-O.webp",
+      "https://qziiaofbcndqzgwensrz.supabase.co/storage/v1/object/public/product-images/7793862014263.jpg"
+    ],
+    "query_usada": "Pava Mate Negro Negro KJH-PE15003M-BLK"
+  },
+  {
+    "codigo": "KJH-PE15002S",
+    "nombre": "Pava Hervidora",
+    "ean": "7146041681570",
+    "opciones": [
+      "https://ferromundo.com.ar/wp-content/uploads/2025/09/Sin-titulo-6-1.jpeg",
+      "https://ferromundo.com.ar/wp-content/uploads/2025/09/Sin-titulo-6-1.jpeg",
+      "https://http2.mlstatic.com/D_NQ_NP_626592-MLA92956000735_092025-O.webp"
+    ],
+    "query_usada": "Pava Hervidora KJH-PE15002S"
+  },
+  {
+    "codigo": "KJH-PE15003S",
+    "nombre": "Pava Hervidora",
+    "ean": "7146041681402",
+    "opciones": [],
+    "query_usada": "Pava Hervidora KJH-PE15003S"
+  },
+  {
+    "codigo": "KJH-PE15006S",
+    "nombre": "Pava Mate Vidrio",
+    "ean": "7146041681334",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2025/01/KJH-PE15001M-01-1024x1024.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/01/KJH-PE15001M-01-1024x1024.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/01/MATE-1_1.69.1-scaled.jpg"
+    ],
+    "query_usada": "Pava Mate Vidrio KJH-PE15006S"
+  },
+  {
+    "codigo": "WH-PE15006M",
+    "nombre": "Pava Eléctrica WH",
+    "ean": "4895091312523",
+    "opciones": [
+      "https://www.aloise.com.ar/wp-content/uploads/2024/12/784669.jpg",
+      "https://www.aloise.com.ar/wp-content/uploads/2024/12/784669.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_752551-MLA81219535020_122024-O.webp"
+    ],
+    "query_usada": "Pava Eléctrica WH WH-PE15006M"
+  },
+  {
+    "codigo": "KJH-HE70-G",
+    "nombre": "Horno 70 Litros Gris Gris",
+    "ean": "7146043167874",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_709952-MLA104091700735_012026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_709952-MLA104091700735_012026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_874429-MLA104091700743_012026-O.webp"
+    ],
+    "query_usada": "Horno 70 Litros Gris Gris KJH-HE70-G"
+  },
+  {
+    "codigo": "KJH-HE70SL",
+    "nombre": "Horno 70 Litros Plateado Plateado",
+    "ean": "7146043167942",
+    "opciones": [
+      "https://cyeonline.com.ar/wp-content/uploads/2025/08/HORNO-WEST-62l-1.jpg",
+      "https://cyeonline.com.ar/wp-content/uploads/2025/08/HORNO-WEST-62l-1.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_809349-MLA88406339211_072025-O.webp"
+    ],
+    "query_usada": "Horno 70 Litros Plateado Plateado KJH-HE70SL"
+  },
+  {
+    "codigo": "KJH-HE100SL",
+    "nombre": "Horno 100 Litros Plateado Plateado",
+    "ean": "7146043168246",
+    "opciones": [
+      "https://cyeonline.com.ar/wp-content/uploads/2025/12/horno-100-lts-1.jpg",
+      "https://cyeonline.com.ar/wp-content/uploads/2025/12/horno-100-lts-1.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_689333-MLA99985186105_112025-O.webp"
+    ],
+    "query_usada": "Horno 100 Litros Plateado Plateado KJH-HE100SL"
+  },
+  {
+    "codigo": "WHS-HE400012000RC",
+    "nombre": "Horno 40 Litros WH",
+    "ean": "4895218317851",
+    "opciones": [
+      "https://cyeonline.com.ar/wp-content/uploads/2025/01/west-40-l.png",
+      "https://cyeonline.com.ar/wp-content/uploads/2025/01/west-40-l.png",
+      "https://http2.mlstatic.com/D_NQ_NP_620443-MLA99513870706_112025-O.webp"
+    ],
+    "query_usada": "Horno 40 Litros WH WHS-HE400012000RC"
+  },
+  {
+    "codigo": "WSH-HE600013600RAC",
+    "nombre": "Horno 60 Litros WH",
+    "ean": "4895218317868",
+    "opciones": [
+      "https://images.fravega.com/f1000/f5c7b871145cb06a2f8c5620f3e398a0.jpg",
+      "https://images.fravega.com/f1000/f5c7b871145cb06a2f8c5620f3e398a0.jpg",
+      "https://images.fravega.com/f1000/33ec4f73914ca6c84fcd4a48132c296e.jpg"
+    ],
+    "query_usada": "Horno 60 Litros WH WSH-HE600013600RAC"
+  },
+  {
+    "codigo": "COC-EKX001V",
+    "nombre": "Cocina Eléctrica 50cm COC",
+    "ean": "7273731533236",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_927936-MLA81824041394_012025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_927936-MLA81824041394_012025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_668441-MLA81824228436_012025-O.webp"
+    ],
+    "query_usada": "Cocina Eléctrica 50cm COC COC-EKX001V"
+  },
+  {
+    "codigo": "COC-EKXL01V",
+    "nombre": "Cocina Eléctrica 60cm COC",
+    "ean": "7273731540852",
+    "opciones": [
+      "https://images.fravega.com/f1000/88b78bd27ca8a079bca4a334a76e1e27.jpg",
+      "https://images.fravega.com/f1000/88b78bd27ca8a079bca4a334a76e1e27.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_616698-MLA83361718559_032025-O.webp"
+    ],
+    "query_usada": "Cocina Eléctrica 60cm COC COC-EKXL01V"
+  },
+  {
+    "codigo": "KJH-HP1000BDD",
+    "nombre": "Anafe Eléctrico Simple Negro Negro",
+    "ean": "7273731531324",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_690626-MLA91876209159_092025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_690626-MLA91876209159_092025-O.webp",
+      "https://static.hendel.com/media/catalog/product/cache/b866fd8d147dcce474dc8744e477ca66/5/5/55281_0.jpg"
+    ],
+    "query_usada": "Anafe Eléctrico Simple Negro Negro KJH-HP1000BDD"
+  },
+  {
+    "codigo": "KJH-HP2200BDD",
+    "nombre": "Anafe Eléctrico Doble Negro Negro",
+    "ean": "7273731531492",
+    "opciones": [
+      "https://tiribellihogar.com.ar/media/catalog/product/cache/5be8613c49569c873a50ed7e321cb477/0/0/009997_1.png",
+      "https://tiribellihogar.com.ar/media/catalog/product/cache/5be8613c49569c873a50ed7e321cb477/0/0/009997_1.png",
+      "https://kanji.com.ar/wp-content/uploads/2024/02/Anafe-doble.jpg"
+    ],
+    "query_usada": "Anafe Eléctrico Doble Negro Negro KJH-HP2200BDD"
+  },
+  {
+    "codigo": "WH-HP1200STD",
+    "nombre": "Anafe Eléctrico Simple Silver WH",
+    "ean": "8107370147198",
+    "opciones": [],
+    "query_usada": "Anafe Eléctrico Simple Silver WH WH-HP1200STD"
+  },
+  {
+    "codigo": "WH-HP2200STD",
+    "nombre": "Anafe Eléctrico Doble Silver WH",
+    "ean": "4895091310512",
+    "opciones": [],
+    "query_usada": "Anafe Eléctrico Doble Silver WH WH-HP2200STD"
+  },
+  {
+    "codigo": "WKAF405",
+    "nombre": "Freidora WK 405",
+    "ean": "4895091314855",
+    "opciones": [
+      "https://www.megatone.net/Images/Articulos/zoom2x/89/FRE1400WES.jpg",
+      "https://www.megatone.net/Images/Articulos/zoom2x/89/FRE1400WES.jpg",
+      "https://cyeonline.com.ar/wp-content/uploads/2024/01/Diseno-sin-titulo.jpg"
+    ],
+    "query_usada": "Freidora WK 405 WKAF405"
+  },
+  {
+    "codigo": "WKAF406",
+    "nombre": "Freidora WK 406",
+    "ean": "4895091312110",
+    "opciones": [
+      "https://www.centerhogar.com.ar/7789-medium_default/freidora-westinghouse-de-aire-wkaf406-5lts.jpg",
+      "https://www.centerhogar.com.ar/7789-medium_default/freidora-westinghouse-de-aire-wkaf406-5lts.jpg",
+      "https://www.centerhogar.com.ar/7789-large_default/freidora-westinghouse-de-aire-wkaf406-5lts.jpg"
+    ],
+    "query_usada": "Freidora WK 406 WKAF406"
+  },
+  {
+    "codigo": "WKAF508",
+    "nombre": "Freidora WK 508",
+    "ean": "4895091312127",
+    "opciones": [],
+    "query_usada": "Freidora WK 508 WKAF508"
+  },
+  {
+    "codigo": "WKAF710",
+    "nombre": "Freidora WK 710",
+    "ean": "4895091312105",
+    "opciones": [
+      "https://images.fravega.com/f300/8e331128b29294da6511162ba6f1b035.jpg.webp",
+      "https://images.fravega.com/f300/8e331128b29294da6511162ba6f1b035.jpg.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_609056-MLA99454486696_112025-O.webp"
+    ],
+    "query_usada": "Freidora WK 710 WKAF710"
+  },
+  {
+    "codigo": "AFR-1802",
+    "nombre": "Freidora AFR 1802",
+    "ean": "4895091312240",
+    "opciones": [],
+    "query_usada": "Freidora AFR 1802 AFR-1802"
+  },
+  {
+    "codigo": "WKAF2201",
+    "nombre": "Freidora WK 2201 Doble",
+    "ean": "4895091315678",
+    "opciones": [
+      "https://mueblescenter.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBdEljIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--93bd1b905d3abb37627005948089717473fbb72f/1770289272-10-17119_1.webp",
+      "https://mueblescenter.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBdEljIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--93bd1b905d3abb37627005948089717473fbb72f/1770289272-10-17119_1.webp",
+      "https://santimaria.com.ar/wp-content/uploads/2025/05/D_NQ_NP_631102-MLA82844190028_032025-O.webp"
+    ],
+    "query_usada": "Freidora WK 2201 Doble WKAF2201"
+  },
+  {
+    "codigo": "KJH-SM750M3N1-04",
+    "nombre": "Sandwichera 3en1",
+    "ean": "8107370148591",
+    "opciones": [
+      "https://images.fravega.com/f1000/5f365051c90cd336862aadbab3a31258.jpg",
+      "https://images.fravega.com/f1000/5f365051c90cd336862aadbab3a31258.jpg",
+      "https://images.fravega.com/f500/c327da2dffd3fd7af36510efa1e241f2.jpg"
+    ],
+    "query_usada": "Sandwichera 3en1 KJH-SM750M3N1-04"
+  },
+  {
+    "codigo": "KJH-SM700SW-03",
+    "nombre": "Sandwichera Blanca Blanca",
+    "ean": "7146043153914",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_773452-MLA102292918504_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_773452-MLA102292918504_122025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_843264-MLA99160016740_112025-O.webp"
+    ],
+    "query_usada": "Sandwichera Blanca Blanca KJH-SM700SW-03"
+  },
+  {
+    "codigo": "KJH-SM700SB-03",
+    "nombre": "Sandwichera Negra Negra",
+    "ean": "7146043154386",
+    "opciones": [
+      "https://cyeonline.com.ar/wp-content/uploads/2025/12/sandw-kanji-black.jpg",
+      "https://cyeonline.com.ar/wp-content/uploads/2025/12/sandw-kanji-black.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_639488-MLA98487108490_112025-O.webp"
+    ],
+    "query_usada": "Sandwichera Negra Negra KJH-SM700SB-03"
+  },
+  {
+    "codigo": "WH-SM700SW-01",
+    "nombre": "Sandwichera WH Blanca Blanca",
+    "ean": "4895091321440",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_619417-MLA99992394803_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_619417-MLA99992394803_112025-O.webp",
+      "https://cyeonline.com.ar/wp-content/uploads/2023/01/8107370148614_002.jpg"
+    ],
+    "query_usada": "Sandwichera WH Blanca Blanca WH-SM700SW-01"
+  },
+  {
+    "codigo": "WH-SM700SB-01",
+    "nombre": "Sandwichera WH Negra Negra",
+    "ean": "4895091321433",
+    "opciones": [
+      "https://d2eebw31vcx88p.cloudfront.net/garbarino/uploads/0f20882dea9f6972f55c333d337f7119cdbaa353.jpg",
+      "https://d2eebw31vcx88p.cloudfront.net/garbarino/uploads/0f20882dea9f6972f55c333d337f7119cdbaa353.jpg",
+      "https://www.allcellymas.com.ar/wp-content/uploads/2020/04/1703267613cdc679bebbe282e170ab6fe0dca8445e.jpg"
+    ],
+    "query_usada": "Sandwichera WH Negra Negra WH-SM700SB-01"
+  },
+  {
+    "codigo": "WH-SM700SB-02",
+    "nombre": "Sandwichera WH",
+    "ean": "4895218319558",
+    "opciones": [
+      "https://acdn-us.mitiendanube.com/stores/001/160/892/products/d_nq_np_2x_663748-mla45343340340_032021-f-29dd4ab02b1d775f5f17253798619361-480-0.webp",
+      "https://acdn-us.mitiendanube.com/stores/001/160/892/products/d_nq_np_2x_663748-mla45343340340_032021-f-29dd4ab02b1d775f5f17253798619361-480-0.webp",
+      "https://images.fravega.com/f1000/c49e63b21544f9ed3877289a9e6c5a6e.jpg"
+    ],
+    "query_usada": "Sandwichera WH WH-SM700SB-02"
+  },
+  {
+    "codigo": "WH-SM700SW-02",
+    "nombre": "Sandwichera WH",
+    "ean": "4895091314770",
+    "opciones": [
+      "https://grupogaona.com.ar/wp-content/uploads/2024/02/8107370148614.jpg",
+      "https://grupogaona.com.ar/wp-content/uploads/2024/02/8107370148614.jpg",
+      "https://santimaria.com.ar/wp-content/uploads/2025/02/D_NQ_NP_637682-MLA82187353495_012025-O-400x400.webp"
+    ],
+    "query_usada": "Sandwichera WH WH-SM700SW-02"
+  },
+  {
+    "codigo": "WH-SM750M3N1-01",
+    "nombre": "Sandwichera 3en1 WH",
+    "ean": "4895218319541",
+    "opciones": [
+      "https://acdn-us.mitiendanube.com/stores/001/474/949/products/wh-sm750m3n1-011-a832be5ddd7b4bdbc616703678547003-1024-1024.webp",
+      "https://acdn-us.mitiendanube.com/stores/001/474/949/products/wh-sm750m3n1-011-a832be5ddd7b4bdbc616703678547003-1024-1024.webp",
+      "http://acdn-us.mitiendanube.com/stores/001/474/949/products/wh-sm750m3n1-0151-bba8caf4345dd20ff016703678546703-640-0.webp"
+    ],
+    "query_usada": "Sandwichera 3en1 WH WH-SM750M3N1-01"
+  },
+  {
+    "codigo": "WH-SM750M3N1-02",
+    "nombre": "Sandwichera 3en1 WH",
+    "ean": "4895218319565",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_617129-MLA95844165125_102025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_617129-MLA95844165125_102025-O.webp",
+      "https://images.fravega.com/f1000/7a751afc78f4daddd1aa01a19242b447.jpg"
+    ],
+    "query_usada": "Sandwichera 3en1 WH WH-SM750M3N1-02"
+  },
+  {
+    "codigo": "WH-YOG20-01",
+    "nombre": "Yogurtera WH",
+    "ean": "4895091314848",
+    "opciones": [
+      "https://images.fravega.com/f1000/6b9a514d54d92dea10ab0c127d3c5185.jpg",
+      "https://images.fravega.com/f1000/6b9a514d54d92dea10ab0c127d3c5185.jpg",
+      "https://images.fravega.com/f500/0471b919f4ff22ce1894ad9afe7327c3.jpg"
+    ],
+    "query_usada": "Yogurtera WH WH-YOG20-01"
+  },
+  {
+    "codigo": "WH-FSP003",
+    "nombre": "Vaporera WH",
+    "ean": "4895091307970",
+    "opciones": [],
+    "query_usada": "Vaporera WH WH-FSP003"
+  },
+  {
+    "codigo": "WH-PM1200L-01",
+    "nombre": "Pochoclera WH",
+    "ean": "4895091300919",
+    "opciones": [
+      "https://images.fravega.com/f1000/07340613eb6aa9ebc83809e5dc51eabe.jpg",
+      "https://images.fravega.com/f1000/07340613eb6aa9ebc83809e5dc51eabe.jpg",
+      "https://pixelstore.com.ar/wp-content/uploads/2023/04/pochoclera-roja-1.jpg"
+    ],
+    "query_usada": "Pochoclera WH WH-PM1200L-01"
+  },
+  {
+    "codigo": "WH-CM800SEC01",
+    "nombre": "Panquequera WH",
+    "ean": "4895218319510",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_906058-MLA100007405031_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_906058-MLA100007405031_122025-O.webp",
+      "https://selexhogar.com.ar/wp-content/uploads/2023/10/32102.jpg"
+    ],
+    "query_usada": "Panquequera WH WH-CM800SEC01"
+  },
+  {
+    "codigo": "KJH-HMXSCP001",
+    "nombre": "Panchera Eléctrica",
+    "ean": "7146043173332",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_778272-MLA105655239992_012026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_778272-MLA105655239992_012026-O.webp",
+      "https://kanji.com.ar/wp-content/uploads/2025/11/PANCHERAKANJI1-2_600x600.png"
+    ],
+    "query_usada": "Panchera Eléctrica KJH-HMXSCP001"
+  },
+  {
+    "codigo": "WH-BMSS001",
+    "nombre": "Máquina de Pan WH",
+    "ean": "4895091323888",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_865225-MLA95609240616_102025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_865225-MLA95609240616_102025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_875484-MLA96050009225_102025-O.webp"
+    ],
+    "query_usada": "Máquina de Pan WH WH-BMSS001"
+  },
+  {
+    "codigo": "WH-BMSS002",
+    "nombre": "Máquina de Pan WH",
+    "ean": "4895091323895",
+    "opciones": [],
+    "query_usada": "Máquina de Pan WH WH-BMSS002"
+  },
+  {
+    "codigo": "SIMX0023",
+    "nombre": "Máquina de Helados",
+    "ean": "4895091323987",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_887661-MLA97768914318_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_887661-MLA97768914318_112025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_865687-MLA99417430950_112025-O.webp"
+    ],
+    "query_usada": "Máquina de Helados SIMX0023"
+  },
+  {
+    "codigo": "WH-IM0001",
+    "nombre": "Máquina de Hielo WH",
+    "ean": "4895091303385",
+    "opciones": [
+      "https://dcdn-us.mitiendanube.com/stores/001/283/051/products/151-314041c67440489de016947317939190-1024-1024.webp",
+      "https://images.fravega.com/f300/f7b5d2ce17f5e43756ac05049c821ec9.jpg.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_691497-MLA102651881841_122025-O.webp"
+    ],
+    "query_usada": "Máquina de Hielo WH WH-IM0001"
+  },
+  {
+    "codigo": "WHMSG2100",
+    "nombre": "Masajeador WH",
+    "ean": "4895218320301",
+    "opciones": [
+      "https://images.fravega.com/f1000/1ce83e43c358df70a663c56da0d60943.jpg",
+      "https://images.fravega.com/f1000/1ce83e43c358df70a663c56da0d60943.jpg",
+      "https://pantherdistribuciones.com.ar/wp-content/uploads/2025/10/MASAJEADOR-DE-HOMBROS-Y-CUELLO-WESTINHOUSE.png"
+    ],
+    "query_usada": "Masajeador WH WHMSG2100"
+  },
+  {
+    "codigo": "WHMSG2200",
+    "nombre": "Masajeador de Cuello y Hombros con Cable",
+    "ean": "4895218320516",
+    "opciones": [],
+    "query_usada": "Masajeador de Cuello y Hombros con Cable WHMSG2200"
+  },
+  {
+    "codigo": "WHMSGR2200",
+    "nombre": "Masajeador de Cuello y Hombros sin Cable",
+    "ean": "4895218320523",
+    "opciones": [
+      "https://images.fravega.com/f1000/189650f2ee77def02e7bbf7309263bd3.jpg",
+      "https://images.fravega.com/f1000/189650f2ee77def02e7bbf7309263bd3.jpg",
+      "https://http2.mlstatic.com/D_Q_NP_689154-MLA79585997765_092024-O.webp"
+    ],
+    "query_usada": "Masajeador de Cuello y Hombros sin Cable WHMSGR2200"
+  },
+  {
+    "codigo": "KJT-TP8002PB",
+    "nombre": "Taladro de Impacto",
+    "ean": "7146043171048",
+    "opciones": [],
+    "query_usada": "Taladro de Impacto KJT-TP8002PB"
+  },
+  {
+    "codigo": "KJW-29ACE-BB",
+    "nombre": "Mountain Bike Rod 29 Acero Negro/Azul Negro/Azul",
+    "ean": "7146043152610",
+    "opciones": [
+      "https://www.mobilar.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBaUNDIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e08f8a58a69e4b842c23acd9948dbd27fc693e34/KANJI-52029.webp",
+      "https://www.mobilar.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBaUNDIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e08f8a58a69e4b842c23acd9948dbd27fc693e34/KANJI-52029.webp",
+      "https://www.mobilar.com.ar/web-experto/representations/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBaUNDIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e08f8a58a69e4b842c23acd9948dbd27fc693e34/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdDem9NWjNKaGRtbDBlVWtpQzJObGJuUmxjZ1k2QmtWVU9ndHlaWE5wZW1WSklnMDBORGg0TmpBd1BnWTdCbFE2QzJWNGRHVnVkRUFIT2c5aVlXTnJaM0p2ZFc1a1NTSUtjMjV2ZHpJR093WlVPZ3h4ZFdGc2FYUjVhVGM2REdOdmJuWmxjblE2Q1hkbFluQT0iLCJleHAiOm51bGwsInB1ciI6InZhcmlhdGlvbiJ9fQ\\u003d\\u003d--5c161f6e695af8a2f8168622f12bcd24be9fcb28/KANJI-52029.webp"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Acero Negro/Azul Negro/Azul KJW-29ACE-BB"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BG",
+    "nombre": "Mountain Bike Rod 29 Aluminio",
+    "ean": "7146043162138",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_851553-MLA98067723662_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_851553-MLA98067723662_112025-O.webp",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-01.png"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Aluminio KJW-29ALUACE02-BG"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BR",
+    "nombre": "Mountain Bike Rod 29 Aluminio",
+    "ean": "7146043162206",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-01.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-01.png",
+      "https://www.casaelgato.com.ar/327306-thickbox_default/bici-rod-29-c-susp-de-aluminio-21vel-negro-vde-cambios-genericos-kjw-29alu.jpg"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Aluminio KJW-29ALUACE02-BR"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BLB",
+    "nombre": "Mountain Bike Rod 29 Aluminio",
+    "ean": "7146043162374",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-01.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-01.png",
+      "https://images.fravega.com/f500/a9baf913ac9fe3be8066974f0f971aec.jpg"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Aluminio KJW-29ALUACE02-BLB"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BW",
+    "nombre": "Mountain Bike Rod 29 Aluminio",
+    "ean": "7146043176616",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-01.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-01.png",
+      "https://images.fravega.com/f500/ed46bdfbec4b734f186f4da76d5ad754.jpg"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Aluminio KJW-29ALUACE02-BW"
+  },
+  {
+    "codigo": "KJW-29ACE02-BR",
+    "nombre": "Mountain Bike Rod 29 Acero",
+    "ean": "7146043162510",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-04-1.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-04-1.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-02.png"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Acero KJW-29ACE02-BR"
+  },
+  {
+    "codigo": "KJW-29ACE02-BG",
+    "nombre": "Mountain Bike Rod 29 Acero",
+    "ean": "7146043162442",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-04-1.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-03.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-01-300x300.png"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Acero KJW-29ACE02-BG"
+  },
+  {
+    "codigo": "KJW-29ACE02-BLB",
+    "nombre": "Mountain Bike Rod 29 Acero",
+    "ean": "7146043162688",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-03.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-03.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-04-1.png"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Acero KJW-29ACE02-BLB"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-WG",
+    "nombre": "Mountain Bike Rod 29 Mujer Verde agua Verde agua",
+    "ean": "7146043162756",
+    "opciones": [
+      "https://www.bahiaonline.com.ar/wp-content/uploads/2024/05/bicicleta-rodado29-mb-mujer-futura-1506.png",
+      "https://www.bahiaonline.com.ar/wp-content/uploads/2024/05/bicicleta-rodado29-mb-mujer-futura-1506.png",
+      "https://www.martinbike.com.ar/wp-content/uploads/slp_25pro_lady_r29_21v_d_m_verde_agua_azul_blanco_t_m_1-1.jpg"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Mujer Verde agua Verde agua KJW-29ALUACE02-WG"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-V",
+    "nombre": "Mountain Bike Rod 29 Mujer Violeta Violeta",
+    "ean": "7146043162824",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_780073-MLA103655631663_012026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_948442-MLA81224152172_122024-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_855156-MLA81224544748_122024-O.webp"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Mujer Violeta Violeta KJW-29ALUACE02-V"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BLK",
+    "nombre": "Mountain Bike Rod 29 Mujer Negro Negro",
+    "ean": "7146043162992",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_676261-MLA89884463286_082025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_676261-MLA89884463286_082025-O.webp",
+      "https://www.casaelgato.com.ar/327306-thickbox_default/bici-rod-29-c-susp-de-aluminio-21vel-negro-vde-cambios-genericos-kjw-29alu.jpg"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Mujer Negro Negro KJW-29ALUACE02-BLK"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-W",
+    "nombre": "Mountain Bike Rod 29 Mujer Blanco Blanco",
+    "ean": "7146043163050",
+    "opciones": [
+      "http://http2.mlstatic.com/D_798707-MLA107451243907_022026-C.jpg",
+      "http://http2.mlstatic.com/D_798707-MLA107451243907_022026-C.jpg",
+      "https://http2.mlstatic.com/D_Q_NP_799476-MLA103754373024_012026-O.webp"
+    ],
+    "query_usada": "Mountain Bike Rod 29 Mujer Blanco Blanco KJW-29ALUACE02-W"
+  },
+  {
+    "codigo": "KJW-27ACECAN-BLK",
+    "nombre": "Mountain Bike Rod 27 Acero Negro Negro",
+    "ean": "7146043161834",
+    "opciones": [
+      "https://http2.mlstatic.com/D_Q_NP_609717-MLA102951847377_122025-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_609717-MLA102951847377_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_743949-MLA102442585768_122025-O.webp"
+    ],
+    "query_usada": "Mountain Bike Rod 27 Acero Negro Negro KJW-27ACECAN-BLK"
+  },
+  {
+    "codigo": "KJW-27ACECAN",
+    "nombre": "Mountain Bike Rod 27 Acero Rojo Rojo",
+    "ean": "7146043161698",
+    "opciones": [
+      "http://http2.mlstatic.com/D_835187-MLA88353592625_072025-O.jpg",
+      "http://http2.mlstatic.com/D_835187-MLA88353592625_072025-O.jpg",
+      "https://www.giudice.com.ar/recursos/productos/51610.jpg"
+    ],
+    "query_usada": "Mountain Bike Rod 27 Acero Rojo Rojo KJW-27ACECAN"
+  },
+  {
+    "codigo": "KJW-27ACECAN-AZ",
+    "nombre": "Mountain Bike Rod 27 Acero Azul Azul",
+    "ean": "7146043161766",
+    "opciones": [
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-03.png",
+      "https://kanji.com.ar/wp-content/uploads/2025/08/bicicleta-29-03.png",
+      "https://http2.mlstatic.com/D_NQ_NP_722855-MLA104565148785_012026-O.webp"
+    ],
+    "query_usada": "Mountain Bike Rod 27 Acero Azul Azul KJW-27ACECAN-AZ"
+  },
+  {
+    "codigo": "KJW-27ACECAN-TQ",
+    "nombre": "Mountain Bike Rod 27 Turquesa Turquesa",
+    "ean": "7146043161902",
+    "opciones": [
+      "https://cdn.v2.tiendanegocio.com/gallery/25934/img_25934_dpku1fk6zmkigzlfl.jpeg",
+      "https://cdn.v2.tiendanegocio.com/gallery/25934/img_25934_dpku1fk6zmkigzlfl.jpeg",
+      "https://epicbikes.com.ar/wp-content/uploads/2025/08/RockhopperExpert-27.5_Lagoon_02.jpg"
+    ],
+    "query_usada": "Mountain Bike Rod 27 Turquesa Turquesa KJW-27ACECAN-TQ"
+  },
+  {
+    "codigo": "KJW-20ACE",
+    "nombre": "Mountain Bike Rod 20 Acero Negro/Rojo Negro/Rojo",
+    "ean": "7146043161452",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_685561-MLA102146352852_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_685561-MLA102146352852_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_763410-MLA102142913814_122025-O.webp"
+    ],
+    "query_usada": "Mountain Bike Rod 20 Acero Negro/Rojo Negro/Rojo KJW-20ACE"
+  },
+  {
+    "codigo": "KJW-20ACE-BB",
+    "nombre": "Mountain Bike Rod 20 Acero Negro/Azul Negro/Azul",
+    "ean": "7146043161520",
+    "opciones": [
+      "https://oxeabikes.com.ar/wp-content/uploads/2024/09/NEGRO-AZUL.png",
+      "https://oxeabikes.com.ar/wp-content/uploads/2024/09/NEGRO-AZUL.png",
+      "https://http2.mlstatic.com/D_NQ_NP_750169-MLA99825506763_112025-O.webp"
+    ],
+    "query_usada": "Mountain Bike Rod 20 Acero Negro/Azul Negro/Azul KJW-20ACE-BB"
+  },
+  {
+    "codigo": "KJW-16ACE",
+    "nombre": "Bicicleta Niños Rod 16 Acero Azul Azul",
+    "ean": "7146043160912",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_879288-MLA104771579570_012026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_879288-MLA104771579570_012026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_682862-MLA102669217785_122025-O.webp"
+    ],
+    "query_usada": "Bicicleta Niños Rod 16 Acero Azul Azul KJW-16ACE"
+  },
+  {
+    "codigo": "KJW-16ACE-BLK",
+    "nombre": "Bicicleta Niños Rod 16 Acero Negro Negro",
+    "ean": "7146043161148",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_783125-MLA99955313045_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_783125-MLA99955313045_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_655300-MLA100194431997_122025-O.webp"
+    ],
+    "query_usada": "Bicicleta Niños Rod 16 Acero Negro Negro KJW-16ACE-BLK"
+  },
+  {
+    "codigo": "KJW-16ACECAN",
+    "nombre": "Bicicleta Niños Rod 16 Acero Rosa Rosa",
+    "ean": "7146043161216",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_852504-MLA106407243443_022026-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_852504-MLA106407243443_022026-O.webp",
+      "https://http2.mlstatic.com/D_Q_NP_2X_671173-MLA90764719613_082025-P.webp"
+    ],
+    "query_usada": "Bicicleta Niños Rod 16 Acero Rosa Rosa KJW-16ACECAN"
+  },
+  {
+    "codigo": "KJW-16ACECAN-P",
+    "nombre": "Bicicleta Niños Rod 16 Acero Violeta Violeta",
+    "ean": "7146043161384",
+    "opciones": [
+      "https://tiendanewsan.com.ar/media/catalog/product/cache/e16223670af7ae8877a6c2db5c335df1/9/1/91fkp16av011fp_1.jpg",
+      "https://tiendanewsan.com.ar/media/catalog/product/cache/e16223670af7ae8877a6c2db5c335df1/9/1/91fkp16av011fp_1.jpg",
+      "https://http2.mlstatic.com/D_NQ_NP_817949-MLA95837305317_102025-O.webp"
+    ],
+    "query_usada": "Bicicleta Niños Rod 16 Acero Violeta Violeta KJW-16ACECAN-P"
+  },
+  {
+    "codigo": "KJ-CAMPMR01W",
+    "nombre": "Mesa Rectangular Blanca Blanco",
+    "ean": "7146043171598",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_761846-MLA98664562207_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_761846-MLA98664562207_112025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_990849-MLA98664472935_112025-O.webp"
+    ],
+    "query_usada": "Mesa Rectangular Blanca Blanco KJ-CAMPMR01W"
+  },
+  {
+    "codigo": "KJ-CAMPGAZ01",
+    "nombre": "Gazebo 3x3 sin Paredes",
+    "ean": "7146043172038",
+    "opciones": [
+      "https://www.mobilar.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBbXVDIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--d3be971513942cab487bf54c96d10da261f5f5a7/KANJI-52415.webp",
+      "https://www.mobilar.com.ar/web-experto/blobs/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBBbXVDIiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--d3be971513942cab487bf54c96d10da261f5f5a7/KANJI-52415.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_675187-MLA101349965003_122025-O.webp"
+    ],
+    "query_usada": "Gazebo 3x3 sin Paredes KJ-CAMPGAZ01"
+  },
+  {
+    "codigo": "KJ-CAMPGAZ02",
+    "nombre": "Gazebo 3x3 con Paredes",
+    "ean": "7146043172106",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_623807-MLA101920745265_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_623807-MLA101920745265_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_753011-MLA95056317134_102025-O.webp"
+    ],
+    "query_usada": "Gazebo 3x3 con Paredes KJ-CAMPGAZ02"
+  },
+  {
+    "codigo": "KJ-CAMPGAZ03",
+    "nombre": "Gazebo 3x3 con Paredes",
+    "ean": "7146043172274",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_675187-MLA101349965003_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_675187-MLA101349965003_122025-O.webp",
+      "https://spiazziweb.com.ar/wp-content/uploads/2026/01/318389_77025.png"
+    ],
+    "query_usada": "Gazebo 3x3 con Paredes KJ-CAMPGAZ03"
+  },
+  {
+    "codigo": "KJ-CAMPSIL01",
+    "nombre": "Reposera Reclinable",
+    "ean": "7146043172724",
+    "opciones": [
+      "https://http2.mlstatic.com/D_NQ_NP_861059-MLA100378088355_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_861059-MLA100378088355_122025-O.webp",
+      "https://http2.mlstatic.com/D_NQ_NP_625587-MLA100492761759_122025-O.webp"
+    ],
+    "query_usada": "Reposera Reclinable KJ-CAMPSIL01"
+  }
+]

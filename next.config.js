@@ -1,8 +1,19 @@
 /** @type {import('next').NextConfig} */
-
 const nextConfig = {
   reactStrictMode: true,
-  
+
+  // ✅ NUEVO: configuración de imágenes con caché
+  // Le dice a Next.js de qué dominios puede servir imágenes optimizadas
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "firebasestorage.googleapis.com" },
+      { protocol: "https", hostname: "storage.googleapis.com" },
+      { protocol: "https", hostname: "images.unsplash.com" },
+    ],
+    // Cachea las imágenes optimizadas 1 hora para no reprocesarlas cada vez
+    minimumCacheTTL: 3600,
+  },
+
   async headers() {
     // ✅ FIX ERROR 10: Nunca usar "*" como origen permitido en producción.
     // Se lee ALLOWED_ORIGIN primero, luego NEXT_PUBLIC_APP_URL.
@@ -22,7 +33,7 @@ const nextConfig = {
           },
           {
             key: "Access-Control-Allow-Origin",
-            value: allowedOrigin,  // ✅ FIX: Ya no puede terminar siendo "*"
+            value: allowedOrigin, // ✅ FIX: Ya no puede terminar siendo "*"
           },
           {
             key: "Access-Control-Allow-Methods",
@@ -31,6 +42,18 @@ const nextConfig = {
           {
             key: "Access-Control-Allow-Headers",
             value: "Content-Type, Authorization",
+          },
+        ],
+      },
+      // ✅ NUEVO: caché agresivo para archivos estáticos (JS, CSS, fuentes)
+      // Estos archivos tienen hash en el nombre así que aunque estén cacheados
+      // 1 año, cuando cambie el código se genera un nombre nuevo automáticamente
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },

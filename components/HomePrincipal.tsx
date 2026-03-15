@@ -1,5 +1,8 @@
 // components/HomePrincipal.tsx - Home Principal Funcional
 // ✅ ACTUALIZADO: agregados roles distribuidor y mayorista
+// ✅ OPTIMIZADO:
+//   1. Los lotes de productos destacados se cargan en PARALELO con Promise.all
+//   2. passive: true en el scroll listener
 
 'use client';
 
@@ -7,7 +10,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-// Tipos
 type FeaturedProduct = {
   id: string;
   itemId: string;
@@ -104,7 +106,6 @@ export default function HomePrincipal() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Datos dinámicos de las APIs
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
   const [featuredFactories, setFeaturedFactories] = useState<FeaturedFactory[]>([]);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -176,25 +177,27 @@ export default function HomePrincipal() {
     async function loadProductLots() {
       if (featuredProducts.length === 0) return;
 
-      const lotsData: Record<string, LotData> = {};
-
-      for (const product of featuredProducts) {
-        try {
-          const res = await fetch(`/api/lots/${product.itemData.id}`);
-          if (res.ok) {
+      // ✅ OPTIMIZACIÓN: Promise.all en vez de for loop secuencial
+      const results = await Promise.all(
+        featuredProducts.map(async (product) => {
+          try {
+            const res = await fetch(`/api/lots/${product.itemData.id}`);
+            if (!res.ok) return { id: product.itemData.id, data: null };
             const data = await res.json();
             const progress = data.MF > 0 ? Math.round((data.accumulatedQty / data.MF) * 100) : 0;
-            lotsData[product.itemData.id] = {
-              accumulatedQty: data.accumulatedQty || 0,
-              MF: data.MF || 0,
-              progress,
+            return {
+              id: product.itemData.id,
+              data: { accumulatedQty: data.accumulatedQty || 0, MF: data.MF || 0, progress },
             };
+          } catch (error) {
+            console.error(`Error cargando lote para producto ${product.itemData.id}:`, error);
+            return { id: product.itemData.id, data: null };
           }
-        } catch (error) {
-          console.error(`Error cargando lote para producto ${product.itemData.id}:`, error);
-        }
-      }
+        })
+      );
 
+      const lotsData: Record<string, LotData> = {};
+      results.forEach(({ id, data }) => { if (data) lotsData[id] = data; });
       setProductLots(lotsData);
     }
 
@@ -251,21 +254,19 @@ export default function HomePrincipal() {
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll);
+    // ✅ OPTIMIZACIÓN: passive: true mejora performance del scroll
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // ✅ ACTUALIZADO: ahora acepta los 4 roles
   const handleRoleRedirect = (targetRole: 'retailer' | 'manufacturer' | 'distributor' | 'wholesaler') => {
     if (isAuthenticated) {
       if (targetRole === 'retailer') {
         router.push('/dashboard/pedidos-fraccionados');
       } else {
-        // fabricante, distribuidor y mayorista van al mismo dashboard de vendedor
         router.push('/dashboard/fabricante');
       }
     } else {
-      // ✅ Manda directo a /login?role=xxx sin pasar por /registro
       router.push(`/login?role=${targetRole}`);
     }
   };
@@ -282,139 +283,77 @@ export default function HomePrincipal() {
     <div className="min-h-screen bg-gray-50">
 
       {/* HEADER PRINCIPAL */}
-      <header className={`sticky top-0 z-50 transition-all duration-300 ${
-        scrollY > 50 ? 'shadow-lg' : ''
-      }`}>
-        {/* Top Bar */}
+      <header className={`sticky top-0 z-50 transition-all duration-300 ${scrollY > 50 ? 'shadow-lg' : ''}`}>
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white">
           <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between text-sm">
             <div className="flex items-center gap-6">
-              <span className="flex items-center gap-2">
-                📍 Envíos a todo el país
-              </span>
+              <span className="flex items-center gap-2">📍 Envíos a todo el país</span>
             </div>
             <div className="flex items-center gap-4">
-              <Link href="/ayuda" className="hover:text-blue-300 transition">
-                ¿Necesitás ayuda?
-              </Link>
-              <Link href="/como-funciona" className="hover:text-blue-300 transition">
-                ¿Cómo funciona?
-              </Link>
+              <Link href="/ayuda" className="hover:text-blue-300 transition">¿Necesitás ayuda?</Link>
+              <Link href="/como-funciona" className="hover:text-blue-300 transition">¿Cómo funciona?</Link>
             </div>
           </div>
         </div>
 
-        {/* Main Navigation */}
         <div className="bg-white border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex items-center justify-between gap-4">
-
-              {/* Logo */}
               <Link href="/" className="flex items-center gap-3 group">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center transform group-hover:scale-105 transition-transform shadow-lg">
                   <span className="text-2xl font-black text-white">M</span>
                 </div>
                 <div className="hidden sm:block">
-                  <h1 className="text-2xl font-black bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                    MayoristaMovil
-                  </h1>
+                  <h1 className="text-2xl font-black bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">MayoristaMovil</h1>
                   <p className="text-xs text-gray-500 font-medium">Compra fraccionada</p>
                 </div>
               </Link>
 
-              {/* Search Bar */}
               <div className="flex-1 max-w-2xl">
                 <form onSubmit={(e) => { e.preventDefault(); router.push('/explorar'); }}>
                   <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Buscar productos, fábricas, categorías..."
-                      className="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                    />
-                    <button type="submit" className="absolute right-0 top-0 bottom-0 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-r-lg hover:from-blue-700 hover:to-blue-800 transition-all">
-                      🔍
-                    </button>
+                    <input type="text" placeholder="Buscar productos, fábricas, categorías..." className="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" />
+                    <button type="submit" className="absolute right-0 top-0 bottom-0 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-r-lg hover:from-blue-700 hover:to-blue-800 transition-all">🔍</button>
                   </div>
                 </form>
               </div>
 
-              {/* User Actions */}
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleLoginClick}
-                  className="hidden lg:flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition"
-                >
+                <button onClick={handleLoginClick} className="hidden lg:flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition">
                   <span className="text-2xl">👤</span>
                   <div className="text-left">
                     <p className="text-xs text-gray-500">{isAuthenticated ? 'Mi' : 'Hola,'}</p>
                     <p className="text-sm font-semibold">{isAuthenticated ? 'Perfil' : 'Ingresá'}</p>
                   </div>
                 </button>
-
                 {isAuthenticated && (
                   <>
-                    <Link
-                      href="/mis-compras"
-                      className="hidden md:flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition"
-                    >
+                    <Link href="/mis-compras" className="hidden md:flex items-center gap-2 px-4 py-2 hover:bg-gray-100 rounded-lg transition">
                       <span className="text-2xl">📦</span>
                       <div className="text-left">
                         <p className="text-xs text-gray-500">Mis</p>
                         <p className="text-sm font-semibold">Compras</p>
                       </div>
                     </Link>
-
-                    <Link
-                      href="/carrito"
-                      className="relative px-4 py-2 hover:bg-gray-100 rounded-lg transition"
-                    >
+                    <Link href="/carrito" className="relative px-4 py-2 hover:bg-gray-100 rounded-lg transition">
                       <span className="text-3xl">🛒</span>
-                      <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        0
-                      </span>
+                      <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
                     </Link>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Categories Menu */}
             <div className="mt-4 flex items-center gap-4 overflow-x-auto pb-2 scrollbar-hide">
-              <Link href="/explorar" className="text-sm font-semibold text-blue-600 hover:text-blue-800 whitespace-nowrap">
-                Todas las categorías
-              </Link>
+              <Link href="/explorar" className="text-sm font-semibold text-blue-600 hover:text-blue-800 whitespace-nowrap">Todas las categorías</Link>
               <span className="text-gray-300">|</span>
-              <Link href="/explorar/cerrando" className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition">
-                Lotes por cerrar
-              </Link>
-
-              {/* ✅ ACTUALIZADO: 4 botones de rol */}
-              <button
-                onClick={() => handleRoleRedirect('retailer')}
-                className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition cursor-pointer"
-              >
-                Soy revendedor
-              </button>
-              <button
-                onClick={() => handleRoleRedirect('manufacturer')}
-                className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition cursor-pointer"
-              >
-                Soy fabricante
-              </button>
+              <Link href="/explorar/cerrando" className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition">Lotes por cerrar</Link>
+              <button onClick={() => handleRoleRedirect('retailer')} className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition cursor-pointer">Soy revendedor</button>
+              <button onClick={() => handleRoleRedirect('manufacturer')} className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition cursor-pointer">Soy fabricante</button>
               {/* ✅ NUEVO: Distribuidor */}
-              <button
-                onClick={() => handleRoleRedirect('distributor')}
-                className="text-sm text-gray-700 hover:text-purple-600 whitespace-nowrap transition cursor-pointer"
-              >
-                Soy distribuidor
-              </button>
+              <button onClick={() => handleRoleRedirect('distributor')} className="text-sm text-gray-700 hover:text-purple-600 whitespace-nowrap transition cursor-pointer">Soy distribuidor</button>
               {/* ✅ NUEVO: Mayorista */}
-              <button
-                onClick={() => handleRoleRedirect('wholesaler')}
-                className="text-sm text-gray-700 hover:text-green-600 whitespace-nowrap transition cursor-pointer"
-              >
-                Soy mayorista
-              </button>
+              <button onClick={() => handleRoleRedirect('wholesaler')} className="text-sm text-gray-700 hover:text-green-600 whitespace-nowrap transition cursor-pointer">Soy mayorista</button>
             </div>
           </div>
         </div>
@@ -426,30 +365,13 @@ export default function HomePrincipal() {
           <div className="bg-white/10 backdrop-blur-md rounded-2xl border-2 border-white/30 p-6 md:p-8 shadow-2xl">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex-1 text-center md:text-left">
-                <h2 className="text-3xl md:text-4xl font-black text-white mb-3 leading-tight">
-                  ENCONTRA Y COMPRA TODO A PRECIO DE FABRICA
-                </h2>
-                <p className="text-xl md:text-2xl text-white/90 font-semibold mb-2">
-                  Incluso sin llegar al mínimos, solo lo que necesites.
-                </p>
-                <p className="text-white/80 text-lg max-w-2xl">
-                  Unite a otros compradores y revendedores para acceder a precios de fabrica comprando solo las unidades que necesitás.
-                </p>
+                <h2 className="text-3xl md:text-4xl font-black text-white mb-3 leading-tight">ENCONTRA Y COMPRA TODO A PRECIO DE FABRICA</h2>
+                <p className="text-xl md:text-2xl text-white/90 font-semibold mb-2">Incluso sin llegar al mínimos, solo lo que necesites.</p>
+                <p className="text-white/80 text-lg max-w-2xl">Unite a otros compradores y revendedores para acceder a precios de fabrica comprando solo las unidades que necesitás.</p>
               </div>
-
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link
-                  href="/como-funciona"
-                  className="px-8 py-4 bg-white text-blue-700 font-black rounded-xl hover:bg-yellow-300 hover:text-blue-900 transition-all transform hover:scale-105 shadow-2xl text-center"
-                >
-                  ¿Cómo funciona? →
-                </Link>
-                <Link
-                  href="/explorar"
-                  className="px-8 py-4 bg-yellow-400 text-blue-900 font-black rounded-xl hover:bg-yellow-300 transition-all transform hover:scale-105 shadow-2xl text-center"
-                >
-                  Explorar productos
-                </Link>
+                <Link href="/como-funciona" className="px-8 py-4 bg-white text-blue-700 font-black rounded-xl hover:bg-yellow-300 hover:text-blue-900 transition-all transform hover:scale-105 shadow-2xl text-center">¿Cómo funciona? →</Link>
+                <Link href="/explorar" className="px-8 py-4 bg-yellow-400 text-blue-900 font-black rounded-xl hover:bg-yellow-300 transition-all transform hover:scale-105 shadow-2xl text-center">Explorar productos</Link>
               </div>
             </div>
           </div>
@@ -458,81 +380,37 @@ export default function HomePrincipal() {
 
       {/* BANNER CAROUSEL */}
       <section className="relative h-[400px] md:h-[500px] overflow-hidden bg-gradient-to-br from-slate-900 to-slate-700">
-
-        <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold z-30">
-          {currentBanner + 1} / {banners.length}
-        </div>
-
+        <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold z-30">{currentBanner + 1} / {banners.length}</div>
         {banners.map((banner, index) => (
-          <div
-            key={index}
-            className={`absolute inset-0 transition-all duration-700 ${
-              currentBanner === index ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
-            }`}
-          >
+          <div key={index} className={`absolute inset-0 transition-all duration-700 ${currentBanner === index ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}>
             <div className={`absolute inset-0 bg-gradient-to-r ${banner.bgColor} opacity-90`} />
-            <img
-              src={banner.image}
-              alt={banner.title}
-              className="w-full h-full object-cover mix-blend-overlay"
-            />
+            <img src={banner.image} alt={banner.title} className="w-full h-full object-cover mix-blend-overlay" />
             <div className="absolute inset-0 flex items-center">
               <div className="max-w-7xl mx-auto px-4 w-full">
                 <div className="max-w-2xl">
-                  <h2 className="text-4xl md:text-6xl font-black text-white mb-4 leading-tight animate-fade-in-up">
-                    {banner.title}
-                  </h2>
-                  <p className="text-xl md:text-2xl text-white/90 mb-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-                    {banner.subtitle}
-                  </p>
+                  <h2 className="text-4xl md:text-6xl font-black text-white mb-4 leading-tight animate-fade-in-up">{banner.title}</h2>
+                  <p className="text-xl md:text-2xl text-white/90 mb-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>{banner.subtitle}</p>
                   <Link href={banner.cta === 'Ver Lotes' ? '/explorar/cerrando' : '/explorar'}>
-                    <button className="px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-blue-50 transform hover:scale-105 transition-all shadow-2xl animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                      {banner.cta} →
-                    </button>
+                    <button className="px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-blue-50 transform hover:scale-105 transition-all shadow-2xl animate-fade-in-up" style={{ animationDelay: '0.2s' }}>{banner.cta} →</button>
                   </Link>
                 </div>
               </div>
             </div>
           </div>
         ))}
-
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3 z-20">
           {banners.map((banner, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentBanner(index)}
-              className={`transition-all ${
-                currentBanner === index
-                  ? 'bg-white w-8 h-3 rounded-full'
-                  : 'bg-white/50 hover:bg-white/75 w-3 h-3 rounded-full'
-              }`}
-              aria-label={`Ir a banner ${index + 1}: ${banner.title}`}
-              title={banner.title}
-            />
+            <button key={index} onClick={() => setCurrentBanner(index)} className={`transition-all ${currentBanner === index ? 'bg-white w-8 h-3 rounded-full' : 'bg-white/50 hover:bg-white/75 w-3 h-3 rounded-full'}`} aria-label={`Ir a banner ${index + 1}: ${banner.title}`} title={banner.title} />
           ))}
         </div>
-
-        <button
-          onClick={() => setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length)}
-          className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full p-3 transition-all z-20"
-          aria-label="Banner anterior"
-        >
-          ←
-        </button>
-        <button
-          onClick={() => setCurrentBanner((prev) => (prev + 1) % banners.length)}
-          className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full p-3 transition-all z-20"
-          aria-label="Banner siguiente"
-        >
-          →
-        </button>
+        <button onClick={() => setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length)} className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full p-3 transition-all z-20" aria-label="Banner anterior">←</button>
+        <button onClick={() => setCurrentBanner((prev) => (prev + 1) % banners.length)} className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full p-3 transition-all z-20" aria-label="Banner siguiente">→</button>
       </section>
 
       {/* CATEGORÍAS */}
       <section className="max-w-7xl mx-auto px-4 -mt-16 relative z-10 mb-12">
         <div className="bg-white rounded-2xl shadow-2xl p-6">
           <h3 className="text-2xl font-bold text-gray-900 mb-6">Explorar por categoría</h3>
-
           {loadingAllProducts ? (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
               {[...Array(8)].map((_, i) => (
@@ -545,15 +423,9 @@ export default function HomePrincipal() {
           ) : categories.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
               {categories.slice(0, 8).map((category) => (
-                <Link
-                  key={category.id}
-                  href={`/explorar?category=${category.id}`}
-                  className="group"
-                >
+                <Link key={category.id} href={`/explorar?category=${category.id}`} className="group">
                   <div className="flex flex-col items-center gap-3 p-4 rounded-xl hover:bg-gray-50 transition-all cursor-pointer">
-                    <div className={`w-16 h-16 ${category.color} rounded-2xl flex items-center justify-center text-3xl transform group-hover:scale-110 group-hover:rotate-3 transition-all shadow-lg`}>
-                      {category.icon}
-                    </div>
+                    <div className={`w-16 h-16 ${category.color} rounded-2xl flex items-center justify-center text-3xl transform group-hover:scale-110 group-hover:rotate-3 transition-all shadow-lg`}>{category.icon}</div>
                     <div className="text-center">
                       <p className="font-semibold text-sm text-gray-900">{category.name}</p>
                       <p className="text-xs text-gray-500">{category.count} productos</p>
@@ -576,14 +448,8 @@ export default function HomePrincipal() {
               <h3 className="text-3xl font-black mb-2">⭐ Productos Destacados</h3>
               <p className="text-lg opacity-90">Los mejores productos seleccionados para vos</p>
             </div>
-            <Link
-              href="/explorar"
-              className="hidden md:flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-xl hover:bg-white/30 transition-all font-semibold"
-            >
-              Ver todos →
-            </Link>
+            <Link href="/explorar" className="hidden md:flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-xl hover:bg-white/30 transition-all font-semibold">Ver todos →</Link>
           </div>
-
           {loadingFeaturedProducts ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
@@ -604,48 +470,31 @@ export default function HomePrincipal() {
                 const progress = lotData?.progress || 0;
                 const accumulated = lotData?.accumulatedQty || 0;
                 const minimum = lotData?.MF || product.itemData.minimumOrder;
-
                 return (
                   <Link key={product.id} href={`/explorar/${product.itemData.id}`}>
                     <div className="bg-white rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-2 cursor-pointer">
                       <div className="relative">
-                        <div className="w-full h-48 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
-                          <span className="text-6xl">📦</span>
-                        </div>
-                        <div className="absolute top-3 right-3 bg-yellow-500 text-white px-3 py-1 rounded-full font-bold text-sm flex items-center gap-1">
-                          ⭐ Destacado
-                        </div>
+                        <div className="w-full h-48 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center"><span className="text-6xl">📦</span></div>
+                        <div className="absolute top-3 right-3 bg-yellow-500 text-white px-3 py-1 rounded-full font-bold text-sm flex items-center gap-1">⭐ Destacado</div>
                       </div>
                       <div className="p-4">
                         <h4 className="font-bold text-gray-900 mb-1 line-clamp-2">{product.itemData.name}</h4>
                         <p className="text-sm text-gray-500 mb-3">{product.itemData.category}</p>
-
                         <div className="mb-3">
                           <div className="flex justify-between text-sm mb-1">
                             <span className="text-gray-600">Progreso del lote</span>
                             <span className="font-bold text-blue-600">{progress}%</span>
                           </div>
                           <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all"
-                              style={{ width: `${Math.min(progress, 100)}%` }}
-                            />
+                            <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all" style={{ width: `${Math.min(progress, 100)}%` }} />
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {accumulated} de {minimum} unidades
-                          </p>
+                          <p className="text-xs text-gray-500 mt-1">{accumulated} de {minimum} unidades</p>
                         </div>
-
                         <div className="flex items-baseline gap-2 mb-3">
-                          <span className="text-2xl font-black text-gray-900">
-                            ${product.itemData.price.toLocaleString()}
-                          </span>
+                          <span className="text-2xl font-black text-gray-900">${product.itemData.price.toLocaleString()}</span>
                           <span className="text-xs text-gray-500">por unidad</span>
                         </div>
-
-                        <button className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 shadow-lg">
-                          Ver detalles
-                        </button>
+                        <button className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 shadow-lg">Ver detalles</button>
                       </div>
                     </div>
                   </Link>
@@ -653,9 +502,7 @@ export default function HomePrincipal() {
               })}
             </div>
           ) : (
-            <div className="text-center py-12">
-              <p className="text-white/80 text-lg">No hay productos destacados en este momento</p>
-            </div>
+            <div className="text-center py-12"><p className="text-white/80 text-lg">No hay productos destacados en este momento</p></div>
           )}
         </div>
       </section>
@@ -663,61 +510,32 @@ export default function HomePrincipal() {
       {/* CÓMO FUNCIONA */}
       <section className="max-w-7xl mx-auto px-4 mb-12">
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-100">
-          <h3 className="text-3xl font-black text-gray-900 mb-2 text-center">
-            ¿Cómo funciona la compra fraccionada?
-          </h3>
-          <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto">
-            Accedé a precios de fabrica comprando pocas cantidades
-          </p>
+          <h3 className="text-3xl font-black text-gray-900 mb-2 text-center">¿Cómo funciona la compra fraccionada?</h3>
+          <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto">Accedé a precios de fabrica comprando pocas cantidades</p>
           <div className="grid md:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-                <span className="font-black text-white drop-shadow-md tracking-tight">1</span>
-              </div>
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">1</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Elegí tu producto</h4>
-              <p className="text-gray-600">
-                Busca en el explorador, el producto que mas quieras o necesites.
-              </p>
+              <p className="text-gray-600">Busca en el explorador, el producto que mas quieras o necesites.</p>
             </div>
-
             <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-                <span className="font-black text-white drop-shadow-md tracking-tight">2</span>
-              </div>
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">2</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Unite al lote</h4>
-              <p className="text-gray-600">
-                Cuando compras cantidades menores al minimo, te unes a la barra de progreso junto a otros compradores para llegar al minimo.
-              </p>
+              <p className="text-gray-600">Cuando compras cantidades menores al minimo, te unes a la barra de progreso junto a otros compradores para llegar al minimo.</p>
             </div>
-
             <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-                <span className="font-black text-white drop-shadow-md tracking-tight">3</span>
-              </div>
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">3</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Reembolso</h4>
-              <p className="text-gray-600">
-                Mientras el lote este en progreso, puedes pedir el reembolso de tu dinero.
-              </p>
+              <p className="text-gray-600">Mientras el lote este en progreso, puedes pedir el reembolso de tu dinero.</p>
             </div>
-
             <div className="text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl">
-                <span className="font-black text-white drop-shadow-md tracking-tight">4</span>
-              </div>
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">4</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Recibí tu pedido</h4>
-              <p className="text-gray-600">
-                Cuando el lote se completa, el dinero se libera y tu recibes el producto dentro de las 24-72h.
-              </p>
+              <p className="text-gray-600">Cuando el lote se completa, el dinero se libera y tu recibes el producto dentro de las 24-72h.</p>
             </div>
           </div>
-
           <div className="mt-8 text-center">
-            <Link
-              href="/como-funciona"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all"
-            >
-              Conocer más detalles →
-            </Link>
+            <Link href="/como-funciona" className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all">Conocer más detalles →</Link>
           </div>
         </div>
       </section>
@@ -729,11 +547,8 @@ export default function HomePrincipal() {
             <h3 className="text-3xl font-black text-gray-900">🏭 Fábricas Destacadas</h3>
             <p className="text-gray-600">Las mejores fábricas verificadas de la plataforma</p>
           </div>
-          <Link href="/explorar" className="text-blue-600 font-semibold hover:text-blue-700 transition">
-            Ver todas →
-          </Link>
+          <Link href="/explorar" className="text-blue-600 font-semibold hover:text-blue-700 transition">Ver todas →</Link>
         </div>
-
         {loadingFeaturedFactories ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(3)].map((_, i) => (
@@ -750,36 +565,19 @@ export default function HomePrincipal() {
         ) : featuredFactories.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {featuredFactories.slice(0, 6).map((factory) => (
-              <div
-                key={factory.id}
-                className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-2xl transition-all transform hover:-translate-y-1 border border-gray-100"
-              >
+              <div key={factory.id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-2xl transition-all transform hover:-translate-y-1 border border-gray-100">
                 <div className="relative h-40 bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
                   <span className="text-6xl">🏭</span>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-
-                  <div className="absolute top-3 right-3 bg-blue-600 text-white px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1">
-                    ✓ Verificada
-                  </div>
-
-                  <div className="absolute bottom-3 left-3 right-3">
-                    <h4 className="font-bold text-white text-lg line-clamp-1">
-                      {factory.itemData.name}
-                    </h4>
-                  </div>
+                  <div className="absolute top-3 right-3 bg-blue-600 text-white px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1">✓ Verificada</div>
+                  <div className="absolute bottom-3 left-3 right-3"><h4 className="font-bold text-white text-lg line-clamp-1">{factory.itemData.name}</h4></div>
                 </div>
-
                 <div className="p-4">
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2 h-10">
-                    {factory.itemData.description || 'Fabricante verificado'}
-                  </p>
-
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-2 h-10">{factory.itemData.description || 'Fabricante verificado'}</p>
                   {factory.itemData.address && (
                     <div className="bg-slate-50 rounded px-3 py-2 flex items-start gap-2">
                       <span className="text-slate-400 mt-0.5">📍</span>
-                      <p className="text-xs text-slate-600 line-clamp-2 font-medium">
-                        {factory.itemData.address}
-                      </p>
+                      <p className="text-xs text-slate-600 line-clamp-2 font-medium">{factory.itemData.address}</p>
                     </div>
                   )}
                 </div>
@@ -787,68 +585,39 @@ export default function HomePrincipal() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-xl">
-            <p className="text-gray-500">No hay fábricas destacadas en este momento</p>
-          </div>
+          <div className="text-center py-12 bg-white rounded-xl"><p className="text-gray-500">No hay fábricas destacadas en este momento</p></div>
         )}
       </section>
 
       {/* BENEFICIOS */}
       <section className="bg-gradient-to-br from-slate-900 to-slate-800 text-white py-16 mb-12">
         <div className="max-w-7xl mx-auto px-4">
-          <h3 className="text-3xl font-black text-center mb-12">
-            ¿Por qué comprar en MayoristaMovil?
-          </h3>
-
+          <h3 className="text-3xl font-black text-center mb-12">¿Por qué comprar en MayoristaMovil?</h3>
           <div className="grid md:grid-cols-4 gap-8">
             <div className="text-center">
-              <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
-                💰
-              </div>
+              <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>
               <h4 className="font-bold text-lg mb-2">Precios mayoristas</h4>
-              <p className="text-gray-300 text-sm">
-                Accedes a precios mayoristas directos de fabrica comprando pocas cantidades.
-              </p>
+              <p className="text-gray-300 text-sm">Accedes a precios mayoristas directos de fabrica comprando pocas cantidades.</p>
             </div>
-
             <div className="text-center">
-              <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
-                🚚
-              </div>
+              <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🚚</div>
               <h4 className="font-bold text-lg mb-2">Fabricas mas Importantes</h4>
-              <p className="text-gray-300 text-sm">
-                Tendras acceso a productos de las fabricas mas importantes y reconocidas del mercado.
-              </p>
+              <p className="text-gray-300 text-sm">Tendras acceso a productos de las fabricas mas importantes y reconocidas del mercado.</p>
             </div>
-
             <div className="text-center">
-              <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
-                ✅
-              </div>
+              <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">✅</div>
               <h4 className="font-bold text-lg mb-2">Fábricas Verificadas</h4>
-              <p className="text-gray-300 text-sm">
-                Puedes comprar de forma tranquila con nuestras fabricas verificadas.
-              </p>
+              <p className="text-gray-300 text-sm">Puedes comprar de forma tranquila con nuestras fabricas verificadas.</p>
             </div>
-
             <div className="text-center">
-              <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
-                🔒
-              </div>
+              <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🔒</div>
               <h4 className="font-bold text-lg mb-2">Mercado Pago</h4>
-              <p className="text-gray-300 text-sm">
-                Integracion directa de mercado pago para pagos y reembolsos completamente seguros.
-              </p>
+              <p className="text-gray-300 text-sm">Integracion directa de mercado pago para pagos y reembolsos completamente seguros.</p>
             </div>
-
             <div className="text-center">
-              <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">
-                🚚
-              </div>
+              <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🚚</div>
               <h4 className="font-bold text-lg mb-2">Envío Rápido</h4>
-              <p className="text-gray-300 text-sm">
-                Recibí tu pedido en 24-72hs una vez que el lote se completa.
-              </p>
+              <p className="text-gray-300 text-sm">Recibí tu pedido en 24-72hs una vez que el lote se completa.</p>
             </div>
           </div>
         </div>
@@ -860,16 +629,11 @@ export default function HomePrincipal() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
-                  <span className="text-xl font-black">M</span>
-                </div>
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center"><span className="text-xl font-black">M</span></div>
                 <span className="font-bold text-lg">MayoristaMovil</span>
               </div>
-              <p className="text-gray-400 text-sm">
-                La plataforma de compra mayorista fraccionada más grande de Argentina.
-              </p>
+              <p className="text-gray-400 text-sm">La plataforma de compra mayorista fraccionada más grande de Argentina.</p>
             </div>
-
             <div>
               <h4 className="font-bold text-lg mb-4">Compradores</h4>
               <ul className="space-y-2 text-gray-300">
@@ -879,7 +643,6 @@ export default function HomePrincipal() {
                 <li><Link href="/politicas" className="hover:text-white transition">Políticas de compra</Link></li>
               </ul>
             </div>
-
             <div>
               <h4 className="font-bold text-lg mb-4">Vendedores</h4>
               <ul className="space-y-2 text-gray-300">
@@ -889,7 +652,6 @@ export default function HomePrincipal() {
                 <li><Link href="/comisiones" className="hover:text-white transition">Comisiones y tarifas</Link></li>
               </ul>
             </div>
-
             <div>
               <h4 className="font-bold text-lg mb-4">Seguinos</h4>
               <div className="flex gap-4 mb-6">
@@ -899,27 +661,19 @@ export default function HomePrincipal() {
               </div>
               <h4 className="font-bold text-sm mb-2">Suscribite a nuestro newsletter</h4>
               <div className="flex gap-2">
-                <input
-                  type="email"
-                  placeholder="Tu email"
-                  className="flex-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 focus:border-blue-500 outline-none"
-                />
+                <input type="email" placeholder="Tu email" className="flex-1 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 focus:border-blue-500 outline-none" />
                 <button className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition">→</button>
               </div>
             </div>
           </div>
-
           <div className="border-t border-slate-700 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
-                <span className="text-xl font-black">M</span>
-              </div>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center"><span className="text-xl font-black">M</span></div>
               <div>
                 <p className="font-bold">MayoristaMovil</p>
                 <p className="text-xs text-gray-400">© 2025 Todos los derechos reservados</p>
               </div>
             </div>
-
             <div className="flex gap-6 text-sm text-gray-400">
               <Link href="/terminos" className="hover:text-white transition">Términos y condiciones</Link>
               <Link href="/privacidad" className="hover:text-white transition">Privacidad</Link>
@@ -930,15 +684,10 @@ export default function HomePrincipal() {
       </footer>
 
       {/* FLOATING ACTION BUTTON */}
-      <button className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-full shadow-2xl hover:shadow-blue-500/50 hover:scale-110 transition-all flex items-center justify-center text-2xl z-50">
-        💬
-      </button>
+      <button className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-full shadow-2xl hover:shadow-blue-500/50 hover:scale-110 transition-all flex items-center justify-center text-2xl z-50">💬</button>
 
       <style>{`
-        @keyframes fade-in-up {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

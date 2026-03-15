@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ProductCategory, CATEGORY_LABELS, SellerType, SELLER_TYPE_LABELS, SELLER_TYPE_COLORS } from "../../lib/types/product";
 
 type Product = {
@@ -20,9 +20,10 @@ type Product = {
   unitLabel?: string;
   sellerType?: SellerType;
   variants?: { unitLabel: string; price: number; minimumOrder: number }[];
-  // ✅ NUEVO: stock del producto (null = sin control, 0 = sin stock, >0 = con stock)
   stock?: number | null;
 };
+
+type ProductIndex = { id: string; name: string };
 
 type ClosingSoonLot = {
   lotId: string;
@@ -49,6 +50,10 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
   const [hasMore, setHasMore] = useState(initialProducts.length === 20);
   const [loadingMore, setLoadingMore] = useState(false);
 
+  const [productIndex, setProductIndex] = useState<ProductIndex[]>([]);
+  const [indexLoaded, setIndexLoaded] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+
   const [closingSoon, setClosingSoon] = useState<ClosingSoonLot[]>([]);
   const [loadingClosing, setLoadingClosing] = useState(true);
 
@@ -60,6 +65,24 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
   const [maxOrder, setMaxOrder] = useState("");
   const [onlyFeatured, setOnlyFeatured] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("name");
+
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ✅ Cargar índice liviano (solo id+name de todos los productos) una sola vez
+  useEffect(() => {
+    async function loadIndex() {
+      try {
+        const res = await fetch("/api/products/search-index");
+        if (!res.ok) return;
+        const data = await res.json();
+        setProductIndex(data.index || []);
+        setIndexLoaded(true);
+      } catch (err) {
+        console.error("Error cargando índice de búsqueda:", err);
+      }
+    }
+    loadIndex();
+  }, []);
 
   useEffect(() => {
     async function fetchClosingSoon() {
@@ -77,14 +100,66 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
     fetchClosingSoon();
   }, []);
 
+  // ✅ Búsqueda con debounce de 300ms
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    if (searchTerm.trim() === "") {
+      setAllProducts(initialProducts);
+      setHasMore(initialProducts.length === 20);
+      setCurrentPage(1);
+      return;
+    }
+
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const term = searchTerm.trim().toLowerCase();
+
+        if (indexLoaded && productIndex.length > 0) {
+          // ✅ Búsqueda en memoria con .includes() — encuentra "yerba mate" buscando "mate"
+          const matchingIds = productIndex
+            .filter((p) => p.name.toLowerCase().includes(term))
+            .map((p) => p.id)
+            .slice(0, 100);
+
+          if (matchingIds.length === 0) {
+            setAllProducts([]);
+            setHasMore(false);
+            setCurrentPage(1);
+            return;
+          }
+
+          const res = await fetch(`/api/products/explore?ids=${matchingIds.join(",")}`);
+          if (!res.ok) throw new Error("Error al buscar");
+          const data = await res.json();
+          setAllProducts(data.products || []);
+          setHasMore(false);
+          setCurrentPage(1);
+        } else {
+          // Fallback si el índice no cargó
+          const res = await fetch(`/api/products/explore?search=${encodeURIComponent(term)}`);
+          if (!res.ok) throw new Error("Error al buscar");
+          const data = await res.json();
+          setAllProducts(data.products || []);
+          setHasMore(false);
+          setCurrentPage(1);
+        }
+      } catch (err) {
+        console.error("Error buscando productos:", err);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [searchTerm, initialProducts, productIndex, indexLoaded]);
+
   useEffect(() => {
     let result = [...allProducts];
 
-    if (searchTerm) {
-      result = result.filter(p =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
     if (selectedCategory !== "all") result = result.filter(p => p.category === selectedCategory);
     if (minPrice) result = result.filter(p => p.price >= Number(minPrice));
     if (maxPrice) result = result.filter(p => p.price <= Number(maxPrice));
@@ -101,7 +176,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
     }
 
     setFilteredProducts(result);
-  }, [allProducts, searchTerm, selectedCategory, minPrice, maxPrice, minOrder, maxOrder, onlyFeatured, sortBy]);
+  }, [allProducts, selectedCategory, minPrice, maxPrice, minOrder, maxOrder, onlyFeatured, sortBy]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
@@ -142,7 +217,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
     return { label: SELLER_TYPE_LABELS[sellerType], colors: SELLER_TYPE_COLORS[sellerType] };
   }
 
-  // ✅ NUEVO: true si el producto tiene control de stock Y está en 0
   function isOutOfStock(product: Product): boolean {
     return product.stock !== null && product.stock !== undefined && product.stock === 0;
   }
@@ -186,7 +260,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                     <Link key={lot.lotId} href={`/explorar/${lot.productId}`} className="min-w-[260px] max-w-[260px] flex-shrink-0 snap-start bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col border border-gray-100 hover:border-blue-200">
                       <div className="relative h-36 bg-white overflow-hidden border-b border-gray-100">
                         {lot.imageUrls && lot.imageUrls.length > 0 ? (
-                          <img src={lot.imageUrls[0]} alt={lot.productName} className="w-full h-full object-contain hover:scale-105 transition-transform duration-300" />
+                          <img src={lot.imageUrls[0]} alt={lot.productName} loading="lazy" decoding="async" className="w-full h-full object-contain hover:scale-105 transition-transform duration-300" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                             <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -230,7 +304,23 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
               </div>
               <div className="mb-5">
                 <label className="block text-sm font-medium mb-2">Buscar</label>
-                <input type="text" placeholder="Nombre del producto..." className="w-full border rounded px-3 py-2 text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Nombre del producto..."
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  {searchLoading && (
+                    <div className="absolute right-2 top-2">
+                      <svg className="animate-spin w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="mb-5">
                 <label className="block text-sm font-medium mb-2">Categoría</label>
@@ -291,7 +381,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                 <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {filteredProducts.map((product) => {
                     const sellerBadge = getSellerBadge(product.sellerType);
-                    // ✅ NUEVO: detectar si está sin stock
                     const outOfStock = isOutOfStock(product);
 
                     return (
@@ -303,7 +392,8 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                             <img
                               src={product.imageUrls[0]}
                               alt={product.name}
-                              // ✅ imagen en gris si no hay stock
+                              loading="lazy"
+                              decoding="async"
                               className={`w-full h-full object-contain hover:scale-105 transition-transform duration-300 ${outOfStock ? "opacity-60 grayscale" : ""}`}
                             />
                           ) : (
@@ -314,31 +404,24 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                             </div>
                           )}
 
-                          {/* ✅ NUEVO: badge "Sin stock" arriba a la derecha */}
                           {outOfStock && (
                             <div className="absolute top-2 right-2">
-                              <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-md">
-                                Sin stock
-                              </span>
+                              <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-md">Sin stock</span>
                             </div>
                           )}
 
-                          {/* Badge destacado */}
                           {product.featured && (
                             <div className="absolute top-2 left-2">
-                              <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-medium">
-                                ⭐ Destacado
-                              </span>
+                              <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-medium">⭐ Destacado</span>
                             </div>
                           )}
 
-                          {/* AVATAR DEL VENDEDOR */}
                           <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
                             <div className="relative">
                               <div className={`w-9 h-9 rounded-full p-0.5 shadow ${product.manufacturerVerified ? "bg-blue-500" : "bg-white/80"}`}>
                                 <div className="w-full h-full rounded-full overflow-hidden bg-white">
                                   {product.manufacturerImageUrl ? (
-                                    <img src={product.manufacturerImageUrl} alt={product.manufacturerName || "Vendedor"} className="w-full h-full object-cover" />
+                                    <img src={product.manufacturerImageUrl} alt={product.manufacturerName || "Vendedor"} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                   ) : (
                                     <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
                                       {product.manufacturerName ? product.manufacturerName.charAt(0).toUpperCase() : "V"}
@@ -398,7 +481,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                             {product.unitLabel ? `unidades (${product.unitLabel} c/u)` : "unidades"}
                           </p>
 
-                          {/* ✅ NUEVO: botón cambia según stock */}
                           <Link
                             href={`/explorar/${product.id}`}
                             className={`mt-auto w-full text-center py-2 rounded-lg transition font-medium ${

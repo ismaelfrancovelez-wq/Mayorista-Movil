@@ -1,0 +1,1248 @@
+[
+  {
+    "codigo": "WH-CH109",
+    "nombre": "Caloventor Tipo Split",
+    "ean": "4895091318013",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-CH121CONV",
+    "nombre": "Convector",
+    "ean": "4895091318020",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-HEATGASBTL4000G",
+    "nombre": "Estufa Garrafera Plegable 4000",
+    "ean": "7146041686902",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-405G",
+    "nombre": "Estufa de Halógeno 4 Velas",
+    "ean": "7146041689118",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-AA2900FCBC",
+    "nombre": "Aire Acondicionado Portátil",
+    "ean": "7273731533922",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "LG04-13CR",
+    "nombre": "Climatizador",
+    "ean": "4895091300582",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "LG04-11CR",
+    "nombre": "Climatizador",
+    "ean": "4895091300575",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-SF380GE",
+    "nombre": "Heladera con Freezer Serie 380 Multi Door",
+    "ean": "7146045755284",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-SBS400GE",
+    "nombre": "Heladera con Freezer Serie 400 Side by Side",
+    "ean": "7146045755116",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-50VIN-S",
+    "nombre": "Frigobar Retro Serie 50 Silver",
+    "ean": "7146045754980",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-50VIN-W",
+    "nombre": "Frigobar Retro Serie 50 Blanco",
+    "ean": "7146045754744",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-50VIN-R",
+    "nombre": "Frigobar Retro Serie 50 Rojo",
+    "ean": "7146045754812",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-50VIN-B",
+    "nombre": "Frigobar Retro Serie 50 Negro",
+    "ean": "",
+    "imagen": "",
+    "fuente": "sin_ean"
+  },
+  {
+    "codigo": "KJH-HD260-W",
+    "nombre": "Heladera con Freezer Serie 260 Blanco",
+    "ean": "7146043159268",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HF50-R",
+    "nombre": "Frigobar Serie 50 TFK Rojo",
+    "ean": "7146043155376",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HF50B",
+    "nombre": "Frigobar Serie 50 TFK Blanco",
+    "ean": "7146043155130",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HF50-B",
+    "nombre": "Frigobar Serie 50 TFK Negro",
+    "ean": "7146043155208",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HF50",
+    "nombre": "Frigobar Serie 50 TFK Gris",
+    "ean": "7273731535070",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-FP50",
+    "nombre": "Freezer de Pozo Serie 50 TFK",
+    "ean": "7273731534844",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-FP120",
+    "nombre": "Freezer de Pozo Serie 120 TFK",
+    "ean": "7273731535452",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-FPE150",
+    "nombre": "Freezer de Pozo Exhibidor Serie 150 TFK",
+    "ean": "7273731534912",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HB90-R",
+    "nombre": "Bajo Mesada Serie 90 TFK Rojo",
+    "ean": "7146041697588",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HB90B",
+    "nombre": "Bajo Mesada Serie 90 TFK Blanco",
+    "ean": "7146041697656",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HB90",
+    "nombre": "Bajo Mesada Serie 90 TFK Gris",
+    "ean": "7273731534776",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HD140",
+    "nombre": "Heladera con Freezer Serie 140 TFK Gris",
+    "ean": "7273731535148",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HD140B",
+    "nombre": "Heladera con Freezer Serie 140 TFK Blanco",
+    "ean": "7146043181702",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HD220",
+    "nombre": "Heladera con Freezer Serie 220 TFK Gris",
+    "ean": "7273731535520",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HD220B",
+    "nombre": "Heladera con Freezer Serie 220 TFK Blanco",
+    "ean": "7146041685462",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HD220D",
+    "nombre": "Heladera con Freezer Serie 220 c/Dispenser TFK Con dispenser",
+    "ean": "7146041685394",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-260HEL",
+    "nombre": "Heladera Single Door Serie 260 c/Dispenser TFK Silver",
+    "ean": "7146043159268",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HD300",
+    "nombre": "Heladera con Freezer Serie 300 TFK Gris",
+    "ean": "7273731535384",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HD300B",
+    "nombre": "Heladera con Freezer Serie 300 TFK Blanco",
+    "ean": "7146041684786",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-HD300D",
+    "nombre": "Heladera con Freezer Serie 300 c/Dispenser TFK Con dispenser",
+    "ean": "7146041684854",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-EX330",
+    "nombre": "Heladera Exhibidora Serie 330 TFK Blanco",
+    "ean": "7273731534394",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-EX395",
+    "nombre": "Heladera Exhibidora Serie 395 TFK Blanco",
+    "ean": "7273731534226",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-EX500",
+    "nombre": "Heladera Exhibidora Serie 500 TFK Blanco",
+    "ean": "7146043181498",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "DAFCB001-R",
+    "nombre": "Dispenser de Pie Rojo Rojo",
+    "ean": "7273731528454 / 7273731530020",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "DAFCB001-B",
+    "nombre": "Dispenser de Pie Negro Negro",
+    "ean": "7273731528522 / 7273731530198",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "DAFCB022-R",
+    "nombre": "Dispenser de Pie Rojo Rojo",
+    "ean": "",
+    "imagen": "",
+    "fuente": "sin_ean"
+  },
+  {
+    "codigo": "DAFCB022-B",
+    "nombre": "Dispenser de Pie Negro Negro",
+    "ean": "",
+    "imagen": "",
+    "fuente": "sin_ean"
+  },
+  {
+    "codigo": "DAFCM001-B",
+    "nombre": "Dispenser de Mesada Negro Negro",
+    "ean": "7146043158964",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "DAFCM002-B",
+    "nombre": "Dispenser de Mesada Negro Negro",
+    "ean": "7146043158896",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VEN-FH1906",
+    "nombre": "Ventilador VEN 10\"",
+    "ean": "7146043163128",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VEN-FH1505",
+    "nombre": "Turbo VEN 14\"",
+    "ean": "7146043163296",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VEN-FH1711",
+    "nombre": "Turbo VEN 20\"",
+    "ean": "7146043163746",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VEN-FH1211",
+    "nombre": "Ventilador VEN 18\"",
+    "ean": "7146043163364",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VEN-FH1611",
+    "nombre": "Ventilador VEN 18\" 3en1",
+    "ean": "7146043163432",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VEN-FH1512",
+    "nombre": "Ventilador VEN Pie 20\"",
+    "ean": "7146043163678",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VEN-FH1612",
+    "nombre": "Ventilador VEN Pie 20\" c/Control Remoto",
+    "ean": "7146043163500",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-FI2415001",
+    "nombre": "Ventilador Industrial VEN 24\"",
+    "ean": "7146043163982",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-FI3020001",
+    "nombre": "Ventilador Industrial VEN 30\"",
+    "ean": "7146043164040",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VDT-CFHB001WT-TFK",
+    "nombre": "Ventilador de Techo Aspas Retractiles Blanco TFK Blanco",
+    "ean": "7146043173578",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VDT-CFHB001BK-TFK",
+    "nombre": "Ventilador de Techo Aspas Retractiles Negro TFK Negro",
+    "ean": "7146043173646",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VDT-CFWB001WT",
+    "nombre": "Ventilador de Techo Aspas Fijas Blanco Blanco",
+    "ean": "7146043173882",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "VDT-CFWB001BK",
+    "nombre": "Ventilador de Techo Aspas Fijas Negro Negro",
+    "ean": "7146043173714",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-WMCFWT",
+    "nombre": "Lavarropas Slim 6kg Blanco TFK Blanco",
+    "ean": "7273731535902",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-WMCFSL",
+    "nombre": "Lavarropas Slim 6kg Silver TFK Silver",
+    "ean": "7273731536510",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-WMCFWT8K",
+    "nombre": "Lavarropas Slim 7.5kg Blanco TFK Blanco",
+    "ean": "7146043160226",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "TFK-WMCFSL8K",
+    "nombre": "Lavarropas Slim 7.5kg Silver TFK Silver",
+    "ean": "7146041698400",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-CC88A-01",
+    "nombre": "Limpiadora de Alfombras y Tapizados",
+    "ean": "7146043167492",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WFVCKT31",
+    "nombre": "Aspiradora Inalámbrica 3 en 1",
+    "ean": "4895091318983",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WFVCRK305A",
+    "nombre": "Aspiradora Robot",
+    "ean": "4895091306171",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WFVCRK185",
+    "nombre": "Aspiradora Robot con Mapeo",
+    "ean": "4895091303965",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WFVCRK196",
+    "nombre": "Aspiradora Robot",
+    "ean": "4895091318990",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WFMPKT32",
+    "nombre": "Mopa Eléctrica Inalámbrica",
+    "ean": "4895091303941",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-PL2201",
+    "nombre": "Plancha a Vapor",
+    "ean": "4895091316989",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-PL2202",
+    "nombre": "Plancha a Vapor",
+    "ean": "8107370146887",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "PLA-PL2201-WH",
+    "nombre": "Plancha a Vapor Inalámbrica",
+    "ean": "4895091316972",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "CBCL605",
+    "nombre": "Afeitadora Corporal",
+    "ean": "7146043181870",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHS4004",
+    "nombre": "Plancha 2en1",
+    "ean": "4895091305495",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHS3232",
+    "nombre": "Plancha 2en1",
+    "ean": "4895091302395",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHB5004",
+    "nombre": "Plancha para Pelo",
+    "ean": "4895091302388",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHD8300",
+    "nombre": "Secador WH 8300",
+    "ean": "4895091302425",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHD1800",
+    "nombre": "Secador WH 1800",
+    "ean": "4895091303491",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHD2200",
+    "nombre": "Secador WH 2200",
+    "ean": "4895218318926",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHB5001",
+    "nombre": "Cepillo Alisador WH",
+    "ean": "4895218318872",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHCL607",
+    "nombre": "Recortadora Vello Corporal",
+    "ean": "4895091322058",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHCL602",
+    "nombre": "Cortadora de Pelo WH",
+    "ean": "4895218319144",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHCL603",
+    "nombre": "Cortadora de Pelo WH",
+    "ean": "4895091302494",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHCL609",
+    "nombre": "Cortadora de Pelo WH",
+    "ean": "4895091302500",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHCL610",
+    "nombre": "Cortadora de Barba WH",
+    "ean": "4895091302463",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHCL8188",
+    "nombre": "Cortadora de Barba WH",
+    "ean": "4895218320318",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHCL8688T",
+    "nombre": "Cortadora de Barba WH",
+    "ean": "4895218320325",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHCR2213",
+    "nombre": "Rizador WH",
+    "ean": "4895091322065",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHHD1403",
+    "nombre": "Cepillo Secador WH",
+    "ean": "4895091303507",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-CFE1450BL",
+    "nombre": "Cafetera Espresso c/Molinillo WH",
+    "ean": "4895091316583",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-CM1450MC01-W",
+    "nombre": "Cafetera Multicápsula WH Blanca Blanca",
+    "ean": "4895091303927",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-CM1450MC01-B",
+    "nombre": "Cafetera Multicápsula WH Negra Negra",
+    "ean": "4895091304054",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "CAF-CMF1000S01",
+    "nombre": "Cafetera de Filtro WH",
+    "ean": "4895218327300",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "CAF-CMF1000S02",
+    "nombre": "Cafetera de Filtro WH",
+    "ean": "4895218327324",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "CAF-CMF1000S03",
+    "nombre": "Cafetera de Filtro WH",
+    "ean": "4895218327348",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-TM800SEC01",
+    "nombre": "Tostadora Blanca Blanca",
+    "ean": "8107370150518",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-TM800SEC02-B",
+    "nombre": "Tostadora Azul",
+    "ean": "",
+    "imagen": "",
+    "fuente": "sin_ean"
+  },
+  {
+    "codigo": "WH-TM900-05",
+    "nombre": "Tostadora WH",
+    "ean": "4895091314763",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-TM1000SEC01",
+    "nombre": "Tostadora WH",
+    "ean": "4895218317226",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-TM1400SEC02",
+    "nombre": "Tostadora WH",
+    "ean": "",
+    "imagen": "",
+    "fuente": "sin_ean"
+  },
+  {
+    "codigo": "WH-TM800-01",
+    "nombre": "Tostadora WH 2 Rodajas",
+    "ean": "4895218314645",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-TM800-02",
+    "nombre": "Tostadora WH 2 Rodajas",
+    "ean": "4895218314683",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-TM800-03",
+    "nombre": "Tostadora WH 2 Rodajas",
+    "ean": "4895218314669",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-TM1400-05",
+    "nombre": "Tostadora WH 4 Rodajas",
+    "ean": "4895091321440",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-BL0800LA01-W",
+    "nombre": "Licuadora WH Blanca Blanca",
+    "ean": "4895091310932",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-BL0800LA02",
+    "nombre": "Licuadora WH Negra Negra",
+    "ean": "4895091310949",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-BL0300HM01W",
+    "nombre": "Batidora de Mano",
+    "ean": "7273731541224",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-BL0800HB01",
+    "nombre": "Batidora Planetaria WH",
+    "ean": "4895218320219",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "LIC-BL0800LA01-KJN",
+    "nombre": "Minipimer Negro Negro",
+    "ean": "7146043176784",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-JM044",
+    "nombre": "Exprimidor Eléctrico 40W",
+    "ean": "7146041695058",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-SJ001SL",
+    "nombre": "Extractor de Jugos WH",
+    "ean": "7273731530570",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-PE15003M-BLK",
+    "nombre": "Pava Mate Negro Negro",
+    "ean": "",
+    "imagen": "",
+    "fuente": "sin_ean"
+  },
+  {
+    "codigo": "KJH-PE15002S",
+    "nombre": "Pava Hervidora",
+    "ean": "7146041681570",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-PE15003S",
+    "nombre": "Pava Hervidora",
+    "ean": "7146041681402",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-PE15006S",
+    "nombre": "Pava Mate Vidrio",
+    "ean": "7146041681334",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-PE15006M",
+    "nombre": "Pava Eléctrica WH",
+    "ean": "4895091312523",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-HE70-G",
+    "nombre": "Horno 70 Litros Gris Gris",
+    "ean": "7146043167874",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-HE70SL",
+    "nombre": "Horno 70 Litros Plateado Plateado",
+    "ean": "7146043167942",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-HE100SL",
+    "nombre": "Horno 100 Litros Plateado Plateado",
+    "ean": "7146043168246",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHS-HE400012000RC",
+    "nombre": "Horno 40 Litros WH",
+    "ean": "4895218317851",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WSH-HE600013600RAC",
+    "nombre": "Horno 60 Litros WH",
+    "ean": "4895218317868",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "COC-EKX001V",
+    "nombre": "Cocina Eléctrica 50cm COC",
+    "ean": "7273731533236",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "COC-EKXL01V",
+    "nombre": "Cocina Eléctrica 60cm COC",
+    "ean": "7273731540852",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-HP1000BDD",
+    "nombre": "Anafe Eléctrico Simple Negro Negro",
+    "ean": "7273731531324",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-HP2200BDD",
+    "nombre": "Anafe Eléctrico Doble Negro Negro",
+    "ean": "7273731531492",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-HP1200STD",
+    "nombre": "Anafe Eléctrico Simple Silver WH",
+    "ean": "8107370147198",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-HP2200STD",
+    "nombre": "Anafe Eléctrico Doble Silver WH",
+    "ean": "4895091310512",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WKAF405",
+    "nombre": "Freidora WK 405",
+    "ean": "4895091314855",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WKAF406",
+    "nombre": "Freidora WK 406",
+    "ean": "4895091312110",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WKAF508",
+    "nombre": "Freidora WK 508",
+    "ean": "4895091312127",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WKAF710",
+    "nombre": "Freidora WK 710",
+    "ean": "4895091312105",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "AFR-1802",
+    "nombre": "Freidora AFR 1802",
+    "ean": "4895091312240",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WKAF2201",
+    "nombre": "Freidora WK 2201 Doble",
+    "ean": "4895091315678",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-SM750M3N1-04",
+    "nombre": "Sandwichera 3en1",
+    "ean": "8107370148591",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-SM700SW-03",
+    "nombre": "Sandwichera Blanca Blanca",
+    "ean": "7146043153914",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-SM700SB-03",
+    "nombre": "Sandwichera Negra Negra",
+    "ean": "7146043154386",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-SM700SW-01",
+    "nombre": "Sandwichera WH Blanca Blanca",
+    "ean": "4895091321440",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-SM700SB-01",
+    "nombre": "Sandwichera WH Negra Negra",
+    "ean": "4895091321433",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-SM700SB-02",
+    "nombre": "Sandwichera WH",
+    "ean": "4895218319558",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-SM700SW-02",
+    "nombre": "Sandwichera WH",
+    "ean": "4895091314770",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-SM750M3N1-01",
+    "nombre": "Sandwichera 3en1 WH",
+    "ean": "4895218319541",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-SM750M3N1-02",
+    "nombre": "Sandwichera 3en1 WH",
+    "ean": "4895218319565",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-YOG20-01",
+    "nombre": "Yogurtera WH",
+    "ean": "4895091314848",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-FSP003",
+    "nombre": "Vaporera WH",
+    "ean": "4895091307970",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-PM1200L-01",
+    "nombre": "Pochoclera WH",
+    "ean": "4895091300919",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-CM800SEC01",
+    "nombre": "Panquequera WH",
+    "ean": "4895218319510",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJH-HMXSCP001",
+    "nombre": "Panchera Eléctrica",
+    "ean": "7146043173332",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-BMSS001",
+    "nombre": "Máquina de Pan WH",
+    "ean": "4895091323888",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-BMSS002",
+    "nombre": "Máquina de Pan WH",
+    "ean": "4895091323895",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "SIMX0023",
+    "nombre": "Máquina de Helados",
+    "ean": "4895091323987",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WH-IM0001",
+    "nombre": "Máquina de Hielo WH",
+    "ean": "4895091303385",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHMSG2100",
+    "nombre": "Masajeador WH",
+    "ean": "4895218320301",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHMSG2200",
+    "nombre": "Masajeador de Cuello y Hombros con Cable",
+    "ean": "4895218320516",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "WHMSGR2200",
+    "nombre": "Masajeador de Cuello y Hombros sin Cable",
+    "ean": "4895218320523",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJT-TP8002PB",
+    "nombre": "Taladro de Impacto",
+    "ean": "7146043171048",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ACE-BB",
+    "nombre": "Mountain Bike Rod 29 Acero Negro/Azul Negro/Azul",
+    "ean": "7146043152610",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BG",
+    "nombre": "Mountain Bike Rod 29 Aluminio",
+    "ean": "7146043162138",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BR",
+    "nombre": "Mountain Bike Rod 29 Aluminio",
+    "ean": "7146043162206",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BLB",
+    "nombre": "Mountain Bike Rod 29 Aluminio",
+    "ean": "7146043162374",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BW",
+    "nombre": "Mountain Bike Rod 29 Aluminio",
+    "ean": "7146043176616",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ACE02-BR",
+    "nombre": "Mountain Bike Rod 29 Acero",
+    "ean": "7146043162510",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ACE02-BG",
+    "nombre": "Mountain Bike Rod 29 Acero",
+    "ean": "7146043162442",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ACE02-BLB",
+    "nombre": "Mountain Bike Rod 29 Acero",
+    "ean": "7146043162688",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-WG",
+    "nombre": "Mountain Bike Rod 29 Mujer Verde agua Verde agua",
+    "ean": "7146043162756",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-V",
+    "nombre": "Mountain Bike Rod 29 Mujer Violeta Violeta",
+    "ean": "7146043162824",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-BLK",
+    "nombre": "Mountain Bike Rod 29 Mujer Negro Negro",
+    "ean": "7146043162992",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-29ALUACE02-W",
+    "nombre": "Mountain Bike Rod 29 Mujer Blanco Blanco",
+    "ean": "7146043163050",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-27ACECAN-BLK",
+    "nombre": "Mountain Bike Rod 27 Acero Negro Negro",
+    "ean": "7146043161834",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-27ACECAN",
+    "nombre": "Mountain Bike Rod 27 Acero Rojo Rojo",
+    "ean": "7146043161698",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-27ACECAN-AZ",
+    "nombre": "Mountain Bike Rod 27 Acero Azul Azul",
+    "ean": "7146043161766",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-27ACECAN-TQ",
+    "nombre": "Mountain Bike Rod 27 Turquesa Turquesa",
+    "ean": "7146043161902",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-20ACE",
+    "nombre": "Mountain Bike Rod 20 Acero Negro/Rojo Negro/Rojo",
+    "ean": "7146043161452",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-20ACE-BB",
+    "nombre": "Mountain Bike Rod 20 Acero Negro/Azul Negro/Azul",
+    "ean": "7146043161520",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-16ACE",
+    "nombre": "Bicicleta Niños Rod 16 Acero Azul Azul",
+    "ean": "7146043160912",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-16ACE-BLK",
+    "nombre": "Bicicleta Niños Rod 16 Acero Negro Negro",
+    "ean": "7146043161148",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-16ACECAN",
+    "nombre": "Bicicleta Niños Rod 16 Acero Rosa Rosa",
+    "ean": "7146043161216",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJW-16ACECAN-P",
+    "nombre": "Bicicleta Niños Rod 16 Acero Violeta Violeta",
+    "ean": "7146043161384",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJ-CAMPMR01W",
+    "nombre": "Mesa Rectangular Blanca Blanco",
+    "ean": "7146043171598",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJ-CAMPGAZ01",
+    "nombre": "Gazebo 3x3 sin Paredes",
+    "ean": "7146043172038",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJ-CAMPGAZ02",
+    "nombre": "Gazebo 3x3 con Paredes",
+    "ean": "7146043172106",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJ-CAMPGAZ03",
+    "nombre": "Gazebo 3x3 con Paredes",
+    "ean": "7146043172274",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  },
+  {
+    "codigo": "KJ-CAMPSIL01",
+    "nombre": "Reposera Reclinable",
+    "ean": "7146043172724",
+    "imagen": "",
+    "fuente": "error: HTTP 403"
+  }
+]

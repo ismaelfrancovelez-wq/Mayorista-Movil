@@ -81,10 +81,6 @@ export async function POST(req: Request) {
           .filter((v: any) => v.unitLabel && v.price > 0 && v.minimumOrder > 0)
       : [];
 
-    // ✅ NUEVO: procesar stock
-    // body.stock === null  → sin control de stock (guardamos null)
-    // body.stock === 0     → sin stock disponible (guardamos 0, badge rojo)
-    // body.stock > 0       → con stock (guardamos el número)
     let stockValue: number | null = null;
     if (body.stock !== null && body.stock !== undefined && body.stock !== "") {
       const parsedStock = Number(body.stock);
@@ -99,6 +95,8 @@ export async function POST(req: Request) {
 
     await productRef.update({
       name: body.name.trim().substring(0, 100),
+      // ✅ NUEVO: nameLower se actualiza junto con name
+      nameLower: body.name.trim().substring(0, 100).toLowerCase(),
       description: body.description.trim().substring(0, 1000),
       price: body.price,
       minimumOrder: body.minimumOrder,
@@ -110,7 +108,6 @@ export async function POST(req: Request) {
         ? body.unitLabel.trim().substring(0, 20)
         : null,
       variants: cleanVariants,
-      // ✅ NUEVO: guardar stock en Firestore
       stock: stockValue,
       updatedAt: FieldValue.serverTimestamp(),
     });
