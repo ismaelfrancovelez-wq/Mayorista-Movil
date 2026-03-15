@@ -93,6 +93,7 @@ export default async function ProductDetailPage({
 }) {
   const product = await getProduct(params.productId);
   const progressData = await getFraccionadoProgress(params.productId);
+  console.log("🔍 progressData:", JSON.stringify(progressData));
   const userId = cookies().get("userId")?.value;
 
   if (!product) {
