@@ -21,6 +21,7 @@ type Product = {
   sellerType?: SellerType;
   variants?: { unitLabel: string; price: number; minimumOrder: number }[];
   stock?: number | null;
+  accumulatedQty?: number;
 };
 
 type ProductIndex = { id: string; name: string };
@@ -68,7 +69,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ✅ Cargar índice liviano (solo id+name de todos los productos) una sola vez
   useEffect(() => {
     async function loadIndex() {
       try {
@@ -100,7 +100,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
     fetchClosingSoon();
   }, []);
 
-  // ✅ Búsqueda con debounce de 300ms
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
 
@@ -117,7 +116,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
         const term = searchTerm.trim().toLowerCase();
 
         if (indexLoaded && productIndex.length > 0) {
-          // ✅ Búsqueda en memoria con .includes() — encuentra "yerba mate" buscando "mate"
           const matchingIds = productIndex
             .filter((p) => p.name.toLowerCase().includes(term))
             .map((p) => p.id)
@@ -137,7 +135,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
           setHasMore(false);
           setCurrentPage(1);
         } else {
-          // Fallback si el índice no cargó
           const res = await fetch(`/api/products/explore?search=${encodeURIComponent(term)}`);
           if (!res.ok) throw new Error("Error al buscar");
           const data = await res.json();
@@ -480,6 +477,24 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                             Pedido mínimo: {product.minimumOrder}{" "}
                             {product.unitLabel ? `unidades (${product.unitLabel} c/u)` : "unidades"}
                           </p>
+
+                          {/* ✅ BARRA DE PROGRESO DEL LOTE */}
+                          {product.accumulatedQty !== undefined && product.accumulatedQty > 0 && product.minimumOrder > 0 && (
+                            <div className="mb-3">
+                              <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                <span>📦 Lote en curso</span>
+                                <span>{product.accumulatedQty} / {product.minimumOrder} uds.</span>
+                              </div>
+                              <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                <div
+                                  className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                                  style={{
+                                    width: `${Math.min((product.accumulatedQty / product.minimumOrder) * 100, 100)}%`
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
 
                           <Link
                             href={`/explorar/${product.id}`}
