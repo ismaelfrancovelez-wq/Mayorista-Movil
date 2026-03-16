@@ -1,6 +1,4 @@
 // app/explorar/page.tsx
-// ✅ OPTIMIZADO: lee Firestore directamente, solo 20 productos iniciales
-
 import { db } from "../../lib/firebase-admin";
 import { ProductCategory, SellerType } from "../../lib/types/product";
 import ExplorarClient from "./ExplorarClient";
@@ -26,6 +24,7 @@ type Product = {
   sellerType?: SellerType;
   variants?: { unitLabel: string; price: number; minimumOrder: number }[];
   stock?: number | null;
+  accumulatedQty?: number;
 };
 
 async function getInitialProducts(): Promise<Product[]> {
@@ -34,10 +33,33 @@ async function getInitialProducts(): Promise<Product[]> {
       .collection("products")
       .where("active", "==", true)
       .orderBy("createdAt", "desc")
-      .limit(PAGE_SIZE)
+      .limit(PAGE_SIZE * 3)
       .get();
 
     if (snap.empty) return [];
+
+    const productIds = snap.docs.map((doc) => doc.id);
+
+    // ✅ Obtener accumulatedQty de lotes activos
+    const accumulatedMap = new Map<string, number>();
+    const lotChunks: string[][] = [];
+    for (let i = 0; i < productIds.length; i += 10) {
+      lotChunks.push(productIds.slice(i, i + 10));
+    }
+    const lotSnaps = await Promise.all(
+      lotChunks.map((chunk) =>
+        db.collection("lots")
+          .where("productId", "in", chunk)
+          .where("status", "in", ["open", "accumulating"])
+          .get()
+      )
+    );
+    lotSnaps.flatMap((s) => s.docs).forEach((doc) => {
+      const data = doc.data();
+      const pid = data.productId as string;
+      const qty = data.accumulatedQty || 0;
+      accumulatedMap.set(pid, (accumulatedMap.get(pid) || 0) + qty);
+    });
 
     const factoryIds = [
       ...new Set(
@@ -53,8 +75,6 @@ async function getInitialProducts(): Promise<Product[]> {
     }> = {};
 
     if (factoryIds.length > 0) {
-      // ✅ Busca con .doc(id).get() igual que explore/route.ts
-      // (en vez de where("__name__", "in", chunk) que puede fallar)
       const [manuSnaps, distSnaps, whoSnaps] = await Promise.all([
         Promise.all(factoryIds.map((id) => db.collection("manufacturers").doc(id).get())),
         Promise.all(factoryIds.map((id) => db.collection("distributors").doc(id).get())),
@@ -98,7 +118,7 @@ async function getInitialProducts(): Promise<Product[]> {
       });
     }
 
-    return snap.docs.map((doc) => {
+    let products: Product[] = snap.docs.map((doc) => {
       const data = doc.data();
       const seller = data.factoryId ? sellerMap[data.factoryId] : null;
       const sellerType = (data.sellerType || seller?.sellerType || "manufacturer") as SellerType;
@@ -124,8 +144,17 @@ async function getInitialProducts(): Promise<Product[]> {
         sellerType,
         variants: Array.isArray(data.variants) ? data.variants : [],
         stock: data.stock !== undefined ? data.stock : null,
+        accumulatedQty: accumulatedMap.get(doc.id) || 0,
       };
     });
+
+    // ✅ Ordenar: más actividad primero, sin actividad al final
+    products.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0));
+
+    // Limitar al PAGE_SIZE final
+    products = products.slice(0, PAGE_SIZE);
+
+    return products;
 
   } catch (error) {
     console.error("Error cargando productos:", error);

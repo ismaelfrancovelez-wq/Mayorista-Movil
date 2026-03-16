@@ -41,7 +41,7 @@ type ClosingSoonLot = {
   unitLabel?: string;
 };
 
-type SortOption = "price_asc" | "price_desc" | "min_asc" | "min_desc" | "name";
+type SortOption = "activity" | "price_asc" | "price_desc" | "min_asc" | "min_desc" | "name";
 
 export default function ExplorarClient({ initialProducts }: { initialProducts: Product[] }) {
   const [allProducts, setAllProducts] = useState<Product[]>(initialProducts);
@@ -66,6 +66,7 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
   const [maxOrder, setMaxOrder] = useState("");
   const [onlyFeatured, setOnlyFeatured] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("name");
+
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -165,11 +166,12 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
     if (onlyFeatured) result = result.filter(p => p.featured);
 
     switch (sortBy) {
+      case "activity": result.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0)); break;
       case "price_asc": result.sort((a, b) => a.price - b.price); break;
       case "price_desc": result.sort((a, b) => b.price - a.price); break;
       case "min_asc": result.sort((a, b) => a.minimumOrder - b.minimumOrder); break;
       case "min_desc": result.sort((a, b) => b.minimumOrder - a.minimumOrder); break;
-      case "name": result.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case "name": break;
     }
 
     setFilteredProducts(result);
@@ -348,16 +350,23 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                   <span className="text-sm">Solo destacados</span>
                 </label>
               </div>
+              
               <div>
-                <label className="block text-sm font-medium mb-2">Ordenar por</label>
-                <select className="w-full border rounded px-3 py-2 text-sm" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}>
-                  <option value="name">Nombre A-Z</option>
-                  <option value="price_asc">Precio: menor a mayor</option>
-                  <option value="price_desc">Precio: mayor a menor</option>
-                  <option value="min_asc">Pedido mín: menor a mayor</option>
-                  <option value="min_desc">Pedido mín: mayor a menor</option>
-                </select>
-              </div>
+  <label className="block text-sm font-medium mb-2">Ordenar por</label>
+  <select
+    className="w-full border rounded px-3 py-2 text-sm"
+    value={sortBy}
+    onChange={(e) => setSortBy(e.target.value as SortOption)}
+    suppressHydrationWarning
+  >
+    <option value="name" suppressHydrationWarning>Nombre A-Z</option>
+    <option value="activity" suppressHydrationWarning>Más activos primero</option>
+    <option value="price_asc" suppressHydrationWarning>Precio: menor a mayor</option>
+    <option value="price_desc" suppressHydrationWarning>Precio: mayor a menor</option>
+    <option value="min_asc" suppressHydrationWarning>Pedido mín: menor a mayor</option>
+    <option value="min_desc" suppressHydrationWarning>Pedido mín: mayor a menor</option>
+  </select>
+</div>
             </div>
           </aside>
 
