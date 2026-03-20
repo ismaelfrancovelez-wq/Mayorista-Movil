@@ -149,13 +149,13 @@ export default function HomePrincipal() {
       initial: 'R',
       name: 'Roberto S.',
       role: 'Revendedor online, CABA',
-      text: 'Lo mejor es que podés reservar y esperar a que se complete el lote. Si no cierra, te devuelven la plata. Sin riesgo.',
+      text: 'Lo bueno es que podés reservar sin haber pagado, y el poder darte de baja sin ninguna penalizacion.',
     },
     {
       initial: 'V',
       name: 'Valeria T.',
-      role: 'Distribuidora, Rosario',
-      text: 'Accedí a productos de Kanji Home a precio directo. Como revendedora es un cambio enorme: antes tenía que comprar 50 unidades mínimo.',
+      role: 'Mayorista, AMBA',
+      text: 'Accedí al catalogo de electrodomestico a mejores precios. Como revendedora considero que tiene productos de varias marcas a precios muy buenos, antes tenía que comprar 50 unidades mínimo.',
     },
   ];
 
