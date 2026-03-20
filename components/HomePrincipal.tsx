@@ -693,6 +693,38 @@ export default function HomePrincipal() {
         </section>
       )}
 
+      {/* ✅ NUEVO: TESTIMONIOS
+          Para reemplazar con reales: editá el array "testimonials" arriba del return.
+          Cada objeto tiene: initial, name, role, text. */}
+      <section className="max-w-7xl mx-auto px-4 mb-12">
+        <div className="text-center mb-8">
+          <h3 className="text-3xl font-black text-gray-900 mb-2">Lo que dicen nuestros revendedores</h3>
+          <p className="text-gray-600">Compradores reales que ya usaron la plataforma</p>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {testimonials.map((t, i) => (
+            <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col gap-4">
+              {/* Estrellas */}
+              <div className="flex gap-1 text-yellow-400 text-sm">
+                {'★★★★★'.split('').map((s, j) => <span key={j}>{s}</span>)}
+              </div>
+              {/* Texto */}
+              <p className="text-gray-700 text-sm leading-relaxed flex-1">"{t.text}"</p>
+              {/* Autor */}
+              <div className="flex items-center gap-3 pt-2 border-t border-gray-50">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
+                  {t.initial}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm text-gray-900">{t.name}</p>
+                  <p className="text-xs text-gray-500">{t.role}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* BENEFICIOS */}
       <section className="bg-gradient-to-br from-slate-900 to-slate-800 text-white py-16 mb-12">
         <div className="max-w-7xl mx-auto px-4">
@@ -724,38 +756,6 @@ export default function HomePrincipal() {
               <p className="text-gray-300 text-sm">Recibí tu pedido en 24-72hs una vez que el lote se completa.</p>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ✅ NUEVO: TESTIMONIOS
-          Para reemplazar con reales: editá el array "testimonials" arriba del return.
-          Cada objeto tiene: initial, name, role, text. */}
-      <section className="max-w-7xl mx-auto px-4 mb-12">
-        <div className="text-center mb-8">
-          <h3 className="text-3xl font-black text-gray-900 mb-2">Lo que dicen nuestros revendedores</h3>
-          <p className="text-gray-600">Compradores reales que ya usaron la plataforma</p>
-        </div>
-        <div className="grid md:grid-cols-3 gap-6">
-          {testimonials.map((t, i) => (
-            <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col gap-4">
-              {/* Estrellas */}
-              <div className="flex gap-1 text-yellow-400 text-sm">
-                {'★★★★★'.split('').map((s, j) => <span key={j}>{s}</span>)}
-              </div>
-              {/* Texto */}
-              <p className="text-gray-700 text-sm leading-relaxed flex-1">"{t.text}"</p>
-              {/* Autor */}
-              <div className="flex items-center gap-3 pt-2 border-t border-gray-50">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
-                  {t.initial}
-                </div>
-                <div>
-                  <p className="font-semibold text-sm text-gray-900">{t.name}</p>
-                  <p className="text-xs text-gray-500">{t.role}</p>
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
       </section>
 
