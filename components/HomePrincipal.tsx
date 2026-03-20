@@ -143,7 +143,7 @@ export default function HomePrincipal() {
       initial: 'L',
       name: 'Laura M.',
       role: 'Revendedora, GBA Norte',
-      text: 'Compré 2 griferías para mi local de baños. El lote cerró en 3 días con otros compradores. Pagué precio de fábrica sin tener que pedir 10 unidades.',
+      text: 'Compré 2 griferías hidroelectrica para mi local de baños, cerró el lote en 5 días con otros compradores pero page 80.000 en ves de 100.000 y sin tener que pedir 10 unidades, me sirvio y llego bien.',
     },
     {
       initial: 'R',
