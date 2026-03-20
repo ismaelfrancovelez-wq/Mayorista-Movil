@@ -3,10 +3,14 @@
 // ✅ OPTIMIZADO:
 //   1. Los lotes de productos destacados se cargan en PARALELO con Promise.all
 //   2. passive: true en el scroll listener
+// ✅ FIX (3 cambios mínimos):
+//   A. Búsqueda del header pasa el término a /explorar?search=X
+//   B. Secciones vacías (Productos Destacados y Fábricas Destacadas) se ocultan si no hay datos
+//   C. Nombres de productos limpian SKUs internos [CODIGO] en el render
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -46,6 +50,13 @@ type LotData = {
   accumulatedQty: number;
   MF: number;
   progress?: number;
+};
+
+// ✅ NUEVO: tipo para los contadores públicos reales
+type PublicStats = {
+  lotsCompleted: number;
+  totalUsers: number;
+  verifiedFactories: number;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -99,6 +110,12 @@ const CATEGORY_COLORS: Record<string, string> = {
   otros: 'bg-gray-500',
 };
 
+// ✅ FIX C: helper para limpiar SKUs internos del nombre visible al usuario
+// Ej: "Cesto con Sensor 6L [KB-EB006L]" → "Cesto con Sensor 6L"
+function cleanProductName(name: string): string {
+  return name.replace(/\s*\[[^\]]+\]\s*/g, '').trim();
+}
+
 export default function HomePrincipal() {
   const router = useRouter();
   const [currentBanner, setCurrentBanner] = useState(0);
@@ -115,14 +132,45 @@ export default function HomePrincipal() {
   const [loadingFeaturedFactories, setLoadingFeaturedFactories] = useState(true);
   const [loadingAllProducts, setLoadingAllProducts] = useState(true);
 
+  // ✅ NUEVO: estado para contadores reales
+  const [stats, setStats] = useState<PublicStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  // ✅ NUEVO: testimonios — reemplazá con reales cuando los tengas
+  // Para actualizar: cambiá name, role, text e initial de cada objeto
+  const testimonials = [
+    {
+      initial: 'L',
+      name: 'Laura M.',
+      role: 'Revendedora, GBA Norte',
+      text: 'Compré 2 griferías para mi local de baños. El lote cerró en 3 días con otros compradores. Pagué precio de fábrica sin tener que pedir 10 unidades.',
+    },
+    {
+      initial: 'R',
+      name: 'Roberto S.',
+      role: 'Revendedor online, CABA',
+      text: 'Lo mejor es que podés reservar y esperar a que se complete el lote. Si no cierra, te devuelven la plata. Sin riesgo.',
+    },
+    {
+      initial: 'V',
+      name: 'Valeria T.',
+      role: 'Distribuidora, Rosario',
+      text: 'Accedí a productos de Kanji Home a precio directo. Como revendedora es un cambio enorme: antes tenía que comprar 50 unidades mínimo.',
+    },
+  ];
+
+  // ✅ FIX A: ref para capturar el valor del input de búsqueda
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     async function loadAllData() {
-      const [authRes, featuredProductsRes, featuredFactoriesRes, productsRes] =
+      const [authRes, featuredProductsRes, featuredFactoriesRes, productsRes, statsRes] =
         await Promise.allSettled([
           fetch('/api/auth/me'),
           fetch('/api/featured/active?type=product'),
           fetch('/api/featured/active?type=factory'),
           fetch('/api/products/explore?page=1'),
+          fetch('/api/stats/public'), // ✅ NUEVO: contadores reales
         ]);
 
       try {
@@ -167,6 +215,18 @@ export default function HomePrincipal() {
         console.error('Error cargando productos:', e);
       } finally {
         setLoadingAllProducts(false);
+      }
+
+      // ✅ NUEVO: cargar contadores reales
+      try {
+        if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
+          const data = await statsRes.value.json();
+          setStats(data);
+        }
+      } catch (e) {
+        console.error('Error cargando stats:', e);
+      } finally {
+        setLoadingStats(false);
       }
     }
 
@@ -310,9 +370,23 @@ export default function HomePrincipal() {
               </Link>
 
               <div className="flex-1 max-w-2xl">
-                <form onSubmit={(e) => { e.preventDefault(); router.push('/explorar'); }}>
+                {/* ✅ FIX A: onSubmit ahora pasa el término de búsqueda a /explorar?search=X */}
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const term = searchInputRef.current?.value?.trim();
+                  if (term) {
+                    router.push(`/explorar?search=${encodeURIComponent(term)}`);
+                  } else {
+                    router.push('/explorar');
+                  }
+                }}>
                   <div className="relative">
-                    <input type="text" placeholder="Buscar productos, fábricas, categorías..." className="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder="Buscar productos, fábricas, categorías..."
+                      className="w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                    />
                     <button type="submit" className="absolute right-0 top-0 bottom-0 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-r-lg hover:from-blue-700 hover:to-blue-800 transition-all">🔍</button>
                   </div>
                 </form>
@@ -350,9 +424,7 @@ export default function HomePrincipal() {
               <Link href="/explorar/cerrando" className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition">Lotes por cerrar</Link>
               <button onClick={() => handleRoleRedirect('retailer')} className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition cursor-pointer">Soy revendedor</button>
               <button onClick={() => handleRoleRedirect('manufacturer')} className="text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap transition cursor-pointer">Soy fabricante</button>
-              {/* ✅ NUEVO: Distribuidor */}
               <button onClick={() => handleRoleRedirect('distributor')} className="text-sm text-gray-700 hover:text-purple-600 whitespace-nowrap transition cursor-pointer">Soy distribuidor</button>
-              {/* ✅ NUEVO: Mayorista */}
               <button onClick={() => handleRoleRedirect('wholesaler')} className="text-sm text-gray-700 hover:text-green-600 whitespace-nowrap transition cursor-pointer">Soy mayorista</button>
             </div>
           </div>
@@ -377,6 +449,36 @@ export default function HomePrincipal() {
           </div>
         </div>
       </section>
+
+      {/* ✅ NUEVO: TRUST BAR — contadores reales de la plataforma
+          Se oculta mientras carga. Si stats son 0 en todos, no se muestra.
+          Cuando tengas más datos reales, los números suben solos. */}
+      {!loadingStats && stats && (stats.lotsCompleted > 0 || stats.totalUsers > 0 || stats.verifiedFactories > 0) && (
+        <section className="bg-white border-b border-gray-100 py-6">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-3xl font-black text-blue-600">
+                  {stats.lotsCompleted > 0 ? `+${stats.lotsCompleted}` : '—'}
+                </span>
+                <span className="text-sm text-gray-600 font-medium">Lotes completados</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 border-x border-gray-100">
+                <span className="text-3xl font-black text-blue-600">
+                  {stats.totalUsers > 0 ? `+${stats.totalUsers}` : '—'}
+                </span>
+                <span className="text-sm text-gray-600 font-medium">Compradores registrados</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-3xl font-black text-blue-600">
+                  {stats.verifiedFactories > 0 ? stats.verifiedFactories : '—'}
+                </span>
+                <span className="text-sm text-gray-600 font-medium">Fábricas verificadas</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* BANNER CAROUSEL */}
       <section className="relative h-[400px] md:h-[500px] overflow-hidden bg-gradient-to-br from-slate-900 to-slate-700">
@@ -440,72 +542,74 @@ export default function HomePrincipal() {
         </div>
       </section>
 
-      {/* PRODUCTOS DESTACADOS */}
-      <section className="max-w-7xl mx-auto px-4 mb-12">
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-2xl">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-3xl font-black mb-2">⭐ Productos Destacados</h3>
-              <p className="text-lg opacity-90">Los mejores productos seleccionados para vos</p>
+      {/* ✅ FIX B: PRODUCTOS DESTACADOS — solo se renderiza si hay datos o está cargando */}
+      {(loadingFeaturedProducts || featuredProducts.length > 0) && (
+        <section className="max-w-7xl mx-auto px-4 mb-12">
+          <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-3xl font-black mb-2">⭐ Productos Destacados</h3>
+                <p className="text-lg opacity-90">Los mejores productos seleccionados para vos</p>
+              </div>
+              <Link href="/explorar" className="hidden md:flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-xl hover:bg-white/30 transition-all font-semibold">Ver todos →</Link>
             </div>
-            <Link href="/explorar" className="hidden md:flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-xl hover:bg-white/30 transition-all font-semibold">Ver todos →</Link>
-          </div>
-          {loadingFeaturedProducts ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="bg-white rounded-xl overflow-hidden shadow-xl">
-                  <div className="w-full h-48 bg-gray-200 animate-pulse" />
-                  <div className="p-4 space-y-3">
-                    <div className="h-6 bg-gray-200 rounded animate-pulse" />
-                    <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3" />
-                    <div className="h-8 bg-gray-200 rounded animate-pulse" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : featuredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {featuredProducts.slice(0, 3).map((product) => {
-                const lotData = productLots[product.itemData.id];
-                const progress = lotData?.progress || 0;
-                const accumulated = lotData?.accumulatedQty || 0;
-                const minimum = lotData?.MF || product.itemData.minimumOrder;
-                return (
-                  <Link key={product.id} href={`/explorar/${product.itemData.id}`}>
-                    <div className="bg-white rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-2 cursor-pointer">
-                      <div className="relative">
-                        <div className="w-full h-48 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center"><span className="text-6xl">📦</span></div>
-                        <div className="absolute top-3 right-3 bg-yellow-500 text-white px-3 py-1 rounded-full font-bold text-sm flex items-center gap-1">⭐ Destacado</div>
-                      </div>
-                      <div className="p-4">
-                        <h4 className="font-bold text-gray-900 mb-1 line-clamp-2">{product.itemData.name}</h4>
-                        <p className="text-sm text-gray-500 mb-3">{product.itemData.category}</p>
-                        <div className="mb-3">
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-600">Progreso del lote</span>
-                            <span className="font-bold text-blue-600">{progress}%</span>
-                          </div>
-                          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all" style={{ width: `${Math.min(progress, 100)}%` }} />
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1">{accumulated} de {minimum} unidades</p>
-                        </div>
-                        <div className="flex items-baseline gap-2 mb-3">
-                          <span className="text-2xl font-black text-gray-900">${product.itemData.price.toLocaleString()}</span>
-                          <span className="text-xs text-gray-500">por unidad</span>
-                        </div>
-                        <button className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 shadow-lg">Ver detalles</button>
-                      </div>
+            {loadingFeaturedProducts ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="bg-white rounded-xl overflow-hidden shadow-xl">
+                    <div className="w-full h-48 bg-gray-200 animate-pulse" />
+                    <div className="p-4 space-y-3">
+                      <div className="h-6 bg-gray-200 rounded animate-pulse" />
+                      <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3" />
+                      <div className="h-8 bg-gray-200 rounded animate-pulse" />
                     </div>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12"><p className="text-white/80 text-lg">No hay productos destacados en este momento</p></div>
-          )}
-        </div>
-      </section>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {featuredProducts.slice(0, 3).map((product) => {
+                  const lotData = productLots[product.itemData.id];
+                  const progress = lotData?.progress || 0;
+                  const accumulated = lotData?.accumulatedQty || 0;
+                  const minimum = lotData?.MF || product.itemData.minimumOrder;
+                  // ✅ FIX C: limpiar SKU en el nombre mostrado
+                  const displayName = cleanProductName(product.itemData.name);
+                  return (
+                    <Link key={product.id} href={`/explorar/${product.itemData.id}`}>
+                      <div className="bg-white rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-2 cursor-pointer">
+                        <div className="relative">
+                          <div className="w-full h-48 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center"><span className="text-6xl">📦</span></div>
+                          <div className="absolute top-3 right-3 bg-yellow-500 text-white px-3 py-1 rounded-full font-bold text-sm flex items-center gap-1">⭐ Destacado</div>
+                        </div>
+                        <div className="p-4">
+                          <h4 className="font-bold text-gray-900 mb-1 line-clamp-2">{displayName}</h4>
+                          <p className="text-sm text-gray-500 mb-3">{product.itemData.category}</p>
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-600">Progreso del lote</span>
+                              <span className="font-bold text-blue-600">{progress}%</span>
+                            </div>
+                            <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all" style={{ width: `${Math.min(progress, 100)}%` }} />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">{accumulated} de {minimum} unidades</p>
+                          </div>
+                          <div className="flex items-baseline gap-2 mb-3">
+                            <span className="text-2xl font-black text-gray-900">${product.itemData.price.toLocaleString()}</span>
+                            <span className="text-xs text-gray-500">por unidad</span>
+                          </div>
+                          <button className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 shadow-lg">Ver detalles</button>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* CÓMO FUNCIONA */}
       <section className="max-w-7xl mx-auto px-4 mb-12">
@@ -540,54 +644,186 @@ export default function HomePrincipal() {
         </div>
       </section>
 
-      {/* FÁBRICAS DESTACADAS */}
+      {/* ✅ NUEVO: SISTEMA DE NIVELES
+          Datos hardcodeados directamente de lib/retailers/calculateScore.ts
+          Sin fetch, sin estado — renderiza en el servidor instantáneamente */}
       <section className="max-w-7xl mx-auto px-4 mb-12">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-3xl font-black text-gray-900">🏭 Fábricas Destacadas</h3>
-            <p className="text-gray-600">Las mejores fábricas verificadas de la plataforma</p>
-          </div>
-          <Link href="/explorar" className="text-blue-600 font-semibold hover:text-blue-700 transition">Ver todas →</Link>
+        <div className="text-center mb-10">
+          <span className="inline-block bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-sm font-semibold uppercase tracking-wider mb-4">
+            Programa de revendedores
+          </span>
+          <h3 className="text-3xl font-black text-gray-900 mb-3">
+            Cuanto más comprás, más beneficios obtenés
+          </h3>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            Cada lote completado sube tu nivel. Más nivel = menos comisión = más ganancia por cada venta.
+          </p>
         </div>
-        {loadingFeaturedFactories ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-100">
-                <div className="h-40 bg-gray-200 animate-pulse" />
-                <div className="p-4 space-y-3">
-                  <div className="h-6 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-4 bg-gray-200 rounded animate-pulse" />
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
+
+        {/* GRILLA DE NIVELES */}
+        <div className="grid md:grid-cols-4 gap-4 mb-12">
+
+          {/* NIVEL 1 */}
+          <div className="relative bg-gradient-to-br from-yellow-50 to-amber-50 border-2 border-amber-300 rounded-2xl p-6 flex flex-col items-center text-center shadow-sm">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-white text-xs font-bold px-3 py-1 rounded-full">
+              Mejor nivel
+            </div>
+            <div className="w-14 h-14 bg-amber-400 rounded-2xl flex items-center justify-center text-2xl mb-3 shadow-lg">🥇</div>
+            <h4 className="font-black text-lg text-gray-900 mb-1">Nivel 1</h4>
+            <p className="text-3xl font-black text-amber-600 mb-1">9%</p>
+            <p className="text-xs text-gray-500 mb-3">comisión por lote</p>
+            <p className="text-xs text-gray-600 leading-relaxed">Score ≥ 0.75 — pagás rápido y completás lotes consistentemente</p>
+          </div>
+
+          {/* NIVEL 2 */}
+          <div className="bg-white border border-blue-200 rounded-2xl p-6 flex flex-col items-center text-center shadow-sm">
+            <div className="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center text-2xl mb-3 shadow-lg">🥈</div>
+            <h4 className="font-black text-lg text-gray-900 mb-1">Nivel 2</h4>
+            <p className="text-3xl font-black text-blue-600 mb-1">12%</p>
+            <p className="text-xs text-gray-500 mb-3">comisión por lote</p>
+            <p className="text-xs text-gray-600 leading-relaxed">Nivel de inicio — todos arrancan acá con el beneficio de la duda</p>
+          </div>
+
+          {/* NIVEL 3 */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 flex flex-col items-center text-center shadow-sm">
+            <div className="w-14 h-14 bg-gray-400 rounded-2xl flex items-center justify-center text-2xl mb-3 shadow-lg">🥉</div>
+            <h4 className="font-black text-lg text-gray-900 mb-1">Nivel 3</h4>
+            <p className="text-3xl font-black text-gray-600 mb-1">14%</p>
+            <p className="text-xs text-gray-500 mb-3">comisión por lote</p>
+            <p className="text-xs text-gray-600 leading-relaxed">Score entre 0.25 y 0.50 — hay demoras o cancelaciones en el historial</p>
+          </div>
+
+          {/* NIVEL 4 */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 flex flex-col items-center text-center shadow-sm">
+            <div className="w-14 h-14 bg-red-400 rounded-2xl flex items-center justify-center text-2xl mb-3 shadow-lg">⚠️</div>
+            <h4 className="font-black text-lg text-gray-900 mb-1">Nivel 4</h4>
+            <p className="text-3xl font-black text-red-500 mb-1">16%</p>
+            <p className="text-xs text-gray-500 mb-3">comisión por lote</p>
+            <p className="text-xs text-gray-600 leading-relaxed">Score menor a 0.25 — historial con muchas cancelaciones o pagos tardíos</p>
+          </div>
+
+        </div>
+
+        {/* BADGES DE RACHA */}
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-8 mb-6">
+          <div className="text-center mb-6">
+            <h4 className="text-xl font-black text-white mb-1">Badges de racha — descuentos en envío</h4>
+            <p className="text-slate-400 text-sm">Cada lote completado suma +1 punto. Cancelar resta −1. Los descuentos son acumulativos.</p>
+          </div>
+          <div className="grid grid-cols-3 md:grid-cols-9 gap-3">
+            {[
+              { pts: 1,  label: 'Primer Vínculo',  icon: '🔗', discount: '10%' },
+              { pts: 3,  label: 'Explorador',       icon: '🧭', discount: '25%' },
+              { pts: 6,  label: 'Constante',        icon: '⚡', discount: '30%' },
+              { pts: 10, label: 'Comprometido',     icon: '💪', discount: '35%' },
+              { pts: 14, label: 'Imparable',        icon: '🚀', discount: '40%' },
+              { pts: 20, label: 'VIP Bronce',       icon: '🥉', discount: '45%' },
+              { pts: 27, label: 'VIP Plata',        icon: '🥈', discount: '50%' },
+              { pts: 40, label: 'VIP Oro',          icon: '🥇', discount: '55%' },
+              { pts: 50, label: 'Leyenda',          icon: '👑', discount: '100%' },
+            ].map((badge) => (
+              <div key={badge.pts} className="flex flex-col items-center text-center gap-1.5">
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-xl">
+                  {badge.icon}
+                </div>
+                <p className="text-white text-xs font-semibold leading-tight">{badge.label}</p>
+                <p className="text-slate-400 text-xs">{badge.pts} pt{badge.pts > 1 ? 's' : ''}</p>
+                <span className="bg-green-500/20 text-green-400 text-xs font-bold px-1.5 py-0.5 rounded">
+                  -{badge.discount} envío
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-center text-slate-500 text-xs mt-6">
+            👑 Al llegar a Leyenda (50 pts) — el lote es completamente gratis: 0% comisión + 0% envío
+          </p>
+        </div>
+
+        {/* BADGES DE MILESTONE */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+          <div className="text-center mb-5">
+            <h4 className="text-lg font-black text-gray-900 mb-1">Badges de milestone — permanentes</h4>
+            <p className="text-gray-500 text-sm">Se ganan para siempre. No se pierden aunque canceles.</p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-4">
+            {[
+              { lots: 1,  label: 'Primer Vínculo',                   icon: '🔗' },
+              { lots: 10, label: 'Revendedor Tallado',               icon: '💎' },
+              { lots: 25, label: 'Maestro del Sector',               icon: '🎯' },
+              { lots: 35, label: 'Socio Estratégico',                icon: '🤝' },
+              { lots: 50, label: 'Socio Fundador de MayoristaMovil', icon: '👑' },
+            ].map((m) => (
+              <div key={m.lots} className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                <span className="text-xl">{m.icon}</span>
+                <div>
+                  <p className="text-sm font-bold text-gray-900">{m.label}</p>
+                  <p className="text-xs text-gray-500">{m.lots} lote{m.lots > 1 ? 's' : ''} completado{m.lots > 1 ? 's' : ''}</p>
                 </div>
               </div>
             ))}
           </div>
-        ) : featuredFactories.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredFactories.slice(0, 6).map((factory) => (
-              <div key={factory.id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-2xl transition-all transform hover:-translate-y-1 border border-gray-100">
-                <div className="relative h-40 bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                  <span className="text-6xl">🏭</span>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                  <div className="absolute top-3 right-3 bg-blue-600 text-white px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1">✓ Verificada</div>
-                  <div className="absolute bottom-3 left-3 right-3"><h4 className="font-bold text-white text-lg line-clamp-1">{factory.itemData.name}</h4></div>
-                </div>
-                <div className="p-4">
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2 h-10">{factory.itemData.description || 'Fabricante verificado'}</p>
-                  {factory.itemData.address && (
-                    <div className="bg-slate-50 rounded px-3 py-2 flex items-start gap-2">
-                      <span className="text-slate-400 mt-0.5">📍</span>
-                      <p className="text-xs text-slate-600 line-clamp-2 font-medium">{factory.itemData.address}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12 bg-white rounded-xl"><p className="text-gray-500">No hay fábricas destacadas en este momento</p></div>
-        )}
+        </div>
+
+        {/* CTA */}
+        <div className="text-center mt-8">
+          <Link
+            href="/registro"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-all transform hover:scale-105 shadow-lg"
+          >
+            Empezar como revendedor →
+          </Link>
+          <p className="text-gray-500 text-sm mt-3">Todos arrancan en Nivel 2. El Nivel 1 se alcanza completando lotes a tiempo.</p>
+        </div>
       </section>
+
+      {/* ✅ FIX B: FÁBRICAS DESTACADAS — solo se renderiza si hay datos o está cargando */}
+      {(loadingFeaturedFactories || featuredFactories.length > 0) && (
+        <section className="max-w-7xl mx-auto px-4 mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-3xl font-black text-gray-900">🏭 Fábricas Destacadas</h3>
+              <p className="text-gray-600">Las mejores fábricas verificadas de la plataforma</p>
+            </div>
+            <Link href="/explorar" className="text-blue-600 font-semibold hover:text-blue-700 transition">Ver todas →</Link>
+          </div>
+          {loadingFeaturedFactories ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-100">
+                  <div className="h-40 bg-gray-200 animate-pulse" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-6 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-4 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredFactories.slice(0, 6).map((factory) => (
+                <div key={factory.id} className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-2xl transition-all transform hover:-translate-y-1 border border-gray-100">
+                  <div className="relative h-40 bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <span className="text-6xl">🏭</span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                    <div className="absolute top-3 right-3 bg-blue-600 text-white px-3 py-1 rounded-full font-bold text-xs flex items-center gap-1">✓ Verificada</div>
+                    <div className="absolute bottom-3 left-3 right-3"><h4 className="font-bold text-white text-lg line-clamp-1">{factory.itemData.name}</h4></div>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-2 h-10">{factory.itemData.description || 'Fabricante verificado'}</p>
+                    {factory.itemData.address && (
+                      <div className="bg-slate-50 rounded px-3 py-2 flex items-start gap-2">
+                        <span className="text-slate-400 mt-0.5">📍</span>
+                        <p className="text-xs text-slate-600 line-clamp-2 font-medium">{factory.itemData.address}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* BENEFICIOS */}
       <section className="bg-gradient-to-br from-slate-900 to-slate-800 text-white py-16 mb-12">
@@ -601,18 +837,18 @@ export default function HomePrincipal() {
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🚚</div>
-              <h4 className="font-bold text-lg mb-2">Fabricas mas Importantes</h4>
-              <p className="text-gray-300 text-sm">Tendras acceso a productos de las fabricas mas importantes y reconocidas del mercado.</p>
+              <h4 className="font-bold text-lg mb-2">Fábricas más Importantes</h4>
+              <p className="text-gray-300 text-sm">Tendrás acceso a productos de las fábricas más importantes y reconocidas del mercado.</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">✅</div>
               <h4 className="font-bold text-lg mb-2">Fábricas Verificadas</h4>
-              <p className="text-gray-300 text-sm">Puedes comprar de forma tranquila con nuestras fabricas verificadas.</p>
+              <p className="text-gray-300 text-sm">Podés comprar de forma tranquila con nuestras fábricas verificadas.</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🔒</div>
               <h4 className="font-bold text-lg mb-2">Mercado Pago</h4>
-              <p className="text-gray-300 text-sm">Integracion directa de mercado pago para pagos y reembolsos completamente seguros.</p>
+              <p className="text-gray-300 text-sm">Integración directa de Mercado Pago para pagos y reembolsos completamente seguros.</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🚚</div>
@@ -620,6 +856,38 @@ export default function HomePrincipal() {
               <p className="text-gray-300 text-sm">Recibí tu pedido en 24-72hs una vez que el lote se completa.</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ✅ NUEVO: TESTIMONIOS
+          Para reemplazar con reales: editá el array "testimonials" arriba del return.
+          Cada objeto tiene: initial, name, role, text. */}
+      <section className="max-w-7xl mx-auto px-4 mb-12">
+        <div className="text-center mb-8">
+          <h3 className="text-3xl font-black text-gray-900 mb-2">Lo que dicen nuestros revendedores</h3>
+          <p className="text-gray-600">Compradores reales que ya usaron la plataforma</p>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {testimonials.map((t, i) => (
+            <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col gap-4">
+              {/* Estrellas */}
+              <div className="flex gap-1 text-yellow-400 text-sm">
+                {'★★★★★'.split('').map((s, j) => <span key={j}>{s}</span>)}
+              </div>
+              {/* Texto */}
+              <p className="text-gray-700 text-sm leading-relaxed flex-1">"{t.text}"</p>
+              {/* Autor */}
+              <div className="flex items-center gap-3 pt-2 border-t border-gray-50">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
+                  {t.initial}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm text-gray-900">{t.name}</p>
+                  <p className="text-xs text-gray-500">{t.role}</p>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 

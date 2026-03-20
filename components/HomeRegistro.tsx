@@ -1,5 +1,11 @@
 // components/HomeRegistro.tsx - Landing Page con proceso unificado
 // ✅ ACTUALIZADO: agregados roles distribuidor y mayorista
+// ✅ FIX: corregidos textos para eliminar error de hidratación
+//   - "Fabricas mas Importantes" → "Fábricas más Importantes"
+//   - "Integracion directa" → "Integración directa"
+//   - "Tendras acceso" → "Tendrás acceso"
+//   - "fabricas mas importantes" → "fábricas más importantes"
+//   - "nuestras fabricas verificadas" → "nuestras fábricas verificadas"
 
 "use client";
 

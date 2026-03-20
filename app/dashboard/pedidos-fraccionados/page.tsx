@@ -10,6 +10,8 @@ import { DashboardSkeleton } from "../../../components/DashboardSkeleton";
 import CancelReservationButton from "../../../components/CancelReservationButton";
 import HideOrderButton from "../../../components/HideOrderButton";
 import { STREAK_BADGES, MILESTONE_BADGES } from "../../../lib/retailers/calculateScore";
+// ✅ FIX 1: import del componente de onboarding
+import OnboardingChecklist from "../../../components/OnboardingChecklist";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
@@ -61,14 +63,12 @@ async function DashboardRevendedorContent() {
   const hiddenIds: string[] = userSnap.data()?.hiddenOrders || [];
 
   const userEmail = cookies().get("userEmail")?.value || userSnap.data()?.email || "";
-  // ✅ NUEVO: nombre real del usuario para el saludo
   const userName =
     cookies().get("userName")?.value ||
     userSnap.data()?.name ||
     userEmail.split("@")[0] ||
     "revendedor";
 
-  // BADGES + NIVEL + SCORE para UserRoleHeader y modal
   const retailerData = retailerSnap.data() || {};
   const milestoneBadges: string[] = retailerData.milestoneBadges ?? [];
   const streakBadges: string[] = retailerData.streakBadges ?? [];
@@ -76,6 +76,13 @@ async function DashboardRevendedorContent() {
   const paymentLevel: number = retailerData.paymentLevel ?? 2;
   const completedLots: number = retailerData.completedReservations ?? 0;
   const scoreValue: number = retailerData.scoreAggregate?.score ?? 0.5;
+
+  // ✅ FIX 2: detectar si tiene dirección — usa retailerData que ya está cargado arriba
+  // No agrega ninguna consulta extra a Firestore
+  const hasAddress = !!(
+    retailerData.address?.formattedAddress ||
+    retailerData.address?.lat
+  );
 
   /* ── 2. ESTADO REAL DE LOTES DESDE FIRESTORE ── */
   const allLotIds = new Set<string>();
@@ -226,10 +233,8 @@ async function DashboardRevendedorContent() {
   for (const [lotId, ui] of lotMapFromPayments.entries()) {
     const listId = lotId;
     if (hiddenIds.includes(listId)) continue;
-
     const lotReal = lotsRealStatus.get(lotId);
     if (!lotReal) continue;
-
     activeLots.push({
       id: listId,
       productId: lotReal.productId || ui.productId,
@@ -251,10 +256,8 @@ async function DashboardRevendedorContent() {
   for (const [lotId, ui] of lotMapFromReservations.entries()) {
     const listId = `reservation-${lotId}`;
     if (hiddenIds.includes(listId)) continue;
-
     const lotReal = lotsRealStatus.get(lotId);
     if (!lotReal) continue;
-
     activeLots.push({
       id: listId,
       reservationDocId: ui.reservationDocId,
@@ -294,6 +297,10 @@ async function DashboardRevendedorContent() {
     }
   }
 
+  // ✅ FIX 2 (cont.): hasOrders — reutiliza pedidosTotalesCount y activeLots
+  // ya calculados arriba, sin consultas extra
+  const hasOrders = pedidosTotalesCount > 0 || activeLots.length > 0;
+
   /* ── UI ── */
   return (
     <div className="min-h-screen bg-gray-50">
@@ -302,7 +309,6 @@ async function DashboardRevendedorContent() {
         {/* HEADER */}
         <div className="flex justify-between items-center mb-10">
           <div>
-            {/* ✅ CORREGIDO: muestra el nombre real del usuario */}
             <h1 className="text-4xl font-semibold">¡Bienvenido de nuevo, {userName}!</h1>
             <p className="text-gray-600 mt-1">Gestioná tus compras y pedidos</p>
           </div>
@@ -318,6 +324,17 @@ async function DashboardRevendedorContent() {
             scoreValue={scoreValue}
           />
         </div>
+
+        {/* ✅ FIX 3: Onboarding checklist
+            - Solo aparece la primera vez (estado guardado en localStorage)
+            - Detecta automáticamente si completó los pasos
+            - Se cierra permanentemente cuando el usuario hace click en "Cerrar"
+            - Cero consultas extra: reutiliza userId, hasAddress y hasOrders */}
+        <OnboardingChecklist
+          userId={userId}
+          hasAddress={hasAddress}
+          hasOrders={hasOrders}
+        />
 
         {/* KPIs */}
         <div className="grid md:grid-cols-3 gap-6 mb-12">
@@ -352,11 +369,9 @@ async function DashboardRevendedorContent() {
                 return (
                   <div key={lot.id} className="border border-gray-100 rounded-lg p-4">
 
-                    {/* Nombre + badges + botón ocultar */}
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-900">{lot.productName}</span>
-
                         {lot.isReservation && lot.isPendingLot && (
                           <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded font-medium">
                             Reserva
@@ -373,7 +388,6 @@ async function DashboardRevendedorContent() {
                           </span>
                         )}
                       </div>
-
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-gray-500">
                           {lot.accumulatedQty} / {lot.minimumOrder} uds.

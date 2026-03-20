@@ -1,10 +1,12 @@
 // app/explorar/[productId]/page.tsx
 // ✅ ACTUALIZADO: soporte para fabricante, distribuidor y mayorista
+// ✅ FIX: agregado generateMetadata para SEO por producto
 
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
 import { db } from "../../../lib/firebase-admin";
 import type { Product } from "../../../lib/types/product";
+import type { Metadata } from "next";
 import ProductPurchaseClient from "../../../components/products/ProductPurchaseClient";
 import ImageCarousel from "../../../components/products/ImageCarousel";
 import Link from "next/link";
@@ -21,9 +23,64 @@ async function getProduct(
   return { id: snap.id, ...data };
 }
 
-// ✅ NUEVO: busca el vendedor en las 3 colecciones según el sellerType del producto
+// ✅ FIX: generateMetadata dinámico — genera title, description y OG por producto
+// No modifica ninguna lógica existente, solo agrega este export
+export async function generateMetadata({
+  params,
+}: {
+  params: { productId: string };
+}): Promise<Metadata> {
+  const product = await getProduct(params.productId);
+
+  if (!product) {
+    return {
+      title: "Producto no encontrado",
+      description: "Este producto no está disponible en MayoristaMovil.",
+    };
+  }
+
+  const name = (product.name || "Producto").replace(/\s*\[[^\]]+\]\s*/g, "").trim();
+  const price = product.price?.toLocaleString("es-AR") ?? "";
+  const minimumOrder = product.minimumOrder ?? 0;
+  const category = (product as any).category ?? "";
+
+  const title = `${name} — Precio mayorista $${price} | MayoristaMovil`;
+  const description = `Comprá ${name} a precio de fábrica desde ${minimumOrder} unidades. ${
+    category ? `Categoría: ${category}. ` : ""
+  }Lotes fraccionados disponibles. Fábricas verificadas en Argentina.`;
+
+  const imageUrls: string[] =
+    Array.isArray((product as any).imageUrls) && (product as any).imageUrls.length > 0
+      ? (product as any).imageUrls
+      : (product as any).imageUrl
+      ? [(product as any).imageUrl]
+      : [];
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      locale: "es_AR",
+      siteName: "MayoristaMovil",
+      images: imageUrls.length > 0
+        ? [{ url: imageUrls[0], width: 800, height: 600, alt: name }]
+        : [{ url: "/og-image.png", width: 1200, height: 630, alt: "MayoristaMovil" }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: imageUrls.length > 0 ? [imageUrls[0]] : ["/og-image.png"],
+    },
+  };
+}
+
+// ✅ Sin cambios: todo lo de abajo es idéntico al original
+
 async function getSellerInfo(factoryId: string, sellerType?: string) {
-  // Determinar en qué colección buscar primero
   const collectionsToTry: { collection: string; label: string }[] = [];
 
   if (sellerType === "distributor") {
@@ -33,7 +90,6 @@ async function getSellerInfo(factoryId: string, sellerType?: string) {
   } else if (sellerType === "manufacturer") {
     collectionsToTry.push({ collection: "manufacturers", label: "Fabricante" });
   } else {
-    // No tiene sellerType guardado → probamos las 3 colecciones
     collectionsToTry.push(
       { collection: "manufacturers", label: "Fabricante" },
       { collection: "distributors", label: "Distribuidor" },
@@ -46,10 +102,6 @@ async function getSellerInfo(factoryId: string, sellerType?: string) {
     if (snap.exists) {
       const data = snap.data();
       const isVerified = data?.verification?.status === "verified";
-      console.log(`✅ Vendedor encontrado en colección "${collection}":`, {
-        businessName: data?.businessName,
-        isVerified,
-      });
       return {
         businessName: data?.businessName || label,
         profileImageUrl: data?.profileImageUrl || "",
@@ -68,7 +120,6 @@ async function getSellerInfo(factoryId: string, sellerType?: string) {
     }
   }
 
-  console.log("❌ Vendedor no encontrado en ninguna colección para ID:", factoryId);
   return null;
 }
 
@@ -92,14 +143,12 @@ export default async function ProductDetailPage({
 }) {
   const product = await getProduct(params.productId);
   const progressData = await getFraccionadoProgress(params.productId);
-  console.log("🔍 progressData:", JSON.stringify(progressData));
   const userId = cookies().get("userId")?.value;
 
   if (!product) {
     return <div className="p-8">Producto no encontrado</div>;
   }
 
-  // ✅ NUEVO: buscamos en la colección correcta según el sellerType del producto
   const sellerInfo = await getSellerInfo(
     product.factoryId,
     (product as any).sellerType
@@ -126,7 +175,6 @@ export default async function ProductDetailPage({
     sellerInfo?.address?.lat
   );
 
-  // Variantes del producto
   const variants: { unitLabel: string; price: number; minimumOrder: number }[] =
     Array.isArray((product as any).variants) ? (product as any).variants : [];
 
@@ -142,7 +190,6 @@ export default async function ProductDetailPage({
 
   const hasVariants = variants.length > 0;
 
-  // ✅ Colores por tipo de vendedor
   const sellerBadgeColors: Record<string, string> = {
     manufacturer: "bg-blue-100 text-blue-800",
     distributor: "bg-purple-100 text-purple-800",
@@ -151,6 +198,9 @@ export default async function ProductDetailPage({
   const sellerColor = sellerInfo
     ? sellerBadgeColors[sellerInfo.sellerType] || "bg-gray-100 text-gray-800"
     : "bg-gray-100 text-gray-800";
+
+  // ✅ FIX: nombre limpio sin SKU para mostrar al usuario
+  const cleanName = (product.name || "").replace(/\s*\[[^\]]+\]\s*/g, "").trim();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -163,17 +213,14 @@ export default async function ProductDetailPage({
           ← Volver a explorar
         </Link>
 
-        {/* CARD PRINCIPAL */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="grid lg:grid-cols-[52%_48%]">
 
-            {/* COLUMNA IZQUIERDA — IMAGEN + DESCRIPCIÓN */}
             <div className="border-r border-gray-100 flex flex-col">
 
-              {/* CARRUSEL */}
               <div style={{ height: "360px" }}>
                 {images.length > 0 ? (
-                  <ImageCarousel images={images} productName={product.name} />
+                  <ImageCarousel images={images} productName={cleanName} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-50">
                     <svg
@@ -193,7 +240,6 @@ export default async function ProductDetailPage({
                 )}
               </div>
 
-              {/* DESCRIPCIÓN */}
               {product.description && (
                 <div className="px-6 py-4 border-t border-gray-100">
                   <h3 className="text-base font-semibold text-gray-900 mb-2">
@@ -207,15 +253,13 @@ export default async function ProductDetailPage({
 
             </div>
 
-            {/* COLUMNA DERECHA — INFO + COMPRA */}
             <div className="px-5 py-4 flex flex-col overflow-y-auto">
 
-              {/* NOMBRE */}
+              {/* ✅ FIX: usar cleanName en lugar de product.name para ocultar SKU */}
               <h1 className="text-lg font-semibold text-gray-900 leading-snug mb-2">
-                {product.name}
+                {cleanName}
               </h1>
 
-              {/* Si tiene variantes → pills interactivos; si no → vista original */}
               {hasVariants ? (
                 <VariantSelectorClient
                   allVariants={allVariants}
@@ -230,7 +274,6 @@ export default async function ProductDetailPage({
                 />
               ) : (
                 <>
-                  {/* PRECIO */}
                   <div className="mb-3">
                     <p className="text-3xl font-light text-gray-900 leading-none">
                       ${product.price.toLocaleString("es-AR")}
@@ -245,7 +288,6 @@ export default async function ProductDetailPage({
                     )}
                   </div>
 
-                  {/* PEDIDO MÍNIMO + PRECIO TOTAL */}
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="bg-gray-50 rounded-lg p-3">
                       <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Pedido mínimo</p>
@@ -267,44 +309,42 @@ export default async function ProductDetailPage({
                     </div>
                   </div>
 
-                  {/* PROGRESO FRACCIONADO */}
-{progressData && (progressData.withShipping.MF > 0 || progressData.withoutShipping.MF > 0) && (
-  <div className="bg-blue-50 rounded-lg p-3 mb-3">
-    <h3 className="font-semibold text-xs mb-2 text-blue-900">📦 Progreso del lote</h3>
+                  {progressData && (progressData.withShipping.MF > 0 || progressData.withoutShipping.MF > 0) && (
+                    <div className="bg-blue-50 rounded-lg p-3 mb-3">
+                      <h3 className="font-semibold text-xs mb-2 text-blue-900">📦 Progreso del lote</h3>
 
-    {progressData.withShipping.MF > 0 && (
-      <div className="mb-2">
-        <div className="flex justify-between text-xs text-gray-600 mb-1">
-          <span>🚚 Con envío</span>
-          <span>{progressData.withShipping.accumulatedQty} / {progressData.withShipping.MF} uds.</span>
-        </div>
-        <div className="w-full bg-blue-100 rounded-full h-2">
-          <div
-            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${progressData.withShipping.percentage}%` }}
-          />
-        </div>
-      </div>
-    )}
+                      {progressData.withShipping.MF > 0 && (
+                        <div className="mb-2">
+                          <div className="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>🚚 Con envío</span>
+                            <span>{progressData.withShipping.accumulatedQty} / {progressData.withShipping.MF} uds.</span>
+                          </div>
+                          <div className="w-full bg-blue-100 rounded-full h-2">
+                            <div
+                              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${progressData.withShipping.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
 
-    {progressData.withoutShipping.MF > 0 && (
-      <div>
-        <div className="flex justify-between text-xs text-gray-600 mb-1">
-          <span>🏪 Retiro</span>
-          <span>{progressData.withoutShipping.accumulatedQty} / {progressData.withoutShipping.MF} uds.</span>
-        </div>
-        <div className="w-full bg-blue-100 rounded-full h-2">
-          <div
-            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${progressData.withoutShipping.percentage}%` }}
-          />
-        </div>
-      </div>
-    )}
-  </div>
-)}
+                      {progressData.withoutShipping.MF > 0 && (
+                        <div>
+                          <div className="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>🏪 Retiro</span>
+                            <span>{progressData.withoutShipping.accumulatedQty} / {progressData.withoutShipping.MF} uds.</span>
+                          </div>
+                          <div className="w-full bg-blue-100 rounded-full h-2">
+                            <div
+                              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${progressData.withoutShipping.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                  {/* COMPRA */}
                   {userId && (
                     <ProductPurchaseClient
                       price={product.price}
@@ -321,10 +361,8 @@ export default async function ProductDetailPage({
                 </>
               )}
 
-              {/* ✅ INFO DEL VENDEDOR — título y badge dinámicos */}
               {sellerInfo && (
                 <div className="border-t border-gray-100 pt-3 mb-3 mt-3">
-                  {/* ✅ Título dinámico: "Información del Fabricante/Distribuidor/Mayorista" */}
                   <h3 className="text-xs font-semibold text-gray-900 mb-2">
                     Información del {sellerInfo.sellerLabel}
                   </h3>
@@ -357,7 +395,6 @@ export default async function ProductDetailPage({
                     <div>
                       <p className="font-semibold text-xs text-gray-900">{sellerInfo.businessName}</p>
                       <div className="flex flex-wrap gap-1 mt-0.5">
-                        {/* ✅ Badge con color según tipo: azul=fabricante, violeta=distribuidor, verde=mayorista */}
                         <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-semibold ${sellerColor}`}>
                           {sellerInfo.sellerLabel}
                         </span>
@@ -397,7 +434,6 @@ export default async function ProductDetailPage({
                         <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
-                        {/* ✅ Texto dinámico: "Fabricante Verificado" / "Distribuidor Verificado" / etc */}
                         <span className="text-xs font-medium">{sellerInfo.sellerLabel} Verificado</span>
                       </div>
                     )}
@@ -416,8 +452,6 @@ export default async function ProductDetailPage({
             </div>
           </div>
         </div>
-
-           
 
       </div>
     </div>
