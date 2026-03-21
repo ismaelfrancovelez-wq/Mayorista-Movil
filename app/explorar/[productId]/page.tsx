@@ -346,18 +346,19 @@ export default async function ProductDetailPage({
                   )}
 
                   {userId && (
-                    <ProductPurchaseClient
-                      price={product.price}
-                      MF={minimumOrder}
-                      productId={product.id}
-                      factoryId={product.factoryId}
-                      allowPickup={allowPickup}
-                      allowFactoryShipping={allowFactoryShipping}
-                      hasFactoryAddress={hasFactoryAddress}
-                      noShipping={noShipping}
-                      unitLabel={unitLabel || undefined}
-                    />
-                  )}
+  <ProductPurchaseClient
+    price={product.price}
+    MF={minimumOrder}
+    productId={product.id}
+    productName={cleanName}
+    factoryId={product.factoryId}
+    allowPickup={allowPickup}
+    allowFactoryShipping={allowFactoryShipping}
+    hasFactoryAddress={hasFactoryAddress}
+    noShipping={noShipping}
+    unitLabel={unitLabel || undefined}
+  />
+)}
                 </>
               )}
 

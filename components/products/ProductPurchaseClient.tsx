@@ -7,6 +7,7 @@ type Props = {
   price: number;
   MF: number;
   productId: string;
+  productName: string;
   factoryId: string;
   allowPickup: boolean;
   allowFactoryShipping: boolean;
@@ -26,6 +27,7 @@ export default function ProductPurchaseClient({
   price,
   MF,
   productId,
+  productName,
   factoryId,
   allowPickup,
   allowFactoryShipping,
@@ -105,7 +107,9 @@ export default function ProductPurchaseClient({
 
   useEffect(() => {
     if (isFraccionado) {
-      calculatePlatformShipping();
+      if (selectedShippingRef.current === "platform") {
+        calculatePlatformShipping();
+      }
       return;
     }
 
@@ -431,27 +435,45 @@ export default function ProductPurchaseClient({
       </div>
 
       {/* AVISO fraccionado + plataforma */}
-{usesReserveFlow && selectedShipping === "platform" && !loadingShipping && (
-  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-    <div className="text-sm text-blue-800">
-      <strong>💡 El envío podría ser menor.</strong> Buscamos otros
-      compradores en tu zona para dividir el costo. Si se suman, pagás
-      menos de <strong>${formatNumber(shippingCost)}</strong>.
-      El precio final lo ves en el email cuando el lote cierre.{" "}
-      <button
-        onClick={() => setShowSimulator(!showSimulator)}
-        className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
-      >
-        {showSimulator ? "Ocultar simulador ↑" : "Simular ahorro →"}
-      </button>
-    </div>
-    {showSimulator && (
-      <div className="mt-3 border-t border-blue-200 pt-3">
-        <ShippingSimulatorSection productId={productId} />
-      </div>
-    )}
-  </div>
-)}
+      {usesReserveFlow && selectedShipping === "platform" && !loadingShipping && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="text-sm text-blue-800">
+            <strong>💡 El envío podría ser menor.</strong> Buscamos otros
+            compradores en tu zona para dividir el costo. Si se suman, pagás
+            menos de <strong>${formatNumber(shippingCost)}</strong>.
+            El precio final lo ves en el email cuando el lote cierre.{" "}
+            <button
+              onClick={() => setShowSimulator(!showSimulator)}
+              className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
+            >
+              {showSimulator ? "Ocultar simulador ↑" : "Simular ahorro →"}
+            </button>
+            {" · "}
+            <button
+              onClick={async () => {
+                const url = `${window.location.origin}/explorar/${productId}`;
+                const text = `🚚 Sumate a mi pedido de "${productName}" y dividimos el envío. Comprando juntos pagamos menos.`;
+                if (navigator.share) {
+                  try {
+                    await navigator.share({ title: productName, text, url });
+                  } catch (_) {}
+                } else {
+                  await navigator.clipboard.writeText(`${text}\n${url}`);
+                  alert("¡Link copiado! Compartilo con tus contactos.");
+                }
+              }}
+              className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
+            >
+              Compartir para ahorrar 🔗
+            </button>
+          </div>
+          {showSimulator && (
+            <div className="mt-3 border-t border-blue-200 pt-3">
+              <ShippingSimulatorSection productId={productId} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* AVISO fraccionado + retiro */}
       {usesReserveFlow && selectedShipping === "pickup" && (
@@ -464,7 +486,7 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-   {/* Error de reserva */}
+      {/* Error de reserva */}
       {reserveError && (
         <div className="bg-red-50 border border-red-300 rounded-lg p-3 mb-4">
           <p className="text-sm text-red-700">{reserveError}</p>
