@@ -10,10 +10,8 @@ import {
 import { auth } from "../../lib/firebase-client";
 import { useRouter, useSearchParams } from "next/navigation";
 
-// ✅ ACTUALIZADO: soporta los 4 roles
 type UserRole = "manufacturer" | "retailer" | "distributor" | "wholesaler";
 
-// ✅ Labels en español para cada rol
 const ROLE_LABELS: Record<UserRole, string> = {
   manufacturer: "Fabricante",
   retailer:     "Revendedor",
@@ -33,18 +31,19 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
+  // ✅ FIX: leer el parámetro ?redirect= para volver al producto tras el login
+  // Ejemplo: /login?role=retailer&redirect=/explorar/abc123
+  const redirectTo = searchParams?.get("redirect") || null;
+
   useEffect(() => {
-    // ✅ NUEVO: primero intentar leer el rol desde la URL (?role=distributor)
     const roleFromUrl = searchParams?.get("role") as UserRole | null;
 
     if (roleFromUrl && VALID_ROLES.includes(roleFromUrl)) {
       setSelectedRole(roleFromUrl);
-      // Guardar en localStorage también por si hay redirect intermedio
       localStorage.setItem("selectedRole", roleFromUrl);
       return;
     }
 
-    // ✅ Fallback: leer desde localStorage (flujo anterior)
     const roleFromStorage = localStorage.getItem("selectedRole") as UserRole | null;
 
     if (roleFromStorage && VALID_ROLES.includes(roleFromStorage)) {
@@ -52,9 +51,16 @@ export default function LoginPage() {
       return;
     }
 
-    // Si no hay rol de ningún lado, volver al home
+    // ✅ Si viene de un producto sin rol, asignamos retailer por defecto
+    // Es el rol más común para alguien que llega desde /explorar
+    if (redirectTo?.startsWith("/explorar/")) {
+      setSelectedRole("retailer");
+      localStorage.setItem("selectedRole", "retailer");
+      return;
+    }
+
     router.push("/");
-  }, [router, searchParams]);
+  }, [router, searchParams, redirectTo]);
 
   if (!selectedRole) {
     return (
@@ -69,9 +75,6 @@ export default function LoginPage() {
 
   const roleLabel = ROLE_LABELS[selectedRole];
 
-  /* ===============================
-     🔐 LOGIN EMAIL / PASSWORD
-  =============================== */
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -89,7 +92,7 @@ export default function LoginPage() {
 
       if (res.ok) {
         const data = await res.json();
-        redirectToDashboard(data.role);
+        redirectAfterAuth(data.role);
       } else if (res.status === 403) {
         await registerUser(idToken);
       } else {
@@ -102,9 +105,6 @@ export default function LoginPage() {
     }
   }
 
-  /* ===============================
-     🔵 LOGIN GOOGLE
-  =============================== */
   async function handleGoogleLogin() {
     setLoading(true);
     setError("");
@@ -112,8 +112,7 @@ export default function LoginPage() {
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      const idToken = await user.getIdToken();
+      const idToken = await result.user.getIdToken();
 
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -123,7 +122,7 @@ export default function LoginPage() {
 
       if (res.ok) {
         const data = await res.json();
-        redirectToDashboard(data.role);
+        redirectAfterAuth(data.role);
       } else if (res.status === 403) {
         await registerUser(idToken);
       } else {
@@ -136,18 +135,12 @@ export default function LoginPage() {
     }
   }
 
-  /* ===============================
-     📝 REGISTRAR USUARIO AUTOMÁTICAMENTE
-  =============================== */
   async function registerUser(idToken: string) {
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken,
-          usertype: selectedRole,
-        }),
+        body: JSON.stringify({ idToken, usertype: selectedRole }),
       });
 
       if (!res.ok) {
@@ -161,13 +154,11 @@ export default function LoginPage() {
         body: JSON.stringify({ idToken }),
       });
 
-      if (!loginRes.ok) {
-        throw new Error("Login falló después del registro");
-      }
+      if (!loginRes.ok) throw new Error("Login falló después del registro");
 
       const data = await loginRes.json();
       localStorage.removeItem("selectedRole");
-      redirectToDashboard(data.role);
+      redirectAfterAuth(data.role);
 
     } catch (err: any) {
       console.error(err);
@@ -176,13 +167,16 @@ export default function LoginPage() {
     }
   }
 
-  /* ===============================
-     🔀 REDIRIGIR AL DASHBOARD
-  =============================== */
-  function redirectToDashboard(role: string) {
+  // ✅ FIX: si hay redirect válido, va ahí. Si no, dashboard según rol.
+  // Valida que sea URL relativa para evitar open redirect attacks.
+  function redirectAfterAuth(role: string) {
     localStorage.removeItem("selectedRole");
 
-    // ✅ ACTUALIZADO: distribuidor y mayorista van al dashboard de fabricante
+    if (redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
+      router.push(redirectTo);
+      return;
+    }
+
     if (role === "retailer") {
       router.push("/dashboard/pedidos-fraccionados");
     } else {
@@ -194,17 +188,20 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
 
-        {/* Header con rol elegido */}
         <div className="text-center mb-6">
           <div className="inline-block bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
             {roleLabel}
           </div>
-          <h1 className="text-2xl font-semibold mb-2">
-            Iniciar sesión
-          </h1>
+          <h1 className="text-2xl font-semibold mb-2">Iniciar sesión</h1>
           <p className="text-gray-600 text-sm">
             Ingresá a tu cuenta de {roleLabel.toLowerCase()}
           </p>
+          {/* ✅ FIX: mensaje contextual cuando viene desde un producto */}
+          {redirectTo?.startsWith("/explorar/") && (
+            <p className="text-blue-600 text-sm mt-2 font-medium">
+              Ingresá para unirte al lote →
+            </p>
+          )}
         </div>
 
         {error && (
@@ -213,7 +210,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Login con Google */}
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
@@ -223,7 +219,6 @@ export default function LoginPage() {
           <span className="font-medium">Continuar con Google</span>
         </button>
 
-        {/* Divisor */}
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-300"></div>
@@ -233,12 +228,9 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Login con email */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input
               type="email"
               placeholder="tu@email.com"
@@ -250,9 +242,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contraseña
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
             <input
               type="password"
               placeholder="••••••••"
@@ -272,7 +262,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Volver */}
         <div className="mt-6 text-center">
           <button
             onClick={() => router.push("/")}
