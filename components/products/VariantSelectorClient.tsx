@@ -17,6 +17,7 @@ interface Props {
   allVariants: Variant[];
   progressData: any;
   productId: string;
+  productName: string;
   factoryId: string;
   allowPickup: boolean;
   allowFactoryShipping: boolean;
@@ -29,6 +30,7 @@ export default function VariantSelectorClient({
   allVariants,
   progressData,
   productId,
+  productName,
   factoryId,
   allowPickup,
   allowFactoryShipping,
@@ -130,6 +132,7 @@ export default function VariantSelectorClient({
           price={price}
           MF={minimumOrder}
           productId={productId}
+          productName={productName}
           factoryId={factoryId}
           allowPickup={allowPickup}
           allowFactoryShipping={allowFactoryShipping}

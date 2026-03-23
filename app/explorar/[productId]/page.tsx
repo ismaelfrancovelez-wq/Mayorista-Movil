@@ -259,6 +259,7 @@ export default async function ProductDetailPage({
                   allVariants={allVariants}
                   progressData={progressData}
                   productId={product.id}
+                  productName={cleanName}
                   factoryId={product.factoryId}
                   allowPickup={allowPickup}
                   allowFactoryShipping={allowFactoryShipping}
@@ -340,7 +341,6 @@ export default async function ProductDetailPage({
                   )}
 
                   {userId ? (
-                    // ✅ Usuario logueado — componente de compra con productName
                     <ProductPurchaseClient
                       price={product.price}
                       MF={minimumOrder}
@@ -354,7 +354,6 @@ export default async function ProductDetailPage({
                       unitLabel={unitLabel || undefined}
                     />
                   ) : (
-                    // ✅ Usuario no registrado — CTA con redirect al producto
                     <div className="mt-4 space-y-3">
                       <a
                         href={`/login?role=retailer&redirect=/explorar/${product.id}`}
