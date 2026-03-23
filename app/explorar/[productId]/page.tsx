@@ -23,8 +23,6 @@ async function getProduct(
   return { id: snap.id, ...data };
 }
 
-// ✅ FIX: generateMetadata dinámico — genera title, description y OG por producto
-// No modifica ninguna lógica existente, solo agrega este export
 export async function generateMetadata({
   params,
 }: {
@@ -77,8 +75,6 @@ export async function generateMetadata({
     },
   };
 }
-
-// ✅ Sin cambios: todo lo de abajo es idéntico al original
 
 async function getSellerInfo(factoryId: string, sellerType?: string) {
   const collectionsToTry: { collection: string; label: string }[] = [];
@@ -199,7 +195,6 @@ export default async function ProductDetailPage({
     ? sellerBadgeColors[sellerInfo.sellerType] || "bg-gray-100 text-gray-800"
     : "bg-gray-100 text-gray-800";
 
-  // ✅ FIX: nombre limpio sin SKU para mostrar al usuario
   const cleanName = (product.name || "").replace(/\s*\[[^\]]+\]\s*/g, "").trim();
 
   return (
@@ -255,7 +250,6 @@ export default async function ProductDetailPage({
 
             <div className="px-5 py-4 flex flex-col overflow-y-auto">
 
-              {/* ✅ FIX: usar cleanName en lugar de product.name para ocultar SKU */}
               <h1 className="text-lg font-semibold text-gray-900 leading-snug mb-2">
                 {cleanName}
               </h1>
@@ -345,20 +339,40 @@ export default async function ProductDetailPage({
                     </div>
                   )}
 
-                  {userId && (
-  <ProductPurchaseClient
-    price={product.price}
-    MF={minimumOrder}
-    productId={product.id}
-    productName={cleanName}
-    factoryId={product.factoryId}
-    allowPickup={allowPickup}
-    allowFactoryShipping={allowFactoryShipping}
-    hasFactoryAddress={hasFactoryAddress}
-    noShipping={noShipping}
-    unitLabel={unitLabel || undefined}
-  />
-)}
+                  {userId ? (
+                    // ✅ Usuario logueado — componente de compra con productName
+                    <ProductPurchaseClient
+                      price={product.price}
+                      MF={minimumOrder}
+                      productId={product.id}
+                      productName={cleanName}
+                      factoryId={product.factoryId}
+                      allowPickup={allowPickup}
+                      allowFactoryShipping={allowFactoryShipping}
+                      hasFactoryAddress={hasFactoryAddress}
+                      noShipping={noShipping}
+                      unitLabel={unitLabel || undefined}
+                    />
+                  ) : (
+                    // ✅ Usuario no registrado — CTA con redirect al producto
+                    <div className="mt-4 space-y-3">
+                      <a
+                        href={`/login?role=retailer&redirect=/explorar/${product.id}`}
+                        className="block w-full text-center py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition"
+                      >
+                        Unirme al lote →
+                      </a>
+                      <p className="text-xs text-gray-500 text-center">
+                        Necesitás una cuenta gratis para comprar.{" "}
+                        <a
+                          href={`/login?role=retailer&redirect=/explorar/${product.id}`}
+                          className="text-blue-600 hover:underline font-medium"
+                        >
+                          Registrate en 1 minuto
+                        </a>
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
 
