@@ -1,4 +1,5 @@
 // app/explorar/page.tsx
+import { cookies } from "next/headers";
 import { db } from "../../lib/firebase-admin";
 import { ProductCategory, SellerType } from "../../lib/types/product";
 import ExplorarClient from "./ExplorarClient";
@@ -27,6 +28,65 @@ type Product = {
   accumulatedQty?: number;
 };
 
+// ── datos del retailer para el panel superior ──────────────────────────────
+type RetailerPanelData = {
+  userId: string;
+  userEmail: string;
+  userName: string;
+  activeRole: string;
+  hasAddress: boolean;
+  hasOrders: boolean;
+  milestoneBadges: string[];
+  streakBadges: string[];
+  currentStreak: number;
+  paymentLevel: number;
+  completedLots: number;
+  scoreValue: number;
+};
+
+async function getRetailerPanelData(): Promise<RetailerPanelData | null> {
+  const cookieStore = cookies();
+  const userId = cookieStore.get("userId")?.value;
+  const activeRole = cookieStore.get("activeRole")?.value;
+
+  if (!userId || activeRole !== "retailer") return null;
+
+  const userEmail = cookieStore.get("userEmail")?.value || "";
+  const userName = cookieStore.get("userName")?.value || "";
+
+  const [userSnap, retailerSnap, paymentsSnap] = await Promise.all([
+    db.collection("users").doc(userId).get(),
+    db.collection("retailers").doc(userId).get(),
+    db.collection("payments").where("buyerId", "==", userId).limit(1).get(),
+  ]);
+
+  const retailerData = retailerSnap.data() || {};
+  const userData = userSnap.data() || {};
+
+  const hasAddress = !!(
+    retailerData.address?.formattedAddress ||
+    retailerData.address?.lat
+  );
+
+  // hasOrders: al menos un pago registrado
+  const hasOrders = !paymentsSnap.empty;
+
+  return {
+    userId,
+    userEmail: userEmail || userData.email || "",
+    userName: userName || userData.name || "",
+    activeRole: "retailer",
+    hasAddress,
+    hasOrders,
+    milestoneBadges: retailerData.milestoneBadges ?? [],
+    streakBadges: retailerData.streakBadges ?? [],
+    currentStreak: retailerData.currentStreak ?? 0,
+    paymentLevel: retailerData.paymentLevel ?? 2,
+    completedLots: retailerData.completedReservations ?? 0,
+    scoreValue: retailerData.scoreAggregate?.score ?? 0.5,
+  };
+}
+
 async function getInitialProducts(): Promise<Product[]> {
   try {
     const snap = await db
@@ -40,7 +100,6 @@ async function getInitialProducts(): Promise<Product[]> {
 
     const productIds = snap.docs.map((doc) => doc.id);
 
-    // ✅ Obtener accumulatedQty de lotes activos
     const accumulatedMap = new Map<string, number>();
     const lotChunks: string[][] = [];
     for (let i = 0; i < productIds.length; i += 10) {
@@ -148,10 +207,7 @@ async function getInitialProducts(): Promise<Product[]> {
       };
     });
 
-    // ✅ Ordenar: más actividad primero, sin actividad al final
     products.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0));
-
-    // Limitar al PAGE_SIZE final
     products = products.slice(0, PAGE_SIZE);
 
     return products;
@@ -163,6 +219,10 @@ async function getInitialProducts(): Promise<Product[]> {
 }
 
 export default async function ExplorarPage() {
-  const products = await getInitialProducts();
-  return <ExplorarClient initialProducts={products} />;
+  const [products, retailerPanel] = await Promise.all([
+    getInitialProducts(),
+    getRetailerPanelData(),
+  ]);
+
+  return <ExplorarClient initialProducts={products} retailerPanel={retailerPanel} />;
 }

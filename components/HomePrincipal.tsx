@@ -7,6 +7,7 @@
 //   A. Búsqueda del header pasa el término a /explorar?search=X
 //   B. Secciones vacías (Productos Destacados y Fábricas Destacadas) se ocultan si no hay datos
 //   C. Nombres de productos limpian SKUs internos [CODIGO] en el render
+// ✅ FIX: "Soy revendedor" ahora lleva directamente a /explorar
 
 'use client';
 
@@ -137,7 +138,6 @@ export default function HomePrincipal() {
   const [loadingStats, setLoadingStats] = useState(true);
 
   // ✅ NUEVO: testimonios — reemplazá con reales cuando los tengas
-  // Para actualizar: cambiá name, role, text e initial de cada objeto
   const testimonials = [
     {
       initial: 'L',
@@ -170,7 +170,7 @@ export default function HomePrincipal() {
           fetch('/api/featured/active?type=product'),
           fetch('/api/featured/active?type=factory'),
           fetch('/api/products/explore?page=1'),
-          fetch('/api/stats/public'), // ✅ NUEVO: contadores reales
+          fetch('/api/stats/public'),
         ]);
 
       try {
@@ -217,7 +217,6 @@ export default function HomePrincipal() {
         setLoadingAllProducts(false);
       }
 
-      // ✅ NUEVO: cargar contadores reales
       try {
         if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
           const data = await statsRes.value.json();
@@ -237,7 +236,6 @@ export default function HomePrincipal() {
     async function loadProductLots() {
       if (featuredProducts.length === 0) return;
 
-      // ✅ OPTIMIZACIÓN: Promise.all en vez de for loop secuencial
       const results = await Promise.all(
         featuredProducts.map(async (product) => {
           try {
@@ -314,7 +312,6 @@ export default function HomePrincipal() {
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
-    // ✅ OPTIMIZACIÓN: passive: true mejora performance del scroll
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -322,7 +319,8 @@ export default function HomePrincipal() {
   const handleRoleRedirect = (targetRole: 'retailer' | 'manufacturer' | 'distributor' | 'wholesaler') => {
     if (isAuthenticated) {
       if (targetRole === 'retailer') {
-        router.push('/dashboard/pedidos-fraccionados');
+        // ✅ CAMBIO: revendedor autenticado va directo al explorador
+        router.push('/explorar');
       } else {
         router.push('/dashboard/fabricante');
       }
@@ -370,7 +368,6 @@ export default function HomePrincipal() {
               </Link>
 
               <div className="flex-1 max-w-2xl">
-                {/* ✅ FIX A: onSubmit ahora pasa el término de búsqueda a /explorar?search=X */}
                 <form onSubmit={(e) => {
                   e.preventDefault();
                   const term = searchInputRef.current?.value?.trim();
@@ -450,9 +447,7 @@ export default function HomePrincipal() {
         </div>
       </section>
 
-      {/* ✅ NUEVO: TRUST BAR — contadores reales de la plataforma
-          Se oculta mientras carga. Si stats son 0 en todos, no se muestra.
-          Cuando tengas más datos reales, los números suben solos. */}
+      {/* TRUST BAR */}
       {!loadingStats && stats && (stats.lotsCompleted > 0 || stats.totalUsers > 0 || stats.verifiedFactories > 0) && (
         <section className="bg-white border-b border-gray-100 py-6">
           <div className="max-w-7xl mx-auto px-4">
@@ -542,7 +537,7 @@ export default function HomePrincipal() {
         </div>
       </section>
 
-      {/* ✅ FIX B: PRODUCTOS DESTACADOS — solo se renderiza si hay datos o está cargando */}
+      {/* PRODUCTOS DESTACADOS */}
       {(loadingFeaturedProducts || featuredProducts.length > 0) && (
         <section className="max-w-7xl mx-auto px-4 mb-12">
           <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-2xl">
@@ -573,7 +568,6 @@ export default function HomePrincipal() {
                   const progress = lotData?.progress || 0;
                   const accumulated = lotData?.accumulatedQty || 0;
                   const minimum = lotData?.MF || product.itemData.minimumOrder;
-                  // ✅ FIX C: limpiar SKU en el nombre mostrado
                   const displayName = cleanProductName(product.itemData.name);
                   return (
                     <Link key={product.id} href={`/explorar/${product.itemData.id}`}>
@@ -644,7 +638,7 @@ export default function HomePrincipal() {
         </div>
       </section>
 
-      {/* ✅ FIX B: FÁBRICAS DESTACADAS — solo se renderiza si hay datos o está cargando */}
+      {/* FÁBRICAS DESTACADAS */}
       {(loadingFeaturedFactories || featuredFactories.length > 0) && (
         <section className="max-w-7xl mx-auto px-4 mb-12">
           <div className="flex items-center justify-between mb-6">
@@ -693,9 +687,7 @@ export default function HomePrincipal() {
         </section>
       )}
 
-      {/* ✅ NUEVO: TESTIMONIOS
-          Para reemplazar con reales: editá el array "testimonials" arriba del return.
-          Cada objeto tiene: initial, name, role, text. */}
+      {/* TESTIMONIOS */}
       <section className="max-w-7xl mx-auto px-4 mb-12">
         <div className="text-center mb-8">
           <h3 className="text-3xl font-black text-gray-900 mb-2">Lo que dicen nuestros revendedores</h3>
@@ -704,13 +696,10 @@ export default function HomePrincipal() {
         <div className="grid md:grid-cols-3 gap-6">
           {testimonials.map((t, i) => (
             <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col gap-4">
-              {/* Estrellas */}
               <div className="flex gap-1 text-yellow-400 text-sm">
                 {'★★★★★'.split('').map((s, j) => <span key={j}>{s}</span>)}
               </div>
-              {/* Texto */}
               <p className="text-gray-700 text-sm leading-relaxed flex-1">"{t.text}"</p>
-              {/* Autor */}
               <div className="flex items-center gap-3 pt-2 border-t border-gray-50">
                 <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
                   {t.initial}

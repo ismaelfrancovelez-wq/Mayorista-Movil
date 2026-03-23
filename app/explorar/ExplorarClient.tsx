@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { ProductCategory, CATEGORY_LABELS, SellerType, SELLER_TYPE_LABELS, SELLER_TYPE_COLORS } from "../../lib/types/product";
+import UserRoleHeader from "../../components/UserRoleHeader";
+import OnboardingChecklist from "../../components/OnboardingChecklist";
 
 type Product = {
   id: string;
@@ -43,7 +45,28 @@ type ClosingSoonLot = {
 
 type SortOption = "activity" | "price_asc" | "price_desc" | "min_asc" | "min_desc" | "name";
 
-export default function ExplorarClient({ initialProducts }: { initialProducts: Product[] }) {
+type RetailerPanelData = {
+  userId: string;
+  userEmail: string;
+  userName: string;
+  activeRole: string;
+  hasAddress: boolean;
+  hasOrders: boolean;
+  milestoneBadges: string[];
+  streakBadges: string[];
+  currentStreak: number;
+  paymentLevel: number;
+  completedLots: number;
+  scoreValue: number;
+};
+
+export default function ExplorarClient({
+  initialProducts,
+  retailerPanel,
+}: {
+  initialProducts: Product[];
+  retailerPanel: RetailerPanelData | null;
+}) {
   const [allProducts, setAllProducts] = useState<Product[]>(initialProducts);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>(initialProducts);
 
@@ -67,8 +90,16 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
   const [onlyFeatured, setOnlyFeatured] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("name");
 
-
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── leer searchParams del URL al montar ──────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const search = params.get("search");
+    const category = params.get("category");
+    if (search) setSearchTerm(search);
+    if (category) setSelectedCategory(category as ProductCategory);
+  }, []);
 
   useEffect(() => {
     async function loadIndex() {
@@ -228,69 +259,128 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
           ← Volver
         </button>
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2">Explorar productos</h1>
-          <p className="text-gray-600">Comprá directo o participá en pedidos fraccionados</p>
-        </div>
-
-        {/* LOTES A PUNTO DE CERRAR */}
-        {(true) && (
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">🔥</span>
-                <h2 className="text-xl font-bold text-gray-900">Lotes a punto de cerrar</h2>
-                <span className="bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded-full">≥ 80% completado</span>
+        {/* ── PANEL RETAILER ─────────────────────────────────────────────────
+            Se muestra solo cuando el usuario logueado tiene rol revendedor.
+            Ocupa el ancho completo antes del grid de filtros+productos,
+            dividido en dos columnas: izquierda título + onboarding,
+            derecha UserRoleHeader + acceso rápido al dashboard.
+        ──────────────────────────────────────────────────────────────────── */}
+        {retailerPanel && (
+          <div className="mb-8 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* Franja superior: bienvenida + credenciales */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-6 py-5 border-b border-gray-100">
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900 leading-tight">
+                  ¡Bienvenido,{" "}
+                  <span className="text-blue-600">
+                    {retailerPanel.userName || retailerPanel.userEmail.split("@")[0]}
+                  </span>
+                  !
+                </h1>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Explorá productos a precio de fábrica y unite a lotes fraccionados.
+                </p>
               </div>
-              <Link href="/explorar/cerrando" className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">Ver todos →</Link>
-            </div>
 
-            {loadingClosing ? (
-              <div className="flex gap-4 overflow-x-auto pb-2">
-                {[1, 2, 3].map((i) => <div key={i} className="min-w-[260px] h-64 bg-gray-200 rounded-2xl animate-pulse flex-shrink-0" />)}
-              </div>
-            ) : (
-              <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
-                {closingSoon.slice(0, 8).map((lot) => {
-                  const urgencyColor = lot.percentage >= 95 ? "bg-red-500" : lot.percentage >= 90 ? "bg-orange-500" : "bg-amber-500";
-                  const badgeColor = lot.percentage >= 95 ? "bg-red-100 text-red-800" : lot.percentage >= 90 ? "bg-orange-100 text-orange-800" : "bg-amber-100 text-amber-800";
-                  const remainingUnits = lot.minimumOrder - lot.accumulatedQty;
-                  return (
-                    <Link key={lot.lotId} href={`/explorar/${lot.productId}`} className="min-w-[260px] max-w-[260px] flex-shrink-0 snap-start bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col border border-gray-100 hover:border-blue-200">
-                      <div className="relative h-36 bg-white overflow-hidden border-b border-gray-100">
-                        {lot.imageUrls && lot.imageUrls.length > 0 ? (
-                          <img src={lot.imageUrls[0]} alt={lot.productName} loading="lazy" decoding="async" className="w-full h-full object-contain hover:scale-105 transition-transform duration-300" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                            <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                          </div>
-                        )}
-                        <div className="absolute top-2 left-2">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badgeColor}`}>🔥 {lot.percentage}%</span>
-                        </div>
-                      </div>
-                      <div className="p-4 flex flex-col flex-grow">
-                        {lot.manufacturerName && <p className="text-xs text-gray-400 mb-1 truncate">{lot.manufacturerName}</p>}
-                        <p className="text-sm font-semibold text-gray-900 line-clamp-2 mb-2">{lot.productName}</p>
-                        <div className="mb-2">
-                          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                            <div className={`h-full rounded-full ${urgencyColor}`} style={{ width: `${lot.percentage}%` }} />
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1">Faltan <strong>{remainingUnits}</strong> u. para cerrar</p>
-                        </div>
-                        <p className="text-xs font-bold text-gray-900 mt-auto">${lot.productPrice.toLocaleString("es-AR")}{lot.unitLabel ? ` / ${lot.unitLabel}` : " / u."}</p>
-                      </div>
-                    </Link>
-                  );
-                })}
-                <Link href="/explorar/cerrando" className="min-w-[140px] flex-shrink-0 snap-start bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl flex flex-col items-center justify-center gap-2 text-blue-600 hover:bg-blue-100 transition p-6 text-center">
-                  <span className="text-3xl">→</span>
-                  <span className="text-sm font-semibold">Ver todos</span>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {/* UserRoleHeader — muestra rol, nivel, racha, badges */}
+                <UserRoleHeader
+                  userEmail={retailerPanel.userEmail}
+                  activeRole="retailer"
+                  userName={retailerPanel.userName}
+                  milestoneBadges={retailerPanel.milestoneBadges}
+                  streakBadges={retailerPanel.streakBadges}
+                  currentStreak={retailerPanel.currentStreak}
+                  paymentLevel={retailerPanel.paymentLevel}
+                  completedLots={retailerPanel.completedLots}
+                  scoreValue={retailerPanel.scoreValue}
+                />
+                {/* Acceso rápido al dashboard */}
+                <Link
+                  href="/dashboard/pedidos-fraccionados"
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition"
+                >
+                  <span>📦</span>
+                  <span className="hidden sm:inline">Mis pedidos</span>
                 </Link>
               </div>
-            )}
+            </div>
+
+            {/* Onboarding checklist — se oculta solo cuando el usuario lo cierra */}
+            <div className="px-6 py-4">
+              <OnboardingChecklist
+                userId={retailerPanel.userId}
+                hasAddress={retailerPanel.hasAddress}
+                hasOrders={retailerPanel.hasOrders}
+              />
+            </div>
           </div>
         )}
+
+        {/* Título del explorador — solo cuando NO hay panel de retailer */}
+        {!retailerPanel && (
+          <div className="mb-8">
+            <h1 className="text-3xl font-semibold text-gray-900 mb-2">Explorar productos</h1>
+            <p className="text-gray-600">Comprá directo o participá en pedidos fraccionados</p>
+          </div>
+        )}
+
+        {/* LOTES A PUNTO DE CERRAR */}
+        <div className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🔥</span>
+              <h2 className="text-xl font-bold text-gray-900">Lotes a punto de cerrar</h2>
+              <span className="bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded-full">≥ 80% completado</span>
+            </div>
+            <Link href="/explorar/cerrando" className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">Ver todos →</Link>
+          </div>
+
+          {loadingClosing ? (
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {[1, 2, 3].map((i) => <div key={i} className="min-w-[260px] h-64 bg-gray-200 rounded-2xl animate-pulse flex-shrink-0" />)}
+            </div>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
+              {closingSoon.slice(0, 8).map((lot) => {
+                const urgencyColor = lot.percentage >= 95 ? "bg-red-500" : lot.percentage >= 90 ? "bg-orange-500" : "bg-amber-500";
+                const badgeColor = lot.percentage >= 95 ? "bg-red-100 text-red-800" : lot.percentage >= 90 ? "bg-orange-100 text-orange-800" : "bg-amber-100 text-amber-800";
+                const remainingUnits = lot.minimumOrder - lot.accumulatedQty;
+                return (
+                  <Link key={lot.lotId} href={`/explorar/${lot.productId}`} className="min-w-[260px] max-w-[260px] flex-shrink-0 snap-start bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col border border-gray-100 hover:border-blue-200">
+                    <div className="relative h-36 bg-white overflow-hidden border-b border-gray-100">
+                      {lot.imageUrls && lot.imageUrls.length > 0 ? (
+                        <img src={lot.imageUrls[0]} alt={lot.productName} loading="lazy" decoding="async" className="w-full h-full object-contain hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                          <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        </div>
+                      )}
+                      <div className="absolute top-2 left-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${badgeColor}`}>🔥 {lot.percentage}%</span>
+                      </div>
+                    </div>
+                    <div className="p-4 flex flex-col flex-grow">
+                      {lot.manufacturerName && <p className="text-xs text-gray-400 mb-1 truncate">{lot.manufacturerName}</p>}
+                      <p className="text-sm font-semibold text-gray-900 line-clamp-2 mb-2">{lot.productName}</p>
+                      <div className="mb-2">
+                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                          <div className={`h-full rounded-full ${urgencyColor}`} style={{ width: `${lot.percentage}%` }} />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Faltan <strong>{remainingUnits}</strong> u. para cerrar</p>
+                      </div>
+                      <p className="text-xs font-bold text-gray-900 mt-auto">${lot.productPrice.toLocaleString("es-AR")}{lot.unitLabel ? ` / ${lot.unitLabel}` : " / u."}</p>
+                    </div>
+                  </Link>
+                );
+              })}
+              <Link href="/explorar/cerrando" className="min-w-[140px] flex-shrink-0 snap-start bg-blue-50 border-2 border-dashed border-blue-300 rounded-2xl flex flex-col items-center justify-center gap-2 text-blue-600 hover:bg-blue-100 transition p-6 text-center">
+                <span className="text-3xl">→</span>
+                <span className="text-sm font-semibold">Ver todos</span>
+              </Link>
+            </div>
+          )}
+        </div>
 
         <div className="grid lg:grid-cols-4 gap-6">
 
@@ -350,23 +440,22 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                   <span className="text-sm">Solo destacados</span>
                 </label>
               </div>
-              
               <div>
-  <label className="block text-sm font-medium mb-2">Ordenar por</label>
-  <select
-    className="w-full border rounded px-3 py-2 text-sm"
-    value={sortBy}
-    onChange={(e) => setSortBy(e.target.value as SortOption)}
-    suppressHydrationWarning
-  >
-    <option value="name" suppressHydrationWarning>Nombre A-Z</option>
-    <option value="activity" suppressHydrationWarning>Más activos primero</option>
-    <option value="price_asc" suppressHydrationWarning>Precio: menor a mayor</option>
-    <option value="price_desc" suppressHydrationWarning>Precio: mayor a menor</option>
-    <option value="min_asc" suppressHydrationWarning>Pedido mín: menor a mayor</option>
-    <option value="min_desc" suppressHydrationWarning>Pedido mín: mayor a menor</option>
-  </select>
-</div>
+                <label className="block text-sm font-medium mb-2">Ordenar por</label>
+                <select
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  suppressHydrationWarning
+                >
+                  <option value="name" suppressHydrationWarning>Nombre A-Z</option>
+                  <option value="activity" suppressHydrationWarning>Más activos primero</option>
+                  <option value="price_asc" suppressHydrationWarning>Precio: menor a mayor</option>
+                  <option value="price_desc" suppressHydrationWarning>Precio: mayor a menor</option>
+                  <option value="min_asc" suppressHydrationWarning>Pedido mín: menor a mayor</option>
+                  <option value="min_desc" suppressHydrationWarning>Pedido mín: mayor a menor</option>
+                </select>
+              </div>
             </div>
           </aside>
 
@@ -487,7 +576,6 @@ export default function ExplorarClient({ initialProducts }: { initialProducts: P
                             {product.unitLabel ? `unidades (${product.unitLabel} c/u)` : "unidades"}
                           </p>
 
-                          {/* ✅ BARRA DE PROGRESO DEL LOTE */}
                           {product.accumulatedQty !== undefined && product.accumulatedQty > 0 && product.minimumOrder > 0 && (
                             <div className="mb-3">
                               <div className="flex justify-between text-xs text-gray-500 mb-1">
