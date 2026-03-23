@@ -129,6 +129,7 @@ export default async function ProductPage({ params }: Props) {
         price={product.price}
         MF={product.MF}
         productId={product.id}
+        productName={product.name}
         factoryId={product.factoryId}
         allowPickup={product.allowPickup}
         allowFactoryShipping={product.allowFactoryShipping}
