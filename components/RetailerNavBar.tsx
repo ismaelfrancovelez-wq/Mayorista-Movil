@@ -2,14 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import UserRoleHeader from "./UserRoleHeader";
 
-// Props mínimas — solo lo que necesita la barra
 type Props = {
   userEmail: string;
   userName: string;
+  milestoneBadges: string[];
+  streakBadges: string[];
+  currentStreak: number;
+  paymentLevel: number;
+  completedLots: number;
+  scoreValue: number;
 };
 
-export default function RetailerNavBar({ userEmail, userName }: Props) {
+export default function RetailerNavBar({
+  userEmail,
+  userName,
+  milestoneBadges,
+  streakBadges,
+  currentStreak,
+  paymentLevel,
+  completedLots,
+  scoreValue,
+}: Props) {
   const pathname = usePathname();
   const displayName = userName || userEmail.split("@")[0];
 
@@ -82,8 +97,20 @@ export default function RetailerNavBar({ userEmail, userName }: Props) {
             })}
           </nav>
 
-          {/* Email compacto */}
-          <p className="hidden md:block text-xs text-gray-400 truncate max-w-[180px]">{userEmail}</p>
+          {/* UserRoleHeader — idéntico al de /explorar */}
+          <div className="flex-shrink-0">
+            <UserRoleHeader
+              userEmail={userEmail}
+              activeRole="retailer"
+              userName={userName}
+              milestoneBadges={milestoneBadges}
+              streakBadges={streakBadges}
+              currentStreak={currentStreak}
+              paymentLevel={paymentLevel}
+              completedLots={completedLots}
+              scoreValue={scoreValue}
+            />
+          </div>
 
         </div>
       </div>

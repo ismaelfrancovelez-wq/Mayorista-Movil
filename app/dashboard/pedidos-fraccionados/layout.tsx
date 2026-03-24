@@ -1,5 +1,5 @@
 // app/dashboard/pedidos-fraccionados/layout.tsx
-// ✅ ACTUALIZADO: sin sidebar, con barra de navegación horizontal superior
+// ✅ ACTUALIZADO: sin sidebar, con barra horizontal + UserRoleHeader completo
 
 import { cookies } from "next/headers";
 import { db } from "../../../lib/firebase-admin";
@@ -22,19 +22,28 @@ export default async function RevendedorLayout({
   const userEmail = cookieStore.get("userEmail")?.value || "";
   const cookieUserName = cookieStore.get("userName")?.value || "";
 
-  // Solo si no hay nombre en cookie lo buscamos en Firestore
-  let userName = cookieUserName;
-  if (!userName) {
-    const userSnap = await db.collection("users").doc(userId).get();
-    userName = userSnap.data()?.name || "";
-  }
+  // Cargar datos del retailer para el UserRoleHeader
+  const [userSnap, retailerSnap] = await Promise.all([
+    db.collection("users").doc(userId).get(),
+    db.collection("retailers").doc(userId).get(),
+  ]);
+
+  const userName = cookieUserName || userSnap.data()?.name || "";
+  const retailerData = retailerSnap.data() || {};
 
   return (
     <>
-      <RetailerNavBar userEmail={userEmail} userName={userName} />
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        {children}
-      </div>
+      <RetailerNavBar
+        userEmail={userEmail}
+        userName={userName}
+        milestoneBadges={retailerData.milestoneBadges ?? []}
+        streakBadges={retailerData.streakBadges ?? []}
+        currentStreak={retailerData.currentStreak ?? 0}
+        paymentLevel={retailerData.paymentLevel ?? 2}
+        completedLots={retailerData.completedReservations ?? 0}
+        scoreValue={retailerData.scoreAggregate?.score ?? 0.5}
+      />
+      {children}
     </>
   );
 }
