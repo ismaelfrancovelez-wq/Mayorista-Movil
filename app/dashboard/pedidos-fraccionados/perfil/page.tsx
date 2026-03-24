@@ -15,7 +15,6 @@ export default function PerfilRevendedorPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para eliminar cuenta — sin cambios
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -93,59 +92,50 @@ export default function PerfilRevendedorPage() {
 
   return (
     <div className="max-w-xl">
-      <button
-        onClick={() => router.back()}
-        className="mb-4 text-blue-600 hover:text-blue-700 flex items-center gap-2 font-medium"
-      >
-        ← Volver
-      </button>
-
-      <h1 className="text-2xl font-semibold mb-6">Configuración del perfil</h1>
-
-      <p className="text-gray-600 mb-8">
+      <h1 className="text-2xl font-semibold mb-2">Configuración del perfil</h1>
+      <p className="text-gray-500 text-sm mb-8">
         Ingresá tu dirección. Esta información se usa para calcular envíos.
       </p>
 
-      {/* DIRECCIÓN CON AUTOCOMPLETADO — sin cambios */}
-      <div className="mb-4">
-        <label className="block text-sm mb-1 font-medium">Dirección *</label>
-        <GooglePlacesAutocomplete
-          value={formattedAddress}
-          onChange={setFormattedAddress}
-          onPlaceSelected={(place: PlaceResult) => {
-            setFormattedAddress(place.formattedAddress);
-            setLat(String(place.lat));
-            setLng(String(place.lng));
-          }}
-          placeholder="Empieza a escribir tu dirección..."
-          className="w-full border rounded px-3 py-2"
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          💡 Empieza a escribir y seleccioná de las sugerencias
-        </p>
+      {/* DIRECCIÓN */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">Dirección de entrega</h2>
+        <div className="mb-4">
+          <label className="block text-sm mb-1 font-medium text-gray-700">Dirección *</label>
+          <GooglePlacesAutocomplete
+            value={formattedAddress}
+            onChange={setFormattedAddress}
+            onPlaceSelected={(place: PlaceResult) => {
+              setFormattedAddress(place.formattedAddress);
+              setLat(String(place.lat));
+              setLng(String(place.lng));
+            }}
+            placeholder="Empieza a escribir tu dirección..."
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            💡 Empieza a escribir y seleccioná de las sugerencias
+          </p>
+        </div>
+
+        <input type="hidden" value={lat} onChange={(e) => setLat(e.target.value)} />
+        <input type="hidden" value={lng} onChange={(e) => setLng(e.target.value)} />
+
+        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
+        {success && <p className="text-green-600 text-sm mb-4">✓ Dirección guardada correctamente</p>}
+
+        <button
+          onClick={handleSave}
+          disabled={loading}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium transition disabled:opacity-50"
+        >
+          {loading ? "Guardando..." : "Guardar dirección"}
+        </button>
       </div>
 
-      {/* ✅ FIX: lat/lng ahora son hidden — la lógica funciona igual,
-          el usuario no ve coordenadas internas que no le sirven */}
-      <input type="hidden" value={lat} onChange={(e) => setLat(e.target.value)} />
-      <input type="hidden" value={lng} onChange={(e) => setLng(e.target.value)} />
-
-      {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
-      {success && (
-        <p className="text-green-600 text-sm mb-4">Dirección guardada correctamente</p>
-      )}
-
-      <button
-        onClick={handleSave}
-        disabled={loading}
-        className="bg-black text-white px-6 py-2 rounded disabled:opacity-50"
-      >
-        {loading ? "Guardando..." : "Guardar dirección"}
-      </button>
-
-      {/* ZONA DE PELIGRO — sin cambios, ya tenía modal de confirmación */}
-      <div className="mt-16 border-t border-red-200 pt-8">
-        <h2 className="text-lg font-semibold text-red-600 mb-1">Zona de peligro</h2>
+      {/* ZONA DE PELIGRO */}
+      <div className="bg-white rounded-xl border border-red-100 shadow-sm p-6">
+        <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wide mb-1">Zona de peligro</h2>
         <p className="text-sm text-gray-500 mb-4">
           Eliminar tu cuenta es permanente. Se borrarán todos tus datos y no podrás recuperarlos.
         </p>
@@ -153,12 +143,12 @@ export default function PerfilRevendedorPage() {
         {!showDeleteConfirm ? (
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="border border-red-500 text-red-500 px-4 py-2 rounded hover:bg-red-50 transition text-sm font-medium"
+            className="border border-red-400 text-red-500 px-4 py-2 rounded-lg hover:bg-red-50 transition text-sm font-medium"
           >
             Eliminar mi cuenta
           </button>
         ) : (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-5">
             <p className="text-sm font-semibold text-red-700 mb-3">
               ¿Estás seguro? Esta acción no se puede deshacer.
             </p>
@@ -169,17 +159,15 @@ export default function PerfilRevendedorPage() {
               type="text"
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
-              className="w-full border border-red-300 rounded px-3 py-2 mb-3 text-sm focus:outline-none focus:border-red-500"
+              className="w-full border border-red-300 rounded-lg px-3 py-2 mb-3 text-sm focus:outline-none focus:border-red-500"
               placeholder="ELIMINAR"
             />
-            {deleteError && (
-              <p className="text-red-600 text-xs mb-3">{deleteError}</p>
-            )}
+            {deleteError && <p className="text-red-600 text-xs mb-3">{deleteError}</p>}
             <div className="flex gap-3">
               <button
                 onClick={handleDeleteAccount}
                 disabled={deletingAccount}
-                className="bg-red-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition"
+                className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition"
               >
                 {deletingAccount ? "Eliminando..." : "Confirmar eliminación"}
               </button>
@@ -189,7 +177,7 @@ export default function PerfilRevendedorPage() {
                   setDeleteConfirmText("");
                   setDeleteError(null);
                 }}
-                className="px-4 py-2 rounded text-sm text-gray-600 hover:bg-gray-100 transition"
+                className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition"
               >
                 Cancelar
               </button>
