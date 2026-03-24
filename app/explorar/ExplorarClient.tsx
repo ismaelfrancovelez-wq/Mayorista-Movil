@@ -92,7 +92,7 @@ export default function ExplorarClient({
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── leer searchParams del URL al montar ──────────────────────────────────
+  // leer searchParams del URL al montar
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const search = params.get("search");
@@ -251,39 +251,74 @@ export default function ExplorarClient({
     return product.stock !== null && product.stock !== undefined && product.stock === 0;
   }
 
+  const displayName = retailerPanel?.userName || retailerPanel?.userEmail?.split("@")[0] || "";
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-6">
 
-        <button onClick={() => window.history.back()} className="mb-4 text-blue-600 hover:text-blue-700 flex items-center gap-2 font-medium">
-          ← Volver
-        </button>
+      {/* ══════════════════════════════════════════════════════════════════
+          BARRA DE PANEL — solo visible para revendedores autenticados
+          Diseño: barra fija debajo del header del sitio, fondo blanco,
+          con saludo + nav principal + credenciales alineados en una fila.
+      ══════════════════════════════════════════════════════════════════ */}
+      {retailerPanel && (
+        <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex items-center justify-between gap-4 h-14">
 
-        {/* ── PANEL RETAILER ─────────────────────────────────────────────────
-            Se muestra solo cuando el usuario logueado tiene rol revendedor.
-            Ocupa el ancho completo antes del grid de filtros+productos,
-            dividido en dos columnas: izquierda título + onboarding,
-            derecha UserRoleHeader + acceso rápido al dashboard.
-        ──────────────────────────────────────────────────────────────────── */}
-        {retailerPanel && (
-          <div className="mb-8 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            {/* Franja superior: bienvenida + credenciales */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-6 py-5 border-b border-gray-100">
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900 leading-tight">
-                  ¡Bienvenido,{" "}
-                  <span className="text-blue-600">
-                    {retailerPanel.userName || retailerPanel.userEmail.split("@")[0]}
+              {/* Saludo compacto */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-xs font-bold">
+                    {displayName.charAt(0).toUpperCase()}
                   </span>
-                  !
-                </h1>
-                <p className="text-sm text-gray-500 mt-0.5">
-                  Explorá productos a precio de fábrica y unite a lotes fraccionados.
-                </p>
+                </div>
+                <div className="hidden sm:block min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 leading-none truncate">
+                    {displayName}
+                  </p>
+                  <p className="text-xs text-gray-400 leading-none mt-0.5">Revendedor</p>
+                </div>
               </div>
 
-              <div className="flex items-center gap-3 flex-shrink-0">
-                {/* UserRoleHeader — muestra rol, nivel, racha, badges */}
+              {/* Navegación central */}
+              <nav className="flex items-center gap-1">
+                {/* Explorar — activo */}
+                <Link
+                  href="/explorar"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-semibold border border-blue-200 transition"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  <span className="hidden sm:inline">Explorar</span>
+                </Link>
+
+                {/* Mis pedidos */}
+                <Link
+                  href="/dashboard/pedidos-fraccionados/pedidos"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 text-sm font-medium transition"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                  <span className="hidden sm:inline">Mis pedidos</span>
+                </Link>
+
+                {/* Perfil */}
+                <Link
+                  href="/dashboard/pedidos-fraccionados/perfil"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 text-sm font-medium transition"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span className="hidden sm:inline">Perfil</span>
+                </Link>
+              </nav>
+
+              {/* Credenciales — UserRoleHeader */}
+              <div className="flex-shrink-0">
                 <UserRoleHeader
                   userEmail={retailerPanel.userEmail}
                   activeRole="retailer"
@@ -295,34 +330,37 @@ export default function ExplorarClient({
                   completedLots={retailerPanel.completedLots}
                   scoreValue={retailerPanel.scoreValue}
                 />
-                {/* Acceso rápido al dashboard */}
-                <Link
-                  href="/dashboard/pedidos-fraccionados"
-                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition"
-                >
-                  <span>📦</span>
-                  <span className="hidden sm:inline">Mis pedidos</span>
-                </Link>
               </div>
-            </div>
 
-            {/* Onboarding checklist — se oculta solo cuando el usuario lo cierra */}
-            <div className="px-6 py-4">
-              <OnboardingChecklist
-                userId={retailerPanel.userId}
-                hasAddress={retailerPanel.hasAddress}
-                hasOrders={retailerPanel.hasOrders}
-              />
             </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto p-6">
+
+        {/* Onboarding checklist — solo retailer */}
+        {retailerPanel && (
+          <div className="mb-6">
+            <OnboardingChecklist
+              userId={retailerPanel.userId}
+              hasAddress={retailerPanel.hasAddress}
+              hasOrders={retailerPanel.hasOrders}
+            />
           </div>
         )}
 
-        {/* Título del explorador — solo cuando NO hay panel de retailer */}
+        {/* Botón volver + título — solo visitantes sin sesión retailer */}
         {!retailerPanel && (
-          <div className="mb-8">
-            <h1 className="text-3xl font-semibold text-gray-900 mb-2">Explorar productos</h1>
-            <p className="text-gray-600">Comprá directo o participá en pedidos fraccionados</p>
-          </div>
+          <>
+            <button onClick={() => window.history.back()} className="mb-4 text-blue-600 hover:text-blue-700 flex items-center gap-2 font-medium">
+              ← Volver
+            </button>
+            <div className="mb-8">
+              <h1 className="text-3xl font-semibold text-gray-900 mb-2">Explorar productos</h1>
+              <p className="text-gray-600">Comprá directo o participá en pedidos fraccionados</p>
+            </div>
+          </>
         )}
 
         {/* LOTES A PUNTO DE CERRAR */}
@@ -386,7 +424,7 @@ export default function ExplorarClient({
 
           {/* SIDEBAR FILTROS */}
           <aside className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow p-6 sticky top-6">
+            <div className="bg-white rounded-xl shadow p-6 sticky top-20">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="font-semibold text-lg">Filtros</h2>
                 <button onClick={clearFilters} className="text-sm text-blue-600 hover:underline">Limpiar</button>
@@ -576,6 +614,7 @@ export default function ExplorarClient({
                             {product.unitLabel ? `unidades (${product.unitLabel} c/u)` : "unidades"}
                           </p>
 
+                          {/* BARRA DE PROGRESO DEL LOTE */}
                           {product.accumulatedQty !== undefined && product.accumulatedQty > 0 && product.minimumOrder > 0 && (
                             <div className="mb-3">
                               <div className="flex justify-between text-xs text-gray-500 mb-1">
