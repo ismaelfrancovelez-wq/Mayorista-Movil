@@ -178,7 +178,7 @@ export default function LoginPage() {
     }
 
     if (role === "retailer") {
-      router.push("/dashboard/pedidos-fraccionados");
+      router.push("/explorar");
     } else {
       router.push("/dashboard/fabricante");
     }
