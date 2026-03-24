@@ -7,7 +7,6 @@
 //   A. Búsqueda del header pasa el término a /explorar?search=X
 //   B. Secciones vacías (Productos Destacados y Fábricas Destacadas) se ocultan si no hay datos
 //   C. Nombres de productos limpian SKUs internos [CODIGO] en el render
-// ✅ FIX: "Soy revendedor" ahora lleva directamente a /explorar
 
 'use client';
 
@@ -117,45 +116,61 @@ function cleanProductName(name: string): string {
   return name.replace(/\s*\[[^\]]+\]\s*/g, '').trim();
 }
 
-export default function HomePrincipal() {
+// ✅ SSR: props pre-cargadas desde app/page.tsx (servidor)
+// Evita fetches en cliente para stats, productos y categorías
+type HomePrincipalProps = {
+  initialStats?: PublicStats | null;
+  initialProducts?: Product[];
+  initialFeaturedProducts?: FeaturedProduct[];
+  initialFeaturedFactories?: FeaturedFactory[];
+};
+
+export default function HomePrincipal({
+  initialStats = null,
+  initialProducts = [],
+  initialFeaturedProducts = [],
+  initialFeaturedFactories = [],
+}: HomePrincipalProps) {
   const router = useRouter();
   const [currentBanner, setCurrentBanner] = useState(0);
   const [scrollY, setScrollY] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>([]);
-  const [featuredFactories, setFeaturedFactories] = useState<FeaturedFactory[]>([]);
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  // ✅ SSR: inicializar con props del servidor — si llegan con datos no hay flash
+  const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>(initialFeaturedProducts);
+  const [featuredFactories, setFeaturedFactories] = useState<FeaturedFactory[]>(initialFeaturedFactories);
+  const [allProducts, setAllProducts] = useState<Product[]>(initialProducts);
   const [productLots, setProductLots] = useState<Record<string, LotData>>({});
 
-  const [loadingFeaturedProducts, setLoadingFeaturedProducts] = useState(true);
-  const [loadingFeaturedFactories, setLoadingFeaturedFactories] = useState(true);
-  const [loadingAllProducts, setLoadingAllProducts] = useState(true);
+  // Si llegan datos del servidor, los estados de loading arrancan en false
+  const [loadingFeaturedProducts, setLoadingFeaturedProducts] = useState(initialFeaturedProducts.length === 0);
+  const [loadingFeaturedFactories, setLoadingFeaturedFactories] = useState(initialFeaturedFactories.length === 0);
+  const [loadingAllProducts, setLoadingAllProducts] = useState(initialProducts.length === 0);
 
-  // ✅ NUEVO: estado para contadores reales
-  const [stats, setStats] = useState<PublicStats | null>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
+  const [stats, setStats] = useState<PublicStats | null>(initialStats);
+  const [loadingStats, setLoadingStats] = useState(initialStats === null);
 
   // ✅ NUEVO: testimonios — reemplazá con reales cuando los tengas
+  // Para actualizar: cambiá name, role, text e initial de cada objeto
   const testimonials = [
     {
       initial: 'L',
       name: 'Laura M.',
       role: 'Revendedora, GBA Norte',
-      text: 'Compré 2 griferías hidroelectrica para mi local de baños, cerró el lote en 5 días con otros compradores pero page 80.000 en ves de 100.000 y sin tener que pedir 10 unidades, me sirvio y llego bien.',
+      text: 'Compré 2 griferías para mi local de baños. El lote cerró en 3 días con otros compradores. Pagué precio de fábrica sin tener que pedir 10 unidades.',
     },
     {
       initial: 'R',
       name: 'Roberto S.',
       role: 'Revendedor online, CABA',
-      text: 'Lo bueno es que podés reservar sin haber pagado, y el poder darte de baja sin ninguna penalizacion.',
+      text: 'Lo mejor es que podés reservar y esperar a que se complete el lote. Si no cierra, te devuelven la plata. Sin riesgo.',
     },
     {
       initial: 'V',
       name: 'Valeria T.',
-      role: 'Mayorista, AMBA',
-      text: 'Accedí al catalogo de electrodomestico a mejores precios. Como revendedora considero que tiene productos de varias marcas a precios muy buenos, antes tenía que comprar 50 unidades mínimo.',
+      role: 'Distribuidora, Rosario',
+      text: 'Accedí a productos de Kanji Home a precio directo. Como revendedora es un cambio enorme: antes tenía que comprar 50 unidades mínimo.',
     },
   ];
 
@@ -164,16 +179,25 @@ export default function HomePrincipal() {
 
   useEffect(() => {
     async function loadAllData() {
-      const [authRes, featuredProductsRes, featuredFactoriesRes, productsRes, statsRes] =
-        await Promise.allSettled([
-          fetch('/api/auth/me'),
-          fetch('/api/featured/active?type=product'),
-          fetch('/api/featured/active?type=factory'),
-          fetch('/api/products/explore?page=1'),
-          fetch('/api/stats/public'),
-        ]);
+      // ✅ SSR: solo fetcheamos lo que NO llegó como prop desde el servidor
+      // auth siempre se fetchea en cliente (depende del cookie del usuario)
+      const fetchList: Promise<any>[] = [fetch('/api/auth/me')];
+      const needsFeaturedProducts  = initialFeaturedProducts.length === 0;
+      const needsFeaturedFactories = initialFeaturedFactories.length === 0;
+      const needsProducts          = initialProducts.length === 0;
+      const needsStats             = initialStats === null;
 
+      if (needsFeaturedProducts)  fetchList.push(fetch('/api/featured/active?type=product'));
+      if (needsFeaturedFactories) fetchList.push(fetch('/api/featured/active?type=factory'));
+      if (needsProducts)          fetchList.push(fetch('/api/products/explore?page=1'));
+      if (needsStats)             fetchList.push(fetch('/api/stats/public'));
+
+      const results = await Promise.allSettled(fetchList);
+      let idx = 0;
+
+      // Auth — siempre el primero
       try {
+        const authRes = results[idx++];
         if (authRes.status === 'fulfilled' && authRes.value.ok) {
           const data = await authRes.value.json();
           setIsAuthenticated(!!data.userId);
@@ -184,48 +208,60 @@ export default function HomePrincipal() {
         setIsLoading(false);
       }
 
-      try {
-        if (featuredProductsRes.status === 'fulfilled' && featuredProductsRes.value.ok) {
-          const data = await featuredProductsRes.value.json();
-          setFeaturedProducts(data.items || []);
+      if (needsFeaturedProducts) {
+        try {
+          const res = results[idx++];
+          if (res.status === 'fulfilled' && res.value.ok) {
+            const data = await res.value.json();
+            setFeaturedProducts(data.items || []);
+          }
+        } catch (e) {
+          console.error('Error cargando productos destacados:', e);
+        } finally {
+          setLoadingFeaturedProducts(false);
         }
-      } catch (e) {
-        console.error('Error cargando productos destacados:', e);
-      } finally {
-        setLoadingFeaturedProducts(false);
       }
 
-      try {
-        if (featuredFactoriesRes.status === 'fulfilled' && featuredFactoriesRes.value.ok) {
-          const data = await featuredFactoriesRes.value.json();
-          setFeaturedFactories(data.items || []);
+      if (needsFeaturedFactories) {
+        try {
+          const res = results[idx++];
+          if (res.status === 'fulfilled' && res.value.ok) {
+            const data = await res.value.json();
+            setFeaturedFactories(data.items || []);
+          }
+        } catch (e) {
+          console.error('Error cargando fábricas destacadas:', e);
+        } finally {
+          setLoadingFeaturedFactories(false);
         }
-      } catch (e) {
-        console.error('Error cargando fábricas destacadas:', e);
-      } finally {
-        setLoadingFeaturedFactories(false);
       }
 
-      try {
-        if (productsRes.status === 'fulfilled' && productsRes.value.ok) {
-          const data = await productsRes.value.json();
-          setAllProducts(data.products || []);
+      if (needsProducts) {
+        try {
+          const res = results[idx++];
+          if (res.status === 'fulfilled' && res.value.ok) {
+            const data = await res.value.json();
+            setAllProducts(data.products || []);
+          }
+        } catch (e) {
+          console.error('Error cargando productos:', e);
+        } finally {
+          setLoadingAllProducts(false);
         }
-      } catch (e) {
-        console.error('Error cargando productos:', e);
-      } finally {
-        setLoadingAllProducts(false);
       }
 
-      try {
-        if (statsRes.status === 'fulfilled' && statsRes.value.ok) {
-          const data = await statsRes.value.json();
-          setStats(data);
+      if (needsStats) {
+        try {
+          const res = results[idx++];
+          if (res.status === 'fulfilled' && res.value.ok) {
+            const data = await res.value.json();
+            setStats(data);
+          }
+        } catch (e) {
+          console.error('Error cargando stats:', e);
+        } finally {
+          setLoadingStats(false);
         }
-      } catch (e) {
-        console.error('Error cargando stats:', e);
-      } finally {
-        setLoadingStats(false);
       }
     }
 
@@ -236,6 +272,7 @@ export default function HomePrincipal() {
     async function loadProductLots() {
       if (featuredProducts.length === 0) return;
 
+      // ✅ OPTIMIZACIÓN: Promise.all en vez de for loop secuencial
       const results = await Promise.all(
         featuredProducts.map(async (product) => {
           try {
@@ -312,6 +349,7 @@ export default function HomePrincipal() {
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
+    // ✅ OPTIMIZACIÓN: passive: true mejora performance del scroll
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -319,8 +357,7 @@ export default function HomePrincipal() {
   const handleRoleRedirect = (targetRole: 'retailer' | 'manufacturer' | 'distributor' | 'wholesaler') => {
     if (isAuthenticated) {
       if (targetRole === 'retailer') {
-        // ✅ CAMBIO: revendedor autenticado va directo al explorador
-        router.push('/explorar');
+        router.push('/dashboard/pedidos-fraccionados');
       } else {
         router.push('/dashboard/fabricante');
       }
@@ -368,6 +405,7 @@ export default function HomePrincipal() {
               </Link>
 
               <div className="flex-1 max-w-2xl">
+                {/* ✅ FIX A: onSubmit ahora pasa el término de búsqueda a /explorar?search=X */}
                 <form onSubmit={(e) => {
                   e.preventDefault();
                   const term = searchInputRef.current?.value?.trim();
@@ -447,7 +485,9 @@ export default function HomePrincipal() {
         </div>
       </section>
 
-      {/* TRUST BAR */}
+      {/* ✅ NUEVO: TRUST BAR — contadores reales de la plataforma
+          Se oculta mientras carga. Si stats son 0 en todos, no se muestra.
+          Cuando tengas más datos reales, los números suben solos. */}
       {!loadingStats && stats && (stats.lotsCompleted > 0 || stats.totalUsers > 0 || stats.verifiedFactories > 0) && (
         <section className="bg-white border-b border-gray-100 py-6">
           <div className="max-w-7xl mx-auto px-4">
@@ -537,7 +577,7 @@ export default function HomePrincipal() {
         </div>
       </section>
 
-      {/* PRODUCTOS DESTACADOS */}
+      {/* ✅ FIX B: PRODUCTOS DESTACADOS — solo se renderiza si hay datos o está cargando */}
       {(loadingFeaturedProducts || featuredProducts.length > 0) && (
         <section className="max-w-7xl mx-auto px-4 mb-12">
           <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-2xl">
@@ -568,6 +608,7 @@ export default function HomePrincipal() {
                   const progress = lotData?.progress || 0;
                   const accumulated = lotData?.accumulatedQty || 0;
                   const minimum = lotData?.MF || product.itemData.minimumOrder;
+                  // ✅ FIX C: limpiar SKU en el nombre mostrado
                   const displayName = cleanProductName(product.itemData.name);
                   return (
                     <Link key={product.id} href={`/explorar/${product.itemData.id}`}>
@@ -638,7 +679,7 @@ export default function HomePrincipal() {
         </div>
       </section>
 
-      {/* FÁBRICAS DESTACADAS */}
+      {/* ✅ FIX B: FÁBRICAS DESTACADAS — solo se renderiza si hay datos o está cargando */}
       {(loadingFeaturedFactories || featuredFactories.length > 0) && (
         <section className="max-w-7xl mx-auto px-4 mb-12">
           <div className="flex items-center justify-between mb-6">
@@ -687,7 +728,9 @@ export default function HomePrincipal() {
         </section>
       )}
 
-      {/* TESTIMONIOS */}
+      {/* ✅ NUEVO: TESTIMONIOS
+          Para reemplazar con reales: editá el array "testimonials" arriba del return.
+          Cada objeto tiene: initial, name, role, text. */}
       <section className="max-w-7xl mx-auto px-4 mb-12">
         <div className="text-center mb-8">
           <h3 className="text-3xl font-black text-gray-900 mb-2">Lo que dicen nuestros revendedores</h3>
@@ -696,10 +739,13 @@ export default function HomePrincipal() {
         <div className="grid md:grid-cols-3 gap-6">
           {testimonials.map((t, i) => (
             <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col gap-4">
+              {/* Estrellas */}
               <div className="flex gap-1 text-yellow-400 text-sm">
                 {'★★★★★'.split('').map((s, j) => <span key={j}>{s}</span>)}
               </div>
+              {/* Texto */}
               <p className="text-gray-700 text-sm leading-relaxed flex-1">"{t.text}"</p>
+              {/* Autor */}
               <div className="flex items-center gap-3 pt-2 border-t border-gray-50">
                 <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
                   {t.initial}
