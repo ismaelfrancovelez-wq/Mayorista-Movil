@@ -272,36 +272,6 @@ export default function HomePrincipal({
     async function loadProductLots() {
       if (featuredProducts.length === 0) return;
 
-      {/* ✅ NUEVO: TRUST BAR — contadores reales de la plataforma
-          Se oculta mientras carga. Si stats son 0 en todos, no se muestra.
-          Cuando tengas más datos reales, los números suben solos. */}
-      {!loadingStats && stats && (stats.lotsCompleted > 0 || stats.totalUsers > 0 || stats.verifiedFactories > 0) && (
-        <section className="bg-white border-b border-gray-100 py-6">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-3xl font-black text-blue-600">
-                  {stats.lotsCompleted > 0 ? `+${stats.lotsCompleted}` : '—'}
-                </span>
-                <span className="text-sm text-gray-600 font-medium">Lotes completados</span>
-              </div>
-              <div className="flex flex-col items-center gap-1 border-x border-gray-100">
-                <span className="text-3xl font-black text-blue-600">
-                  {stats.totalUsers > 0 ? `+${stats.totalUsers}` : '—'}
-                </span>
-                <span className="text-sm text-gray-600 font-medium">Compradores registrados</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-3xl font-black text-blue-600">
-                  {stats.verifiedFactories > 0 ? stats.verifiedFactories : '—'}
-                </span>
-                <span className="text-sm text-gray-600 font-medium">Fábricas verificadas</span>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
       // ✅ OPTIMIZACIÓN: Promise.all en vez de for loop secuencial
       const results = await Promise.all(
         featuredProducts.map(async (product) => {
@@ -689,18 +659,18 @@ export default function HomePrincipal({
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">2</span></div>
-              <h4 className="text-xl font-bold text-gray-900 mb-2">Unite al lote</h4>
-              <p className="text-gray-600">Cuando compras cantidades menores al minimo, te unes a la barra de progreso junto a otros compradores para llegar al minimo.</p>
+              <h4 className="text-xl font-bold text-gray-900 mb-2">Reserva tu producto</h4>
+              <p className="text-gray-600">Cuando quieres cantidades menores al minimo, Podras hacer la reserva de tu producto sin necesidad de pagar en el momento, mientras el lote no se halla completado podras darte de baja sin ninguna penalizacion. Una ves que hagas tu reserva, te unes a la barra de progreso junto a otros compradores para llegar al minimo del producto establecido</p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">3</span></div>
-              <h4 className="text-xl font-bold text-gray-900 mb-2">Reembolso</h4>
-              <p className="text-gray-600">Mientras el lote este en progreso, puedes pedir el reembolso de tu dinero.</p>
+              <h4 className="text-xl font-bold text-gray-900 mb-2">Pago</h4>
+              <p className="text-gray-600">Una ves que el lote se completa, se te notificara dentro de la plataforma y por medio de WhatsApp, junto con un link de pago por correo electronico, recuerda que una ves se halla completado el lote deberas pagar sin excepción alguna.</p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">4</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Recibí tu pedido</h4>
-              <p className="text-gray-600">Cuando el lote se completa, el dinero se libera y tu recibes el producto dentro de las 24-72h.</p>
+              <p className="text-gray-600">Una ves que todos los compradores hallan pagado, se libera la totalidad del dinero hacia el vendedor, y tu resives el producto entre 24 a 72hs.</p>
             </div>
           </div>
           <div className="mt-8 text-center">
