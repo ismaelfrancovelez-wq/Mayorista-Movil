@@ -665,7 +665,7 @@ export default function HomePrincipal({
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">3</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Pago</h4>
-              <p className="text-gray-600">Una ves que el lote se completa, se te notificara dentro de la plataforma y por medio de WhatsApp, junto con un link de pago por correo electronico. Recuerda que una ves se halla completado el lote deberas pagar sin excepción, ya que la reserva constituye un compromiso comunitario entre todos los compradores.</p>
+              <p className="text-gray-600">Una ves que el lote se completa, se te notificara dentro de la plataforma y por medio de WhatsApp, junto con un link de pago por correo electronico.</p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">4</span></div>
