@@ -19,7 +19,6 @@ async function getHomeData() {
     const [
       featuredProductsSnap,
       featuredFactoriesSnap,
-      productsSnap,
       lotsSnap,
       usersSnap,
       manufacturersSnap,
@@ -40,12 +39,7 @@ async function getHomeData() {
         .limit(6)
         .get(),
 
-      // Solo category para calcular el grid de categorías
-      db.collection('products')
-        .where('active', '==', true)
-        .select('category')
-        .limit(200)
-        .get(),
+      // Categorías hardcodeadas — sin query a Firestore
 
       // Contadores trust bar
       db.collection('lots').where('status', '==', 'completed').count().get(),
@@ -130,15 +124,41 @@ async function getHomeData() {
       })
       .filter(Boolean);
 
-    // ── 6. Productos para categorías ──────────────────────────────
-    const products = productsSnap.docs.map(doc => ({
-      id: doc.id,
-      name: '',
-      price: 0,
-      minimumOrder: 0,
-      shippingMethods: [],
-      category: doc.data().category || 'otros',
-    }));
+    // ── 6. Categorías activas — 1 lectura por categoría ──────────
+    // Para cada categoría, lee 1 solo documento para saber si existe.
+    // Si existe al menos 1 producto activo → la categoría aparece en el grid.
+    // 14 categorías × 1 lectura = 14 lecturas totales. Automático y barato.
+    const ALL_CATEGORIES = [
+      'hogar', 'electronica', 'indumentaria', 'calzado',
+      'alimentos', 'bebidas', 'construccion', 'salud_belleza',
+      'jugueteria', 'libreria', 'deportes', 'automotor',
+      'mascotas', 'otros',
+    ];
+
+    const categoryChecks = await Promise.all(
+      ALL_CATEGORIES.map(cat =>
+        db.collection('products')
+          .where('active', '==', true)
+          .where('category', '==', cat)
+          .limit(1)          // ← 1 sola lectura por categoría
+          .select('category') // ← solo el campo category, más barato
+          .get()
+      )
+    );
+
+    // Convertir a formato que espera HomePrincipal
+    // Si la categoría tiene al menos 1 producto → la incluimos con count=1
+    // HomePrincipal solo necesita saber si count > 0 para mostrar la categoría
+    const products = ALL_CATEGORIES.flatMap((cat, i) =>
+      categoryChecks[i].empty ? [] : [{
+        id: cat,
+        name: '',
+        price: 0,
+        minimumOrder: 0,
+        shippingMethods: [] as string[],
+        category: cat,
+      }]
+    );
 
     // ── 7. Stats trust bar ────────────────────────────────────────
     const stats = {

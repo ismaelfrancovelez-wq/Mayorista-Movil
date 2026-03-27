@@ -5,6 +5,14 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
 
+// ✅ Categorías válidas — si llega una categoría desconocida (ej: "almacen") la ignoramos
+const VALID_CATEGORIES = new Set([
+  "hogar", "electronica", "indumentaria", "calzado",
+  "alimentos", "bebidas", "construccion", "salud_belleza",
+  "jugueteria", "libreria", "deportes", "automotor",
+  "mascotas", "otros",
+]);
+
 export async function GET(req: Request) {
   try {
     const { adminDb } = await getAdminServices();
@@ -17,9 +25,14 @@ export async function GET(req: Request) {
     const idsParam = searchParams.get("ids") || "";
     const ids = idsParam ? idsParam.split(",").filter(Boolean) : [];
 
+    // ✅ FIX: soporte para filtro por categoría
+    const categoryParam = searchParams.get("category") || "";
+    const category = VALID_CATEGORIES.has(categoryParam) ? categoryParam : "";
+
     let snap;
 
     if (ids.length > 0) {
+      // Búsqueda por IDs específicos (desde el índice de búsqueda)
       const chunks: string[][] = [];
       for (let i = 0; i < ids.length; i += 30) {
         chunks.push(ids.slice(i, i + 30));
@@ -32,29 +45,48 @@ export async function GET(req: Request) {
       snap = { docs: snaps.flatMap((s) => s.docs) };
 
     } else if (search) {
-      snap = await adminDb
+      // Búsqueda por nombre
+      let query = adminDb
         .collection("products")
         .where("active", "==", true)
         .where("nameLower", ">=", search)
-        .where("nameLower", "<=", search + "\uf8ff")
-        .limit(100)
+        .where("nameLower", "<=", search + "\uf8ff");
+
+      // ✅ Si además hay categoría, filtrar combinado
+      if (category) {
+        query = query.where("category", "==", category);
+      }
+
+      snap = await query.limit(100).get();
+
+    } else if (category) {
+      // ✅ FIX: filtro por categoría — consulta directa a Firestore
+      // Trae todos los productos de esa categoría con paginación correcta
+      snap = await adminDb
+        .collection("products")
+        .where("active", "==", true)
+        .where("category", "==", category)
+        .orderBy("createdAt", "desc")
+        .limit(PAGE_SIZE * 3)
+        .offset(offset)
         .get();
 
     } else {
-      // ✅ MODO NORMAL: traemos más productos para poder ordenar por actividad
+      // Modo normal: todos los productos paginados
       snap = await adminDb
         .collection("products")
         .where("active", "==", true)
         .orderBy("createdAt", "desc")
-        .limit(PAGE_SIZE * 3) // traemos más para tener margen de ordenamiento
+        .limit(PAGE_SIZE * 3)
         .offset(offset)
         .get();
     }
 
     const isNormalMode = !search && ids.length === 0;
+    const isCategoryMode = !!category && !search && ids.length === 0;
     const hasMore = isNormalMode && snap.docs.length === PAGE_SIZE * 3;
 
-    // ✅ NUEVO: obtener accumulatedQty de lotes activos para ordenar por actividad
+    // Obtener accumulatedQty de lotes activos
     const productIds = snap.docs.map((doc) => doc.id);
     const accumulatedMap = new Map<string, number>();
 
@@ -88,12 +120,20 @@ export async function GET(req: Request) {
       ),
     ];
 
-    const sellerDataMap: Record<string, { name: string; imageUrl?: string; verified?: boolean; sellerType: string }> = {};
+    const sellerDataMap: Record<string, {
+      name: string;
+      imageUrl?: string;
+      verified?: boolean;
+      sellerType: string;
+    }> = {};
 
     if (factoryIds.length > 0) {
-      const manufacturerSnaps = await Promise.all(
-        factoryIds.map((id: string) => adminDb.collection("manufacturers").doc(id).get())
-      );
+      const [manufacturerSnaps, distributorSnaps, wholesalerSnaps] = await Promise.all([
+        Promise.all(factoryIds.map((id: string) => adminDb.collection("manufacturers").doc(id).get())),
+        Promise.all(factoryIds.map((id: string) => adminDb.collection("distributors").doc(id).get())),
+        Promise.all(factoryIds.map((id: string) => adminDb.collection("wholesalers").doc(id).get())),
+      ]);
+
       manufacturerSnaps.forEach((snap) => {
         if (snap.exists) {
           const data = snap.data();
@@ -106,9 +146,6 @@ export async function GET(req: Request) {
         }
       });
 
-      const distributorSnaps = await Promise.all(
-        factoryIds.map((id: string) => adminDb.collection("distributors").doc(id).get())
-      );
       distributorSnaps.forEach((snap) => {
         if (snap.exists) {
           const data = snap.data();
@@ -121,9 +158,6 @@ export async function GET(req: Request) {
         }
       });
 
-      const wholesalerSnaps = await Promise.all(
-        factoryIds.map((id: string) => adminDb.collection("wholesalers").doc(id).get())
-      );
       wholesalerSnaps.forEach((snap) => {
         if (snap.exists) {
           const data = snap.data();
@@ -143,12 +177,16 @@ export async function GET(req: Request) {
       const seller = sellerDataMap[factoryId];
       const sellerType = data.sellerType || seller?.sellerType || "manufacturer";
 
+      // ✅ Si la categoría del producto no es válida, la normalizamos a "otros"
+      const rawCategory = data.category || "";
+      const normalizedCategory = VALID_CATEGORIES.has(rawCategory) ? rawCategory : "otros";
+
       return {
         id: doc.id,
         name: data.name,
         price: data.price,
         minimumOrder: data.minimumOrder,
-        category: data.category || "otros",
+        category: normalizedCategory,
         factoryId,
         imageUrls: Array.isArray(data.imageUrls) && data.imageUrls.length > 0
           ? data.imageUrls
@@ -169,10 +207,8 @@ export async function GET(req: Request) {
       };
     });
 
-    // ✅ NUEVO: ordenar por actividad — más compras primero, sin actividad al final
     if (isNormalMode) {
       products.sort((a, b) => b.accumulatedQty - a.accumulatedQty);
-      // Limitar al PAGE_SIZE después de ordenar
       products = products.slice(0, PAGE_SIZE);
     }
 
@@ -182,6 +218,7 @@ export async function GET(req: Request) {
       pageSize: PAGE_SIZE,
       hasMore,
     });
+
   } catch (err) {
     console.error("❌ EXPLORE PRODUCTS ERROR:", err);
     return NextResponse.json(

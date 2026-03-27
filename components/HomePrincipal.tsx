@@ -272,6 +272,36 @@ export default function HomePrincipal({
     async function loadProductLots() {
       if (featuredProducts.length === 0) return;
 
+      {/* ✅ NUEVO: TRUST BAR — contadores reales de la plataforma
+          Se oculta mientras carga. Si stats son 0 en todos, no se muestra.
+          Cuando tengas más datos reales, los números suben solos. */}
+      {!loadingStats && stats && (stats.lotsCompleted > 0 || stats.totalUsers > 0 || stats.verifiedFactories > 0) && (
+        <section className="bg-white border-b border-gray-100 py-6">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-3xl font-black text-blue-600">
+                  {stats.lotsCompleted > 0 ? `+${stats.lotsCompleted}` : '—'}
+                </span>
+                <span className="text-sm text-gray-600 font-medium">Lotes completados</span>
+              </div>
+              <div className="flex flex-col items-center gap-1 border-x border-gray-100">
+                <span className="text-3xl font-black text-blue-600">
+                  {stats.totalUsers > 0 ? `+${stats.totalUsers}` : '—'}
+                </span>
+                <span className="text-sm text-gray-600 font-medium">Compradores registrados</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-3xl font-black text-blue-600">
+                  {stats.verifiedFactories > 0 ? stats.verifiedFactories : '—'}
+                </span>
+                <span className="text-sm text-gray-600 font-medium">Fábricas verificadas</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       // ✅ OPTIMIZACIÓN: Promise.all en vez de for loop secuencial
       const results = await Promise.all(
         featuredProducts.map(async (product) => {

@@ -25,6 +25,10 @@
 //    Cuando un lote alcanza el mínimo → status "closed" + level1WindowExpiresAt.
 //    Durante 2h, SOLO Nivel 1 puede sumarse al lote.
 //    El cron /api/cron/process-lots procesa el cierre real cuando vence la ventana.
+//
+// ✅ db.runTransaction en la sección crítica (pasos 7-11).
+//    Garantiza atomicidad: no puede haber dos reservas simultáneas que
+//    lleven el lote al mínimo por separado ni duplicados de reserva.
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -373,39 +377,29 @@ export async function POST(req: Request) {
       "Comprador";
     const retailerEmail = userSnap.data()?.email || "";
 
-    /* ── 7. BUSCAR LOTE ACTIVO ──────────────────────── */
+    /* ── 7-11. SECCIÓN CRÍTICA — TRANSACCIÓN ATÓMICA ─── */
+    // Envuelve: buscar lote activo, verificar duplicado, guardar reserva,
+    // actualizar/crear lote y guardar ventana 2h en una sola transacción.
+    // Así dos requests simultáneos no pueden generar reservas duplicadas
+    // ni llevar el lote al mínimo dos veces por separado.
+
     const SHIPPING_TYPES = new Set(["fractional_shipping", "fraccionado_envio"]);
     const PICKUP_TYPES = new Set(["fractional_pickup", "fraccionado_retiro"]);
     const targetTypes = shippingMode === "pickup" ? PICKUP_TYPES : SHIPPING_TYPES;
+    const lotType =
+      shippingMode === "pickup" ? "fractional_pickup" : "fractional_shipping";
 
-    const [accumSnap, openSnap] = await Promise.all([
-      db.collection("lots").where("productId", "==", productId).where("status", "==", "accumulating").get(),
-      db.collection("lots").where("productId", "==", productId).where("status", "==", "open").get(),
-    ]);
+    // Variables que necesita el bloque post-transacción (ventana Nivel 1 y respuesta)
+    let txReservationId: string = "";
+    let txFinalLotId: string = "";
+    let txLotClosed: boolean = false;
+    let txSkipMainFlow: boolean = false; // true cuando se entra por ventana Nivel 1
 
-    const allLotDocs = [...accumSnap.docs, ...openSnap.docs];
-    const activeLotDoc = allLotDocs.find((d) => targetTypes.has(d.data().type));
-    const activeLotId = activeLotDoc ? activeLotDoc.id : null;
-
-    // Restricción de acceso por nivel cuando el lote supera el 80%
-    if (activeLotDoc) {
-      const currentQty = activeLotDoc.data().accumulatedQty || 0;
-      const progress = minimumOrder > 0 ? currentQty / minimumOrder : 0;
-      if (progress >= 0.8 && retailerLevel >= 3) {
-        return NextResponse.json(
-          {
-            error: `Este lote está casi lleno (${Math.round(progress * 100)}%). Solo revendedores de Nivel 1 o 2 pueden unirse en esta etapa. Mejorá tu historial de pagos para acceder.`,
-            levelRestriction: true,
-            currentLevel: retailerLevel,
-            lotProgress: Math.round(progress * 100),
-          },
-          { status: 403 }
-        );
-      }
-    }
-
-    // Ventana de 2h post-cierre — solo Nivel 1 puede entrar a lotes "closed"
-    if (!activeLotDoc && retailerLevel === 1) {
+    // ── Ventana de 2h post-cierre para Nivel 1 ──────────────────────────
+    // Esta lógica se mantiene FUERA de la transacción principal porque consulta
+    // un lote con status "closed" (distinto al flujo normal) y crea una reserva
+    // directamente, igual que en el código original.
+    if (retailerLevel === 1) {
       const closedLotSnap = await db
         .collection("lots")
         .where("productId", "==", productId)
@@ -487,112 +481,131 @@ export async function POST(req: Request) {
       }
     }
 
-    /* ── 8. VERIFICAR DUPLICADO ─────────────────────── */
-    if (activeLotId) {
-      const dupSnap = await db
-        .collection("reservations")
-        .where("retailerId", "==", retailerId)
-        .where("lotId", "==", activeLotId)
-        .where("status", "in", ["pending_lot", "lot_closed"])
-        .limit(1)
-        .get();
+    // ── TRANSACCIÓN ATÓMICA: pasos 7, 8, 9, 10 y 11 ────────────────────
+    await db.runTransaction(async (transaction) => {
+      // ── 7. BUSCAR LOTE ACTIVO ──────────────────────────────────────────
+      const lotQuery = db.collection("lots")
+        .where("productId", "==", productId)
+        .where("status", "in", ["accumulating", "open"])
+        .where("type", "==", lotType)
+        .limit(1);
 
-      if (!dupSnap.empty) {
-        return NextResponse.json(
+      const lotSnap = await transaction.get(lotQuery);
+
+      let targetLotRef;
+      let currentQty = 0;
+      let isNewLot = false;
+      let activeLotProgress = 0;
+
+      if (lotSnap.empty) {
+        targetLotRef = db.collection("lots").doc();
+        isNewLot = true;
+      } else {
+        targetLotRef = lotSnap.docs[0].ref;
+        currentQty = lotSnap.docs[0].data().accumulatedQty || 0;
+        activeLotProgress = minimumOrder > 0 ? currentQty / minimumOrder : 0;
+      }
+
+      // ── 8. VERIFICAR DUPLICADO ─────────────────────────────────────────
+      if (!isNewLot) {
+        const dupQuery = db.collection("reservations")
+          .where("retailerId", "==", retailerId)
+          .where("lotId", "==", targetLotRef.id)
+          .where("status", "in", ["pending_lot", "lot_closed"])
+          .limit(1);
+
+        const dupSnap = await transaction.get(dupQuery);
+        if (!dupSnap.empty) {
+          throw Object.assign(new Error("ALREADY_RESERVED"), { alreadyReserved: true });
+        }
+      }
+
+      // Restricción de acceso por nivel cuando el lote supera el 80%
+      if (!isNewLot && activeLotProgress >= 0.8 && retailerLevel >= 3) {
+        throw Object.assign(
+          new Error("LEVEL_RESTRICTED"),
           {
-            error: "Ya tenés una reserva activa para este producto en este lote.",
-            alreadyReserved: true,
-          },
-          { status: 409 }
+            levelRestriction: true,
+            currentLevel: retailerLevel,
+            lotProgress: Math.round(activeLotProgress * 100),
+          }
         );
       }
-    }
 
-    /* ── 9. GUARDAR RESERVA ─────────────────────────── */
-    const reservationRef = db.collection("reservations").doc();
-    await reservationRef.set({
-      retailerId,
-      retailerName,
-      retailerEmail,
-      retailerAddress: retailerAddressText,
-      postalCode: postalCode || null,
-      productId,
-      productName,
-      factoryId,
-      factoryName,
-      qty: Number(qty),
-      shippingMode,
-      shippingCostEstimated,
-      commission,
-      productSubtotal,
-      // BLOQUE 1: guardar descuentos de racha en la reserva para usarlos al cerrar el lote
-      shippingDiscount,
-      commissionDiscount,
-      streakPointsAtReservation: currentStreak,
-      lotId: activeLotId,
-      status: "pending_lot",
-      paymentLevel: retailerLevel,
-      reliabilityScore: retailerScore,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+      // ── 9. CREAR LA RESERVA ────────────────────────────────────────────
+      const reservationRef = db.collection("reservations").doc();
+      txReservationId = reservationRef.id;
 
-    /* ── 10. ACTUALIZAR / CREAR LOTE ────────────────── */
-    const lotType =
-      shippingMode === "pickup" ? "fractional_pickup" : "fractional_shipping";
-    let lotClosed = false;
-    let finalLotId: string;
-
-    if (activeLotDoc) {
-      finalLotId = activeLotDoc.id;
-      const currentQty = activeLotDoc.data().accumulatedQty || 0;
-      const newQty = currentQty + Number(qty);
-      lotClosed = newQty >= minimumOrder;
-
-      await db.collection("lots").doc(finalLotId).update({
-        accumulatedQty: newQty,
-        status: lotClosed ? "closed" : "accumulating",
-        closedAt: lotClosed ? FieldValue.serverTimestamp() : null,
-        updatedAt: FieldValue.serverTimestamp(),
-        productName,
-        productPrice,
-      });
-    } else {
-      const newLotRef = db.collection("lots").doc();
-      finalLotId = newLotRef.id;
-      lotClosed = Number(qty) >= minimumOrder;
-
-      await newLotRef.set({
+      transaction.set(reservationRef, {
+        retailerId,
+        retailerName,
+        retailerEmail,
+        retailerAddress: retailerAddressText,
+        postalCode: postalCode || null,
         productId,
-        factoryId,
-        type: lotType,
-        minimumOrder,
-        accumulatedQty: Number(qty),
-        status: lotClosed ? "closed" : "accumulating",
-        orders: [],
-        orderCreated: false,
         productName,
-        productPrice,
+        factoryId,
+        factoryName,
+        qty: Number(qty),
+        shippingMode,
+        shippingCostEstimated,
+        commission,
+        productSubtotal,
+        // BLOQUE 1: guardar descuentos de racha en la reserva para usarlos al cerrar el lote
+        shippingDiscount,
+        commissionDiscount,
+        streakPointsAtReservation: currentStreak,
+        lotId: targetLotRef.id,
+        status: "pending_lot",
+        paymentLevel: retailerLevel,
+        reliabilityScore: retailerScore,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
-        closedAt: lotClosed ? FieldValue.serverTimestamp() : null,
       });
-    }
 
-    await reservationRef.update({
-      lotId: finalLotId,
-      updatedAt: FieldValue.serverTimestamp(),
+      // ── 10. ACTUALIZAR / CREAR LOTE ────────────────────────────────────
+      const newAccumulatedQty = currentQty + Number(qty);
+      txLotClosed = newAccumulatedQty >= minimumOrder;
+      txFinalLotId = targetLotRef.id;
+
+      // ── 11. SI EL LOTE CERRÓ → GUARDAR VENTANA 2H ─────────────────────
+      const level1WindowExpiresAt = txLotClosed
+        ? new Date(Date.now() + 2 * 60 * 60 * 1000)
+        : null;
+
+      if (txLotClosed) {
+        console.log(`🔒 Lote ${txFinalLotId} cerrado. Ventana Nivel 1 hasta: ${level1WindowExpiresAt!.toISOString()}`);
+      }
+
+      if (isNewLot) {
+        transaction.set(targetLotRef, {
+          productId,
+          factoryId,
+          type: lotType,
+          minimumOrder,
+          accumulatedQty: newAccumulatedQty,
+          status: txLotClosed ? "closed" : "accumulating",
+          orders: [],
+          orderCreated: false,
+          productName,
+          productPrice,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          closedAt: txLotClosed ? FieldValue.serverTimestamp() : null,
+          level1WindowExpiresAt,
+        });
+      } else {
+        transaction.update(targetLotRef, {
+          accumulatedQty: newAccumulatedQty,
+          status: txLotClosed ? "closed" : "accumulating",
+          closedAt: txLotClosed ? FieldValue.serverTimestamp() : null,
+          level1WindowExpiresAt,
+          updatedAt: FieldValue.serverTimestamp(),
+          productName,
+          productPrice,
+        });
+      }
     });
-
-    /* ── 11. SI EL LOTE CERRÓ → GUARDAR VENTANA 2H ─── */
-    if (lotClosed) {
-      const level1WindowExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
-      await db.collection("lots").doc(finalLotId).update({
-        level1WindowExpiresAt,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      console.log(`🔒 Lote ${finalLotId} cerrado. Ventana Nivel 1 hasta: ${level1WindowExpiresAt.toISOString()}`);
-    }
 
     /* ── 12. RESPUESTA ──────────────────────────────── */
     // BLOQUE 2 impl 5 — datos de saliencia: cuánto paga de más vs nivel 1
@@ -603,22 +616,43 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      reservationId: reservationRef.id,
-      lotId: finalLotId,
-      lotClosed,
+      reservationId: txReservationId,
+      lotId: txFinalLotId,
+      lotClosed: txLotClosed,
       commissionRate: Math.round(effectiveCommissionRate * 100),
       shippingDiscountPct: Math.round(shippingDiscount * 100),
       retailerLevel,
       savingsVsLevel1,
       message: shippingMode === "pickup"
-        ? lotClosed
+        ? txLotClosed
           ? "¡Completaste el lote! Te avisaremos por email en las próximas horas cuando esté listo para pagar."
           : "Lugar reservado. Te avisaremos por email cuando el lote esté listo para pagar."
-        : lotClosed
+        : txLotClosed
           ? `¡Completaste el lote! Calculamos los envíos y te mandamos el link de pago a tu email en las próximas horas.`
           : `Lugar reservado. Estamos buscando más compradores en tu zona${postalCode ? ` (${postalCode})` : ""}. Cuando el lote cierre, te mandamos el precio final a tu email.`,
     });
   } catch (error: any) {
+    // Errores lanzados desde dentro de la transacción
+    if (error.message === "ALREADY_RESERVED") {
+      return NextResponse.json(
+        {
+          error: "Ya tenés una reserva activa para este producto en este lote.",
+          alreadyReserved: true,
+        },
+        { status: 409 }
+      );
+    }
+    if (error.message === "LEVEL_RESTRICTED") {
+      return NextResponse.json(
+        {
+          error: `Este lote está casi lleno. Solo revendedores de Nivel 1 o 2 pueden unirse en esta etapa. Mejorá tu historial de pagos para acceder.`,
+          levelRestriction: true,
+          currentLevel: error.currentLevel,
+          lotProgress: error.lotProgress,
+        },
+        { status: 403 }
+      );
+    }
     console.error("❌ Error en reserve/route.ts:", error);
     return NextResponse.json(
       { error: "Error procesando la reserva. Intentá de nuevo." },
