@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import GooglePlacesAutocomplete from "../../../../components/GooglePlacesAutocomplete";
 import { uploadImage, validateImageFile } from "../../../../lib/firebase-storage";
 
@@ -52,10 +53,8 @@ export default function PerfilFabricantePage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para verificación
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   
-  // Estados para Mercado Pago
   const [mpConnected, setMpConnected] = useState<boolean | null>(null);
   const [mpEmail, setMpEmail] = useState("");
 
@@ -64,6 +63,9 @@ export default function PerfilFabricantePage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // ✅ NUEVO: cerrar sesión
+  const [loggingOut, setLoggingOut] = useState(false);
 
   /* ===============================
      🔥 CARGAR DATOS EXISTENTES
@@ -205,6 +207,25 @@ export default function PerfilFabricantePage() {
       setError(err.message || "Error al guardar perfil");
     } finally {
       setLoading(false);
+    }
+  }
+
+  /* ===============================
+     🚪 CERRAR SESIÓN
+  =============================== */
+  async function handleLogout() {
+    if (!confirm("¿Estás seguro que querés cerrar sesión?")) return;
+    setLoggingOut(true);
+    try {
+      const res = await fetch("/api/auth/logout", { method: "POST" });
+      if (!res.ok) throw new Error("Error al cerrar sesión");
+      toast.success("Sesión cerrada exitosamente");
+      router.push("/");
+      router.refresh();
+    } catch (error) {
+      toast.error("Error al cerrar sesión");
+    } finally {
+      setLoggingOut(false);
     }
   }
 
@@ -360,7 +381,7 @@ export default function PerfilFabricantePage() {
           </p>
         </div>
 
-        {/* ✅ VERIFICACIÓN EN PERFIL */}
+        {/* VERIFICACIÓN EN PERFIL */}
         <div className="mt-6 pt-6 border-t">
           <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
             {verificationStatus === 'verified' ? '✓' : 
@@ -560,10 +581,23 @@ export default function PerfilFabricantePage() {
         {uploadingImage ? "Subiendo imagen..." : loading ? "Guardando..." : "Guardar perfil"}
       </button>
 
+      {/* ✅ CERRAR SESIÓN */}
+      <div className="mt-12 border-t border-gray-200 pt-8">
+        <h2 className="text-lg font-semibold text-gray-700 mb-1">Sesión</h2>
+        <p className="text-sm text-gray-500 mb-4">Cerrá tu sesión en este dispositivo.</p>
+        <button
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="border border-gray-300 text-gray-600 px-4 py-2 rounded hover:bg-gray-50 transition text-sm font-medium disabled:opacity-50"
+        >
+          🚪 {loggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
+        </button>
+      </div>
+
       {/* =====================
           🗑️ ZONA DE PELIGRO
       ===================== */}
-      <div className="mt-16 border-t border-red-200 pt-8 mb-12">
+      <div className="mt-8 border-t border-red-200 pt-8 mb-12">
         <h2 className="text-lg font-semibold text-red-600 mb-1">Zona de peligro</h2>
         <p className="text-sm text-gray-500 mb-4">
           Eliminar tu cuenta es permanente. Se borrarán tu perfil, productos, verificación y datos asociados.

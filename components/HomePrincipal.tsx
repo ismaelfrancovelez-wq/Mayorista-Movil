@@ -303,7 +303,7 @@ export default function HomePrincipal({
 
   const banners = [
     {
-      title: '¡Pedidos desde 10 unidades!',
+      title: '¡Pedidos desde 1 unidad!',
       subtitle: 'Comprá a precio de fábrica sin invertir grandes volúmenes.',
       bgColor: 'from-blue-600 via-blue-700 to-blue-900',
       image: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1200',
