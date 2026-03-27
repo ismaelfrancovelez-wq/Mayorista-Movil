@@ -21,6 +21,9 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 const VALID_ROLES: UserRole[] = ["manufacturer", "retailer", "distributor", "wholesaler"];
 
+// ── Roles que van al dashboard de fabricante (vendedores) ────────────────────
+const SELLER_ROLES: UserRole[] = ["manufacturer", "distributor", "wholesaler"];
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -31,8 +34,6 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
-  // ✅ FIX: leer el parámetro ?redirect= para volver al producto tras el login
-  // Ejemplo: /login?role=retailer&redirect=/explorar/abc123
   const redirectTo = searchParams?.get("redirect") || null;
 
   useEffect(() => {
@@ -51,8 +52,6 @@ export default function LoginPage() {
       return;
     }
 
-    // ✅ Si viene de un producto sin rol, asignamos retailer por defecto
-    // Es el rol más común para alguien que llega desde /explorar
     if (redirectTo?.startsWith("/explorar/")) {
       setSelectedRole("retailer");
       localStorage.setItem("selectedRole", "retailer");
@@ -66,7 +65,7 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Cargando...</p>
         </div>
       </div>
@@ -167,21 +166,40 @@ export default function LoginPage() {
     }
   }
 
-  // ✅ FIX: si hay redirect válido, va ahí. Si no, dashboard según rol.
-  // Valida que sea URL relativa para evitar open redirect attacks.
+  // ── FIX: redirección correcta por rol ────────────────────────────────────
+  //
+  // ANTES (con el bug):
+  //   retailer → /explorar   ← correcto
+  //   otros    → /dashboard/fabricante  ← pero si algo mandaba a /dashboard/pedidos-fraccionados daba 404
+  //
+  // AHORA:
+  //   Si hay redirectTo válido → va ahí (comportamiento intacto)
+  //   retailer → /explorar  (el dashboard del revendedor vive en /explorar)
+  //   seller roles → /dashboard/fabricante
+  //   cualquier otro rol desconocido → /explorar (fallback seguro)
   function redirectAfterAuth(role: string) {
     localStorage.removeItem("selectedRole");
 
+    // 1. Redirect explícito (ej: volver al producto que quería comprar)
     if (redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
       router.push(redirectTo);
       return;
     }
 
+    // 2. Retailer → explorar (su dashboard real)
     if (role === "retailer") {
       router.push("/explorar");
-    } else {
-      router.push("/dashboard/fabricante");
+      return;
     }
+
+    // 3. Vendedores (fabricante, distribuidor, mayorista) → dashboard fabricante
+    if (SELLER_ROLES.includes(role as UserRole)) {
+      router.push("/dashboard/fabricante");
+      return;
+    }
+
+    // 4. Fallback seguro — nunca 404
+    router.push("/explorar");
   }
 
   return (
@@ -196,7 +214,6 @@ export default function LoginPage() {
           <p className="text-gray-600 text-sm">
             Ingresá a tu cuenta de {roleLabel.toLowerCase()}
           </p>
-          {/* ✅ FIX: mensaje contextual cuando viene desde un producto */}
           {redirectTo?.startsWith("/explorar/") && (
             <p className="text-blue-600 text-sm mt-2 font-medium">
               Ingresá para unirte al lote →
@@ -221,7 +238,7 @@ export default function LoginPage() {
 
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300"></div>
+            <div className="w-full border-t border-gray-300" />
           </div>
           <div className="relative flex justify-center text-sm">
             <span className="px-4 bg-white text-gray-500">O con email</span>

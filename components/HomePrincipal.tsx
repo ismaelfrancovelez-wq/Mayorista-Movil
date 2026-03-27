@@ -357,7 +357,7 @@ export default function HomePrincipal({
   const handleRoleRedirect = (targetRole: 'retailer' | 'manufacturer' | 'distributor' | 'wholesaler') => {
     if (isAuthenticated) {
       if (targetRole === 'retailer') {
-        router.push('/dashboard/pedidos-fraccionados');
+        router.push('/explorar');
       } else {
         router.push('/dashboard/fabricante');
       }
@@ -650,7 +650,7 @@ export default function HomePrincipal({
       <section className="max-w-7xl mx-auto px-4 mb-12">
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-100">
           <h3 className="text-3xl font-black text-gray-900 mb-2 text-center">¿Cómo funciona la compra fraccionada?</h3>
-          <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto">Accedé a precios de fabrica comprando pocas cantidades</p>
+          <p className="text-center text-gray-600 mb-8 max-w-2xl mx-auto"></p>
           <div className="grid md:grid-cols-4 gap-8">
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">1</span></div>
@@ -670,7 +670,8 @@ export default function HomePrincipal({
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">4</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Pago</h4>
-              <p className="text-gray-600">Una ves que el lote se completa, se te notificara dentro de la plataforma y por medio de WhatsApp, junto con un link de pago por correo electronico; Para recordarte completar el pago.</p>
+              <p className="text-gray-600">Una ves que el lote se completa, se te notificara dentro de la plataforma y por medio de WhatsApp, junto con un link de pago por correo electronico; Para recordarte completar
+                 el pago.</p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">5</span></div>
