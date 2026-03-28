@@ -517,8 +517,8 @@ export default function ExplorarClient({
                     const outOfStock = isOutOfStock(product);
 
                     return (
-                      <div key={product.id} className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden flex flex-col">
-
+                      
+<Link key={product.id} href={`/explorar/${product.id}`} className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden flex flex-col">
                         {/* IMAGEN */}
                         <div className="relative h-48 bg-white overflow-hidden border-b border-gray-100">
                           {product.imageUrls && product.imageUrls.length > 0 ? (
@@ -632,22 +632,29 @@ export default function ExplorarClient({
                             </div>
                           )}
 
-                          <Link
-                            href={`/explorar/${product.id}`}
-                            className={`mt-auto w-full text-center py-2 rounded-lg transition font-medium ${
-                              outOfStock
-                                ? "bg-gray-100 text-gray-400 cursor-not-allowed pointer-events-none"
-                                : "bg-blue-600 text-white hover:bg-blue-700"
-                            }`}
-                          >
-                            {outOfStock ? "Sin stock disponible" : "Ver producto →"}
-                          </Link>
+<button
+  onClick={(e: React.MouseEvent) => {
+    if (!outOfStock) {
+      sessionStorage.setItem(
+        `autoReserve_${product.id}`,
+        JSON.stringify({ qty: 1, shippingMode: "pickup" })
+      );
+    }
+  }}
+  className={`mt-auto w-full text-center py-2 rounded-lg transition font-medium ${
+    outOfStock
+      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+      : "bg-blue-600 text-white hover:bg-blue-700"
+  }`}
+  disabled={outOfStock}
+>
+  {outOfStock ? "Sin stock disponible" : "Reservar mi lugar →"}
+</button>
                         </div>
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>
-
                 {hasMore && (
                   <div className="mt-8 text-center">
                     <button
