@@ -31,7 +31,8 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
-  // ✅ Leer redirect para volver al producto tras el login
+  // ✅ FIX: leer el parámetro ?redirect= para volver al producto tras el login
+  // Ejemplo: /login?role=retailer&redirect=/explorar/abc123
   const redirectTo = searchParams?.get("redirect") || null;
 
   useEffect(() => {
@@ -50,7 +51,8 @@ export default function LoginPage() {
       return;
     }
 
-    // Si viene de un producto sin rol, asignamos retailer por defecto
+    // ✅ Si viene de un producto sin rol, asignamos retailer por defecto
+    // Es el rol más común para alguien que llega desde /explorar
     if (redirectTo?.startsWith("/explorar/")) {
       setSelectedRole("retailer");
       localStorage.setItem("selectedRole", "retailer");
@@ -165,8 +167,8 @@ export default function LoginPage() {
     }
   }
 
-  // ✅ Si hay redirect válido, va ahí. Si no, /explorar para retailer, /dashboard/fabricante para el resto.
-  // Valida que sea URL relativa para evitar open redirect.
+  // ✅ FIX: si hay redirect válido, va ahí. Si no, dashboard según rol.
+  // Valida que sea URL relativa para evitar open redirect attacks.
   function redirectAfterAuth(role: string) {
     localStorage.removeItem("selectedRole");
 
@@ -194,7 +196,7 @@ export default function LoginPage() {
           <p className="text-gray-600 text-sm">
             Ingresá a tu cuenta de {roleLabel.toLowerCase()}
           </p>
-          {/* Mensaje contextual cuando viene desde un producto */}
+          {/* ✅ FIX: mensaje contextual cuando viene desde un producto */}
           {redirectTo?.startsWith("/explorar/") && (
             <p className="text-blue-600 text-sm mt-2 font-medium">
               Ingresá para unirte al lote →
@@ -208,7 +210,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Google — opción principal */}
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
