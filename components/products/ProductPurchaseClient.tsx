@@ -15,11 +15,13 @@ type Props = {
   noShipping?: boolean;
   unitLabel?: string;
   initialCommissionRate?: number;
-  // ✅ NUEVO: si no hay userId, el botón redirige al login en vez de ejecutar la compra
   userId?: string;
 };
 
 type ShippingMode = "pickup" | "factory" | "platform";
+
+// Clave en sessionStorage para la reserva pendiente
+const AUTO_RESERVE_KEY = (productId: string) => `autoReserve_${productId}`;
 
 function formatNumber(n: number): string {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -62,6 +64,9 @@ export default function ProductPurchaseClient({
   const [reserveError, setReserveError] = useState<string | null>(null);
 
   const [showSimulator, setShowSimulator] = useState(false);
+
+  // ✅ NUEVO: indica que la reserva se está ejecutando automáticamente post-login
+  const [autoReserving, setAutoReserving] = useState(false);
 
   const usesReserveFlow = isFraccionado && (selectedShipping === "platform" || selectedShipping === "pickup");
 
@@ -147,6 +152,76 @@ export default function ProductPurchaseClient({
     calculateDirectShipping();
   }, [qty, MF, productId, isFraccionado, calculatePlatformShipping]);
 
+  // ✅ NUEVO: auto-reserva post-login
+  // Cuando el usuario vuelve al producto después de loguearse, detecta la flag
+  // en sessionStorage y ejecuta la reserva automáticamente
+  useEffect(() => {
+    if (!userId || loadingMPStatus || mpConnected === null) return;
+
+    const key = AUTO_RESERVE_KEY(productId);
+    const pending = sessionStorage.getItem(key);
+    if (!pending) return;
+
+    let saved: { qty: number; shippingMode: ShippingMode } | null = null;
+    try {
+      saved = JSON.parse(pending);
+    } catch {
+      sessionStorage.removeItem(key);
+      return;
+    }
+
+    // Limpiar la flag inmediatamente para no re-ejecutar
+    sessionStorage.removeItem(key);
+
+    if (!saved) return;
+
+    // Restaurar qty y shippingMode guardados
+    setQty(saved.qty);
+    setSelectedShipping(saved.shippingMode);
+    setAutoReserving(true);
+
+    // Ejecutar reserva automáticamente
+    async function doAutoReserve() {
+      try {
+        const res = await fetch("/api/lots/fraccionado/reserve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId,
+            qty: saved!.qty,
+            shippingMode: saved!.shippingMode,
+          }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (data.missingAddress) {
+            setReserveError("Necesitás configurar tu dirección antes de reservar. Andá a tu perfil.");
+          } else if (data.alreadyReserved) {
+            setReserveError("Ya tenés una reserva activa para este producto.");
+          } else {
+            setReserveError(data.error || "Error al reservar. Intentá de nuevo.");
+          }
+          return;
+        }
+
+        if (typeof data.commissionRate === "number") {
+          setCommissionRate(data.commissionRate);
+        }
+
+        setReserved(true);
+      } catch (err) {
+        console.error("Error en auto-reserva:", err);
+        setReserveError("Error de conexión. Intentá de nuevo.");
+      } finally {
+        setAutoReserving(false);
+      }
+    }
+
+    doAutoReserve();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, loadingMPStatus, mpConnected]);
+
   const productSubtotal = price * qty;
   const commission = isFraccionado ? Math.round(productSubtotal * (commissionRate / 100)) : 0;
   const totalToCharge = useMemo(
@@ -157,8 +232,13 @@ export default function ProductPurchaseClient({
   const shippingNeedsAddress = selectedShipping === "factory" || selectedShipping === "platform";
   const blockedByAddress = shippingNeedsAddress && !hasFactoryAddress;
 
-  // ✅ NUEVO: si no hay userId, redirigir al login conservando la URL del producto
+  // ✅ Guarda la intención en sessionStorage y redirige al login
   function handleAuthGate() {
+    const key = AUTO_RESERVE_KEY(productId);
+    sessionStorage.setItem(key, JSON.stringify({
+      qty,
+      shippingMode: selectedShipping,
+    }));
     window.location.href = `/login?role=retailer&redirect=/explorar/${productId}`;
   }
 
@@ -246,6 +326,22 @@ export default function ProductPurchaseClient({
 
     const data = await res.json();
     if (data?.init_point) { window.location.href = data.init_point; }
+  }
+
+  // ✅ NUEVO: pantalla de carga durante auto-reserva post-login
+  if (autoReserving) {
+    return (
+      <div className="border rounded-xl p-6 mt-8 bg-white shadow">
+        <div className="flex flex-col items-center justify-center py-8 gap-3">
+          <svg className="animate-spin w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+          <p className="text-sm font-medium text-gray-700">Reservando tu lugar...</p>
+          <p className="text-xs text-gray-400">Estamos procesando tu reserva automáticamente</p>
+        </div>
+      </div>
+    );
   }
 
   if (reserved) {
@@ -510,7 +606,7 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* ✅ BOTÓN — si no hay userId muestra CTA de login, si hay userId ejecuta la compra */}
+      {/* BOTÓN */}
       {!userId ? (
         <button
           onClick={handleAuthGate}
@@ -569,7 +665,7 @@ export default function ProductPurchaseClient({
         </button>
       )}
 
-      {/* ✅ Subtexto para no logueados */}
+      {/* Subtexto para no logueados */}
       {!userId && (
         <p className="text-xs text-gray-500 text-center mt-2">
           Necesitás una cuenta gratis para comprar.{" "}
