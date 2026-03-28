@@ -15,6 +15,8 @@ type Props = {
   noShipping?: boolean;
   unitLabel?: string;
   initialCommissionRate?: number;
+  // ✅ NUEVO: si no hay userId, el botón redirige al login en vez de ejecutar la compra
+  userId?: string;
 };
 
 type ShippingMode = "pickup" | "factory" | "platform";
@@ -35,6 +37,7 @@ export default function ProductPurchaseClient({
   noShipping = false,
   unitLabel,
   initialCommissionRate = 12,
+  userId,
 }: Props) {
   const [qty, setQty] = useState(1);
   const isFraccionado = qty < MF;
@@ -154,7 +157,13 @@ export default function ProductPurchaseClient({
   const shippingNeedsAddress = selectedShipping === "factory" || selectedShipping === "platform";
   const blockedByAddress = shippingNeedsAddress && !hasFactoryAddress;
 
+  // ✅ NUEVO: si no hay userId, redirigir al login conservando la URL del producto
+  function handleAuthGate() {
+    window.location.href = `/login?role=retailer&redirect=/explorar/${productId}`;
+  }
+
   async function handleReserve() {
+    if (!userId) { handleAuthGate(); return; }
     if (blockedByAddress) return;
     if (mpConnected === false) {
       alert("⚠️ Este producto no está disponible para compra.\n\nEl vendedor aún no ha vinculado su cuenta de Mercado Pago.");
@@ -198,6 +207,7 @@ export default function ProductPurchaseClient({
   }
 
   async function handleCheckout() {
+    if (!userId) { handleAuthGate(); return; }
     if (blockedByAddress) return;
     if (noShipping && !isFraccionado) {
       alert("⚠️ Este vendedor no realiza envíos directos.\n\nSolo podés comprar mediante pedidos fraccionados — la plataforma gestiona el envío.");
@@ -491,8 +501,7 @@ export default function ProductPurchaseClient({
         <div className="bg-red-50 border border-red-300 rounded-lg p-3 mb-4">
           <p className="text-sm text-red-700">{reserveError}</p>
           {reserveError.includes("dirección") && (
-            
-              <a href="/dashboard/pedidos-fraccionados/perfil"
+            <a href="/dashboard/pedidos-fraccionados/perfil"
               className="text-sm font-semibold text-red-800 underline mt-1 block"
             >
               Ir a configurar dirección
@@ -501,8 +510,19 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* BOTÓN */}
-      {usesReserveFlow ? (
+      {/* ✅ BOTÓN — si no hay userId muestra CTA de login, si hay userId ejecuta la compra */}
+      {!userId ? (
+        <button
+          onClick={handleAuthGate}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition"
+        >
+          {usesReserveFlow
+            ? selectedShipping === "pickup"
+              ? "Reservar lugar — retiro en fábrica sin costo"
+              : "Reservar tu lugar — te avisamos cuando cierre el lote"
+            : "Continuar al pago"}
+        </button>
+      ) : usesReserveFlow ? (
         <button
           onClick={handleReserve}
           disabled={
@@ -547,6 +567,19 @@ export default function ProductPurchaseClient({
             ? "Envío no disponible — comprá en cantidad fraccionada"
             : "Continuar al pago"}
         </button>
+      )}
+
+      {/* ✅ Subtexto para no logueados */}
+      {!userId && (
+        <p className="text-xs text-gray-500 text-center mt-2">
+          Necesitás una cuenta gratis para comprar.{" "}
+          <a
+            href={`/login?role=retailer&redirect=/explorar/${productId}`}
+            className="text-blue-600 hover:underline font-medium"
+          >
+            Registrate en 1 minuto
+          </a>
+        </p>
       )}
     </div>
   );

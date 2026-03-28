@@ -1,6 +1,7 @@
 // app/explorar/[productId]/page.tsx
 // ✅ ACTUALIZADO: soporte para fabricante, distribuidor y mayorista
 // ✅ FIX: agregado generateMetadata para SEO por producto
+// ✅ FIX: ProductPurchaseClient siempre visible — auth-gate solo en el botón
 
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
@@ -340,38 +341,20 @@ export default async function ProductDetailPage({
                     </div>
                   )}
 
-                  {userId ? (
-                    <ProductPurchaseClient
-                      price={product.price}
-                      MF={minimumOrder}
-                      productId={product.id}
-                      productName={cleanName}
-                      factoryId={product.factoryId}
-                      allowPickup={allowPickup}
-                      allowFactoryShipping={allowFactoryShipping}
-                      hasFactoryAddress={hasFactoryAddress}
-                      noShipping={noShipping}
-                      unitLabel={unitLabel || undefined}
-                    />
-                  ) : (
-                    <div className="mt-4 space-y-3">
-                      <a
-                        href={`/login?role=retailer&redirect=/explorar/${product.id}`}
-                        className="block w-full text-center py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition"
-                      >
-                        Unirme al lote →
-                      </a>
-                      <p className="text-xs text-gray-500 text-center">
-                        Necesitás una cuenta gratis para comprar.{" "}
-                        <a
-                          href={`/login?role=retailer&redirect=/explorar/${product.id}`}
-                          className="text-blue-600 hover:underline font-medium"
-                        >
-                          Registrate en 1 minuto
-                        </a>
-                      </p>
-                    </div>
-                  )}
+                  {/* ✅ Siempre renderiza ProductPurchaseClient — userId controla solo el botón */}
+                  <ProductPurchaseClient
+                    price={product.price}
+                    MF={minimumOrder}
+                    productId={product.id}
+                    productName={cleanName}
+                    factoryId={product.factoryId}
+                    allowPickup={allowPickup}
+                    allowFactoryShipping={allowFactoryShipping}
+                    hasFactoryAddress={hasFactoryAddress}
+                    noShipping={noShipping}
+                    unitLabel={unitLabel || undefined}
+                    userId={userId}
+                  />
                 </>
               )}
 
