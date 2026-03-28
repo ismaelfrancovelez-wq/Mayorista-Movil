@@ -112,12 +112,7 @@ export default function HomeRegistro() {
 
   // ✅ ACTUALIZADO: manda directo a /login?role=xxx sin pasar por /registro
   const handleRoleSelection = (role: "retailer" | "manufacturer" | "distributor" | "wholesaler") => {
-  const params = new URLSearchParams(window.location.search);
-  const returnUrl = params.get("returnUrl");
-  const destination = returnUrl
-    ? `/login?role=${role}&redirect=${encodeURIComponent(returnUrl)}`
-    : `/login?role=${role}`;
-  router.push(destination);
+  router.push(`/login?role=${role}`);
 };
 
   return (
