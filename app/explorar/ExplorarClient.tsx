@@ -614,7 +614,7 @@ export default function ExplorarClient({
                             {product.unitLabel ? `unidades (${product.unitLabel} c/u)` : "unidades"}
                           </p>
 
-                          {/* BARRA DE PROGRESO DEL LOTE */}
+                          {/* BARRAA DE PROGRESO DEL LOTEeee */}
                           {product.accumulatedQty !== undefined && product.accumulatedQty > 0 && product.minimumOrder > 0 && (
                             <div className="mb-3">
                               <div className="flex justify-between text-xs text-gray-500 mb-1">
