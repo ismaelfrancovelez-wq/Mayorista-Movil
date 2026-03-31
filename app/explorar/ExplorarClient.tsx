@@ -640,7 +640,7 @@ export default function ExplorarClient({
   }`}
   disabled={outOfStock}
 >
-  {outOfStock ? "Sin stock disponible" : "Reservar mi lugar →"}
+  {outOfStock ? "Sin stock disponible" : "Reservar mi lugar"}
 </button>
                         </div>
                       </Link>
