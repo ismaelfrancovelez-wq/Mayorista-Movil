@@ -367,7 +367,7 @@ export default function ExplorarClient({
         <div className="mb-10">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">🔥</span>
+              <span className="text-2xl"></span>
               <h2 className="text-xl font-bold text-gray-900">Lotes a punto de cerrar</h2>
               <span className="bg-red-100 text-red-700 text-xs font-semibold px-2 py-0.5 rounded-full">≥ 80% completado</span>
             </div>
@@ -633,14 +633,6 @@ export default function ExplorarClient({
                           )}
 
 <button
-  onClick={(e: React.MouseEvent) => {
-    if (!outOfStock) {
-      sessionStorage.setItem(
-        `autoReserve_${product.id}`,
-        JSON.stringify({ qty: 1, shippingMode: "pickup" })
-      );
-    }
-  }}
   className={`mt-auto w-full text-center py-2 rounded-lg transition font-medium ${
     outOfStock
       ? "bg-gray-100 text-gray-400 cursor-not-allowed"
@@ -648,7 +640,7 @@ export default function ExplorarClient({
   }`}
   disabled={outOfStock}
 >
-  {outOfStock ? "Sin stock disponible" : "Reservar mi lugar"}
+  {outOfStock ? "Sin stock disponible" : "Reservar mi lugar →"}
 </button>
                         </div>
                       </Link>
