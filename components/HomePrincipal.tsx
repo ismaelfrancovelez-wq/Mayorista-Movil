@@ -660,12 +660,12 @@ export default function HomePrincipal({
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">2</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Reserva tu producto</h4>
-              <p className="text-gray-600">En compras de cantidades menores al minimo, podras hacer la reserva de tu producto sin necesidad de pagar. Una ves hecha tu reserva, te unes a la barra de progreso junto a otros compradores para llegar al minimo establecido para el producto. </p>
+              <p className="text-gray-600">En compras de cantidades menores al minimo, podras hacer la reserva de tu producto sin necesidad de pagar al instante. Cada fabrica/distribuidor/mayorista tiene su minimo para sus productos; Cuando completas tu reserva, te unes a la barra de progreso junto a otros compradores para llegar al minimo establecido. </p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">3</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Baja de reserva</h4>
-              <p className="text-gray-600">Mientras el lote no se halla completado podras darte de baja sin ninguna tipo de penalizacion. Una ves completado el lote deberas realizar el pago sin exepcion, ya que la reserva constituye un compromiso comunitario de pago entre todos los compradores. </p>
+              <p className="text-gray-600">Mientras el lote no se halla completado podras darte de baja sin ningun tipo de problema. Una ves completado el minimo deberas realizar el pago sin exepcion, ya que la reserva constituye un compromiso comunitario de pago entre todos los compradores. </p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">4</span></div>
@@ -676,7 +676,7 @@ export default function HomePrincipal({
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">5</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Recibí tu pedido</h4>
-              <p className="text-gray-600">Una ves que todos los compradores hallan pagado, se liberara la totalidad del dinero hacia el vendedor, y tu resives el producto entre 24 a 72hs.</p>
+              <p className="text-gray-600">Una ves que todos los compradores hallan pagado, se liberara la totalidad del dinero hacia el vendedor, y tu resibiras el producto dentro de las 24 a 72hs.</p>
             </div>
           </div>
           <div className="mt-8 text-center">
