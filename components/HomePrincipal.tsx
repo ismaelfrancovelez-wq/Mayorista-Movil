@@ -665,7 +665,7 @@ export default function HomePrincipal({
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">3</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Baja de reserva</h4>
-              <p className="text-gray-600">Mientras el lote no se halla completado podras darte de baja sin ningun tipo de problema. Una ves completado el minimo deberas realizar el pago sin exepcion, ya que la reserva constituye un compromiso comunitario de pago entre todos los compradores. </p>
+              <p className="text-gray-600">Mientras el lote no se halla completado podras darte de baja sin ningun tipo de problema. Una ves completado el minimo deberas realizar el pago sin exepcion, ya que la reserva constituye un compromiso de pago entre todos los compradores. </p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">4</span></div>

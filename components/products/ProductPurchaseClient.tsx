@@ -570,7 +570,7 @@ export default function ProductPurchaseClient({
               }}
               className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
             >
-              Compartir para ahorrar 🔗
+              Compartir para ahorrar
             </button>
           </div>
           {showSimulator && (
@@ -615,7 +615,7 @@ export default function ProductPurchaseClient({
           {usesReserveFlow
             ? selectedShipping === "pickup"
               ? "Reservar lugar — retiro en fábrica sin costo"
-              : "Reservar tu lugar — te avisamos cuando cierre el lote"
+              : "Reservar mi lugar — te avisamos cuando cierre el lote"
             : "Continuar al pago"}
         </button>
       ) : usesReserveFlow ? (
