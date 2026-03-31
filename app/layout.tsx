@@ -9,7 +9,6 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
-// ✅ FIX: Metadata real con título, descripción, Open Graph y Twitter Card
 export const metadata: Metadata = {
   title: {
     default: "MayoristaMovil — Compra fraccionada a precio de fábrica",
@@ -74,13 +73,36 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={inter.variable + " antialiased"}>
+
+        {/* ✅ Recarga automática si hay ChunkLoadError tras un nuevo deploy */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('error', function(e) {
+                if (
+                  e.message &&
+                  (e.message.includes('ChunkLoadError') ||
+                   e.message.includes('Loading chunk') ||
+                   e.message.includes('Failed to fetch dynamically imported module'))
+                ) {
+                  if (!sessionStorage.getItem('chunk_reload')) {
+                    sessionStorage.setItem('chunk_reload', '1');
+                    window.location.reload();
+                  }
+                }
+              });
+            `,
+          }}
+        />
+
         {/* ✅ Sin cambios: verificación de sesión */}
         <AuthCheck />
 
         {children}
 
-        {/* 🔔 TOAST GLOBAL (UX PRO) */}
+        {/* 🔔 TOAST GLOBAL */}
         <Toaster position="top-right" />
+
       </body>
     </html>
   );
