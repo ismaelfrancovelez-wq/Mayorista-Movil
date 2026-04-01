@@ -93,9 +93,28 @@ export async function POST(req: Request) {
       stockValue = parsedStock;
     }
 
+    // ✅ NUEVO: precio minorista de referencia
+    // Si viene null o vacío → se borra (el fabricante lo eliminó)
+    // Si viene un número > 0 → se guarda como "manual"
+    // Si no viene en el body (undefined) → no se toca lo que ya había
+    let retailPriceUpdate: Record<string, any> = {};
+    if (body.retailReferencePrice !== undefined) {
+      const parsed = Number(body.retailReferencePrice);
+      if (body.retailReferencePrice === null || body.retailReferencePrice === "" || parsed <= 0) {
+        retailPriceUpdate = {
+          retailReferencePrice: null,
+          retailReferencePriceSource: null,
+        };
+      } else {
+        retailPriceUpdate = {
+          retailReferencePrice: parsed,
+          retailReferencePriceSource: "manual",
+        };
+      }
+    }
+
     await productRef.update({
       name: body.name.trim().substring(0, 100),
-      // ✅ NUEVO: nameLower se actualiza junto con name
       nameLower: body.name.trim().substring(0, 100).toLowerCase(),
       description: body.description.trim().substring(0, 1000),
       price: body.price,
@@ -109,6 +128,7 @@ export async function POST(req: Request) {
         : null,
       variants: cleanVariants,
       stock: stockValue,
+      ...retailPriceUpdate, // ✅ se agrega solo si vino en el body
       updatedAt: FieldValue.serverTimestamp(),
     });
 
