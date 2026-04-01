@@ -19,7 +19,6 @@ export async function GET() {
       );
     }
 
-    // ✅ CORREGIDO: permitir fabricante, distribuidor y mayorista
     const sellerRoles = ["manufacturer", "distributor", "wholesaler"];
     if (!role || !sellerRoles.includes(role)) {
       return NextResponse.json(
@@ -45,14 +44,18 @@ export async function GET() {
         minimumOrder: data.minimumOrder,
         netProfitPerUnit: data.netProfitPerUnit || 0,
         category: data.category || "otros",
-        unitLabel: data.unitLabel || null,            // ✅ para edición de variantes
-        variants: Array.isArray(data.variants) ? data.variants : [], // ✅ para edición de variantes
+        unitLabel: data.unitLabel || null,
+        variants: Array.isArray(data.variants) ? data.variants : [],
         imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
         shipping: data.shipping || null,
         active: data.active !== false,
         featured: data.featured || false,
         featuredUntil: data.featuredUntil?.toDate()?.toISOString() || null,
         createdAt: data.createdAt?.toDate()?.toISOString() || null,
+        stock: data.stock !== undefined ? data.stock : null,
+        // ✅ AGREGADO: sin esto el form de edición siempre lo carga vacío
+        retailReferencePrice: data.retailReferencePrice ?? null,
+        retailReferencePriceSource: data.retailReferencePriceSource ?? null,
       };
     });
 

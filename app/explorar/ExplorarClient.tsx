@@ -24,6 +24,7 @@ type Product = {
   variants?: { unitLabel: string; price: number; minimumOrder: number }[];
   stock?: number | null;
   accumulatedQty?: number;
+  retailReferencePrice?: number | null; // ✅ AGREGADO
 };
 
 type ProductIndex = { id: string; name: string };
@@ -92,7 +93,6 @@ export default function ExplorarClient({
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // leer searchParams del URL al montar
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const search = params.get("search");
@@ -256,17 +256,11 @@ export default function ExplorarClient({
   return (
     <div className="min-h-screen bg-gray-50">
 
-      {/* ══════════════════════════════════════════════════════════════════
-          BARRA DE PANEL — solo visible para revendedores autenticados
-          Diseño: barra fija debajo del header del sitio, fondo blanco,
-          con saludo + nav principal + credenciales alineados en una fila.
-      ══════════════════════════════════════════════════════════════════ */}
       {retailerPanel && (
         <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-6">
             <div className="flex items-center justify-between gap-4 h-14">
 
-              {/* Saludo compacto */}
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
                   <span className="text-white text-xs font-bold">
@@ -281,9 +275,7 @@ export default function ExplorarClient({
                 </div>
               </div>
 
-              {/* Navegación central */}
               <nav className="flex items-center gap-1">
-                {/* Explorar — activo */}
                 <Link
                   href="/explorar"
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-semibold border border-blue-200 transition"
@@ -294,7 +286,6 @@ export default function ExplorarClient({
                   <span className="hidden sm:inline">Explorar</span>
                 </Link>
 
-                {/* Mis pedidos */}
                 <Link
                   href="/dashboard/pedidos-fraccionados/pedidos"
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 text-sm font-medium transition"
@@ -305,7 +296,6 @@ export default function ExplorarClient({
                   <span className="hidden sm:inline">Mis pedidos</span>
                 </Link>
 
-                {/* Perfil */}
                 <Link
                   href="/dashboard/pedidos-fraccionados/perfil"
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-gray-600 hover:bg-gray-100 text-sm font-medium transition"
@@ -317,7 +307,6 @@ export default function ExplorarClient({
                 </Link>
               </nav>
 
-              {/* Credenciales — UserRoleHeader */}
               <div className="flex-shrink-0">
                 <UserRoleHeader
                   userEmail={retailerPanel.userEmail}
@@ -339,7 +328,6 @@ export default function ExplorarClient({
 
       <div className="max-w-7xl mx-auto p-6">
 
-        {/* Onboarding checklist — solo retailer */}
         {retailerPanel && (
           <div className="mb-6">
             <OnboardingChecklist
@@ -350,7 +338,6 @@ export default function ExplorarClient({
           </div>
         )}
 
-        {/* Botón volver + título — solo visitantes sin sesión retailer */}
         {!retailerPanel && (
           <>
             <button onClick={() => window.history.back()} className="mb-4 text-blue-600 hover:text-blue-700 flex items-center gap-2 font-medium">
@@ -516,9 +503,20 @@ export default function ExplorarClient({
                     const sellerBadge = getSellerBadge(product.sellerType);
                     const outOfStock = isOutOfStock(product);
 
+                    // ✅ Calcular ahorro si hay precio minorista
+                    const hasRetailPrice =
+                      product.retailReferencePrice != null &&
+                      product.retailReferencePrice > product.price;
+                    const savingsPercent = hasRetailPrice
+                      ? Math.round(
+                          ((product.retailReferencePrice! - product.price) /
+                            product.retailReferencePrice!) *
+                            100
+                        )
+                      : 0;
+
                     return (
-                      
-<Link key={product.id} href={`/explorar/${product.id}`} className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden flex flex-col">
+                      <Link key={product.id} href={`/explorar/${product.id}`} className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden flex flex-col">
                         {/* IMAGEN */}
                         <div className="relative h-48 bg-white overflow-hidden border-b border-gray-100">
                           {product.imageUrls && product.imageUrls.length > 0 ? (
@@ -592,21 +590,41 @@ export default function ExplorarClient({
                           <h2 className="text-lg font-semibold mb-2 line-clamp-2">{product.name}</h2>
                           <p className="text-xs text-gray-500 mb-3">{CATEGORY_LABELS[product.category]}</p>
 
+                          {/* ✅ BLOQUE DE PRECIO CON COMPARACIÓN MINORISTA */}
                           <div className="mb-3">
-                            <span className="font-medium text-gray-900">Precio: </span>
-                            <span className="font-bold text-gray-900">
-                              ${product.price.toLocaleString("es-AR")}
-                              {product.unitLabel && (
-                                <span className="text-gray-500 font-normal text-sm"> / {product.unitLabel}</span>
-                              )}
-                            </span>
-                            {product.variants && product.variants.length > 0 && product.variants.map((v, i) => (
-                              <span key={i} className="text-gray-500 text-sm">
-                                {"  "}·{"  "}
-                                <span className="font-semibold text-gray-800">${v.price.toLocaleString("es-AR")}</span>
-                                <span className="text-gray-400"> / {v.unitLabel}</span>
+                            <div className="flex items-baseline gap-2 flex-wrap">
+                              <span className="font-medium text-gray-900">Precio: </span>
+                              <span className="font-bold text-gray-900">
+                                ${product.price.toLocaleString("es-AR")}
+                                {product.unitLabel && (
+                                  <span className="text-gray-500 font-normal text-sm"> / {product.unitLabel}</span>
+                                )}
                               </span>
-                            ))}
+                              {product.variants && product.variants.length > 0 && product.variants.map((v, i) => (
+                                <span key={i} className="text-gray-500 text-sm">
+                                  {"  "}·{"  "}
+                                  <span className="font-semibold text-gray-800">${v.price.toLocaleString("es-AR")}</span>
+                                  <span className="text-gray-400"> / {v.unitLabel}</span>
+                                </span>
+                              ))}
+                            </div>
+
+                            {/* Precio minorista tachado + badge de ahorro */}
+                            {hasRetailPrice && (
+                              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-gray-400">
+                                  Minorista:{" "}
+                                  <span className="line-through">
+                                    ${product.retailReferencePrice!.toLocaleString("es-AR")}
+                                  </span>
+                                </span>
+                                {savingsPercent >= 5 && (
+                                  <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                                    🏷️ Ahorrás {savingsPercent}%
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <p className="text-sm text-gray-600 mb-3">
@@ -614,7 +632,6 @@ export default function ExplorarClient({
                             {product.unitLabel ? `unidades (${product.unitLabel} c/u)` : "unidades"}
                           </p>
 
-                          {/* BARRAA DE PROGRESO DEL LOTEeee */}
                           {product.accumulatedQty !== undefined && product.accumulatedQty > 0 && product.minimumOrder > 0 && (
                             <div className="mb-3">
                               <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -632,21 +649,22 @@ export default function ExplorarClient({
                             </div>
                           )}
 
-<button
-  className={`mt-auto w-full text-center py-2 rounded-lg transition font-medium ${
-    outOfStock
-      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-      : "bg-blue-600 text-white hover:bg-blue-700"
-  }`}
-  disabled={outOfStock}
->
-  {outOfStock ? "Sin stock disponible" : "Reservar mi lugar"}
-</button>
+                          <button
+                            className={`mt-auto w-full text-center py-2 rounded-lg transition font-medium ${
+                              outOfStock
+                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                : "bg-blue-600 text-white hover:bg-blue-700"
+                            }`}
+                            disabled={outOfStock}
+                          >
+                            {outOfStock ? "Sin stock disponible" : "Reservar mi lugar"}
+                          </button>
                         </div>
                       </Link>
                     );
                   })}
                 </div>
+
                 {hasMore && (
                   <div className="mt-8 text-center">
                     <button
