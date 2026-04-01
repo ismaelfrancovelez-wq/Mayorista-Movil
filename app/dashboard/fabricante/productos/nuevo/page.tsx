@@ -1,5 +1,6 @@
 // app/dashboard/fabricante/productos/nuevo/page.tsx
 // ✅ MODIFICADO: agrega campo de stock opcional
+// ✅ NUEVO: agrega campo retailReferencePrice con botón "Buscar en ML"
 
 "use client";
 
@@ -9,14 +10,10 @@ import { ProductCategory, CATEGORY_LABELS } from "../../../../../lib/types/produ
 import { uploadImage, validateImageFile } from "../../../../../lib/firebase-storage";
 import toast from "react-hot-toast";
 
-/* ===============================
-   🛡️ FUNCIONES DE SANITIZACIÓN
-=============================== */
 function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
 }
 
-// ✅ tipo para las variantes
 interface ProductVariant {
   unitLabel: string;
   price: number | "";
@@ -26,9 +23,6 @@ interface ProductVariant {
 export default function NuevoProductoPage() {
   const router = useRouter();
 
-  /* ===============================
-     📦 DATOS BÁSICOS
-  =============================== */
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<number | "">("");
@@ -37,15 +31,14 @@ export default function NuevoProductoPage() {
   const [category, setCategory] = useState<ProductCategory>("otros");
   const [unitLabel, setUnitLabel] = useState("");
 
-  // ✅ NUEVO: stock opcional
-  // "" = sin control de stock (null en DB)
-  // número = unidades disponibles
   const [stock, setStock] = useState<number | "">("");
-  const [hasStock, setHasStock] = useState(false); // checkbox para activar control de stock
+  const [hasStock, setHasStock] = useState(false);
 
-  /* ===============================
-     📐 VARIANTES (medida + precio + mínimo)
-  =============================== */
+  // ✅ NUEVO: precio minorista de referencia
+  const [retailReferencePrice, setRetailReferencePrice] = useState<number | "">("");
+  const [fetchingML, setFetchingML] = useState(false);
+  const [mlMessage, setMlMessage] = useState<string | null>(null);
+
   const [variants, setVariants] = useState<ProductVariant[]>([]);
 
   const addVariant = () => {
@@ -65,40 +58,54 @@ export default function NuevoProductoPage() {
     }));
   };
 
-  /* ===============================
-     🖼️ IMÁGENES DEL PRODUCTO (múltiples)
-  =============================== */
   const MAX_IMAGES = 6;
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  /* ===============================
-     🚚 MÉTODOS DE ENVÍO
-  =============================== */
   const [factoryPickup, setFactoryPickup] = useState(false);
   const [ownLogistics, setOwnLogistics] = useState(false);
   const [thirdParty, setThirdParty] = useState(false);
   const [noShipping, setNoShipping] = useState(false);
-
-  /* ===============================
-     🚚 ENVÍO PROPIO
-  =============================== */
   const [ownType, setOwnType] = useState<"per_km" | "zones" | "">("");
   const [pricePerKm, setPricePerKm] = useState<number | "">("");
   const [roundTrip, setRoundTrip] = useState(false);
   const [zones, setZones] = useState({ z1: "", z2: "", z3: "", z4: "" });
   const [thirdPartyPrice, setThirdPartyPrice] = useState<number | "">("");
 
-  /* ===============================
-     ⚠️ UI
-  =============================== */
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  /* ===============================
-     🖼️ MANEJO DE IMÁGENES
-  =============================== */
+  // ✅ NUEVO: buscar precio en MercadoLibre
+  // Llama a una API liviana que consulta ML gratis y devuelve el precio mediano.
+  // No guarda nada en Firestore — solo trae el número para que lo veas antes de guardar.
+  async function handleBuscarEnML() {
+    if (!name.trim()) {
+      setMlMessage("⚠️ Primero escribí el nombre del producto.");
+      return;
+    }
+    setFetchingML(true);
+    setMlMessage(null);
+    try {
+      const res = await fetch("/api/products/fetch-retail-price-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productName: name }),
+      });
+      const data = await res.json();
+      if (data.retailReferencePrice) {
+        setRetailReferencePrice(data.retailReferencePrice);
+        setMlMessage(`✅ Encontrado en MercadoLibre: $${data.retailReferencePrice.toLocaleString("es-AR")}`);
+      } else {
+        setMlMessage("⚠️ No se encontró en MercadoLibre. Podés cargarlo manualmente.");
+      }
+    } catch {
+      setMlMessage("❌ Error al buscar. Podés cargarlo manualmente.");
+    } finally {
+      setFetchingML(false);
+    }
+  }
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -152,15 +159,8 @@ export default function NuevoProductoPage() {
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  /* ===============================
-     ✅ VALIDACIÓN DE EXCLUSIVIDAD ENVÍO
-  =============================== */
   const handleNoShippingChange = (checked: boolean) => {
-    if (checked) {
-      setOwnLogistics(false);
-      setThirdParty(false);
-      setOwnType("");
-    }
+    if (checked) { setOwnLogistics(false); setThirdParty(false); setOwnType(""); }
     setNoShipping(checked);
     setError(null);
   };
@@ -180,9 +180,6 @@ export default function NuevoProductoPage() {
     setError(null);
   };
 
-  /* ===============================
-     💾 SUBMIT
-  =============================== */
   async function handleSubmit() {
     setError(null);
 
@@ -196,7 +193,6 @@ export default function NuevoProductoPage() {
     if (minimumOrder === "" || minimumOrder <= 0) { setError("Ingresá un pedido mínimo válido"); return; }
     if (netProfitPerUnit === "" || netProfitPerUnit < 0) { setError("Ingresá una ganancia neta válida (0 o mayor)"); return; }
 
-    // ✅ Validar stock si está activado
     if (hasStock) {
       if (stock === "" || Number(stock) < 0 || !Number.isInteger(Number(stock))) {
         setError("El stock debe ser un número entero igual o mayor a 0");
@@ -204,7 +200,6 @@ export default function NuevoProductoPage() {
       }
     }
 
-    // ✅ Validar variantes
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
       if (!v.unitLabel.trim()) { setError(`La variante ${i + 1} necesita una medida (ej: 500g)`); return; }
@@ -230,9 +225,6 @@ export default function NuevoProductoPage() {
       setError("Ingresá un precio de envío por terceros válido"); return;
     }
 
-    /* ===============================
-       📦 ARMADO SHIPPING
-    =============================== */
     const shipping: any = { methods: [] };
     if (noShipping) shipping.noShipping = true;
     if (factoryPickup) shipping.methods.push("factory_pickup");
@@ -246,9 +238,6 @@ export default function NuevoProductoPage() {
       shipping.thirdParty = { fixedPrice: Number(thirdPartyPrice), disclaimerAccepted: true };
     }
 
-    /* ===============================
-       🖼️ SUBIR IMÁGENES
-    =============================== */
     setLoading(true);
     let imageUrls: string[] = [];
 
@@ -262,16 +251,12 @@ export default function NuevoProductoPage() {
         setUploadingImage(false);
       }
 
-      // ✅ Limpiar y serializar variantes
       const cleanVariants = variants.map(v => ({
         unitLabel: v.unitLabel.trim(),
         price: Number(v.price),
         minimumOrder: Number(v.minimumOrder),
       }));
 
-      // ✅ Preparar stock:
-      // Si el checkbox está desactivado → mandamos null (sin control)
-      // Si está activado → mandamos el número
       const stockToSend = hasStock ? Number(stock) : null;
 
       const res = await fetch("/api/products/create", {
@@ -288,7 +273,9 @@ export default function NuevoProductoPage() {
           shipping,
           imageUrls,
           variants: cleanVariants,
-          stock: stockToSend, // ✅ NUEVO
+          stock: stockToSend,
+          // ✅ NUEVO: mandar precio minorista si fue cargado (manual o desde ML)
+          retailReferencePrice: retailReferencePrice !== "" ? Number(retailReferencePrice) : null,
         }),
       });
 
@@ -309,9 +296,6 @@ export default function NuevoProductoPage() {
     }
   }
 
-  /* ===============================
-     🧾 UI
-  =============================== */
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto p-8">
@@ -456,7 +440,52 @@ export default function NuevoProductoPage() {
             )}
           </div>
 
-          {/* ✅ VARIANTES */}
+          {/* ✅ NUEVO: PRECIO MINORISTA DE REFERENCIA */}
+          <div className="border-t pt-4">
+            <p className="text-sm font-semibold text-gray-700 mb-1">
+              Precio minorista de referencia{" "}
+              <span className="text-xs font-normal text-gray-400">(opcional)</span>
+            </p>
+            <p className="text-xs text-gray-400 mb-3">
+              Este precio aparece tachado en la card del producto para que el comprador vea cuánto
+              ahorra comprando en tu plataforma. Podés cargarlo a mano o buscarlo automáticamente
+              en MercadoLibre (gratis).
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                placeholder="Ej: 14200"
+                className="flex-1 border rounded px-3 py-2 text-sm"
+                value={retailReferencePrice}
+                onChange={(e) => {
+                  setRetailReferencePrice(e.target.value === "" ? "" : Number(e.target.value));
+                  setMlMessage(null);
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleBuscarEnML}
+                disabled={fetchingML}
+                className="px-4 py-2 bg-yellow-50 border border-yellow-300 text-yellow-800 text-sm font-semibold rounded-lg hover:bg-yellow-100 transition disabled:opacity-50 whitespace-nowrap"
+              >
+                {fetchingML ? "Buscando..." : "🔍 Buscar en ML"}
+              </button>
+            </div>
+            {mlMessage && (
+              <p className="text-xs mt-2 text-gray-600">{mlMessage}</p>
+            )}
+            {/* Preview del ahorro en tiempo real */}
+            {retailReferencePrice !== "" && price !== "" &&
+              Number(retailReferencePrice) > Number(price) && Number(price) > 0 && (
+              <p className="text-xs mt-2 text-green-600 font-medium">
+                💡 Tus compradores van a ver que ahorran un{" "}
+                {Math.round(((Number(retailReferencePrice) - Number(price)) / Number(retailReferencePrice)) * 100)}%
+                respecto al precio minorista.
+              </p>
+            )}
+          </div>
+
+          {/* VARIANTES */}
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -486,42 +515,17 @@ export default function NuevoProductoPage() {
                 <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end bg-gray-50 rounded-lg p-3 border border-gray-100">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Medida</label>
-                    <input
-                      placeholder="Ej: 500g"
-                      className="w-full border rounded px-2 py-1.5 text-sm bg-white"
-                      value={v.unitLabel}
-                      onChange={(e) => updateVariant(i, "unitLabel", e.target.value)}
-                      maxLength={20}
-                    />
+                    <input placeholder="Ej: 500g" className="w-full border rounded px-2 py-1.5 text-sm bg-white" value={v.unitLabel} onChange={(e) => updateVariant(i, "unitLabel", e.target.value)} maxLength={20} />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Precio</label>
-                    <input
-                      type="number"
-                      placeholder="2500"
-                      className="w-full border rounded px-2 py-1.5 text-sm bg-white"
-                      value={v.price}
-                      onChange={(e) => updateVariant(i, "price", e.target.value)}
-                      min={0}
-                    />
+                    <input type="number" placeholder="2500" className="w-full border rounded px-2 py-1.5 text-sm bg-white" value={v.price} onChange={(e) => updateVariant(i, "price", e.target.value)} min={0} />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Mínimo</label>
-                    <input
-                      type="number"
-                      placeholder="20"
-                      className="w-full border rounded px-2 py-1.5 text-sm bg-white"
-                      value={v.minimumOrder}
-                      onChange={(e) => updateVariant(i, "minimumOrder", e.target.value)}
-                      min={1}
-                    />
+                    <input type="number" placeholder="20" className="w-full border rounded px-2 py-1.5 text-sm bg-white" value={v.minimumOrder} onChange={(e) => updateVariant(i, "minimumOrder", e.target.value)} min={1} />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeVariant(i)}
-                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                    title="Eliminar variante"
-                  >
+                  <button type="button" onClick={() => removeVariant(i)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -531,17 +535,14 @@ export default function NuevoProductoPage() {
             </div>
           </div>
 
-          {/* ✅ NUEVO: CONTROL DE STOCK */}
+          {/* CONTROL DE STOCK */}
           <div className="border-t pt-4">
             <div className="flex items-start gap-3">
               <input
                 type="checkbox"
                 id="hasStock"
                 checked={hasStock}
-                onChange={(e) => {
-                  setHasStock(e.target.checked);
-                  if (!e.target.checked) setStock("");
-                }}
+                onChange={(e) => { setHasStock(e.target.checked); if (!e.target.checked) setStock(""); }}
                 className="mt-1"
               />
               <div className="flex-1">
@@ -550,16 +551,13 @@ export default function NuevoProductoPage() {
                 </label>
                 <p className="text-xs text-gray-400 mt-0.5">
                   Activá esto si querés que el producto se pause automáticamente cuando llegue a 0 unidades.
-                  Si no lo activás, el producto siempre aparece disponible.
                 </p>
               </div>
             </div>
 
             {hasStock && (
               <div className="mt-3 ml-7">
-                <label className="block text-xs text-gray-500 mb-1">
-                  Unidades disponibles actualmente
-                </label>
+                <label className="block text-xs text-gray-500 mb-1">Unidades disponibles actualmente</label>
                 <input
                   type="number"
                   placeholder="Ej: 500"
@@ -571,7 +569,7 @@ export default function NuevoProductoPage() {
                 />
                 {stock !== "" && Number(stock) === 0 && (
                   <p className="text-xs text-amber-600 mt-1.5 font-medium">
-                    ⚠️ Si ponés 0, el producto se crea como <strong>inactivo</strong> (sin stock). Los compradores no podrán reservarlo hasta que actualices el stock.
+                    ⚠️ Con stock 0 el producto se crea como inactivo.
                   </p>
                 )}
                 {stock !== "" && Number(stock) > 0 && (
@@ -617,7 +615,6 @@ export default function NuevoProductoPage() {
                 <input type="radio" checked={ownType === "per_km"} onChange={() => setOwnType("per_km")} />
                 <span>Por kilómetro</span>
               </label>
-
               {ownType === "per_km" && (
                 <div className="space-y-3 ml-4 border-l-2 border-gray-200 pl-4">
                   <div>
@@ -626,23 +623,15 @@ export default function NuevoProductoPage() {
                   </div>
                   <div>
                     <label className="block text-sm mb-2 font-medium">Tipo de cálculo:</label>
-                    <label className="flex items-center gap-2 mb-2">
-                      <input type="radio" checked={!roundTrip} onChange={() => setRoundTrip(false)} />
-                      <span>Solo ida</span><span className="text-xs text-gray-500">(fábrica → revendedor)</span>
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input type="radio" checked={roundTrip} onChange={() => setRoundTrip(true)} />
-                      <span>Ida y vuelta (×2)</span><span className="text-xs text-gray-500">(fábrica → revendedor → fábrica)</span>
-                    </label>
+                    <label className="flex items-center gap-2 mb-2"><input type="radio" checked={!roundTrip} onChange={() => setRoundTrip(false)} /><span>Solo ida</span></label>
+                    <label className="flex items-center gap-2"><input type="radio" checked={roundTrip} onChange={() => setRoundTrip(true)} /><span>Ida y vuelta (×2)</span></label>
                   </div>
                 </div>
               )}
-
               <label className="flex items-center gap-2">
                 <input type="radio" checked={ownType === "zones"} onChange={() => setOwnType("zones")} />
                 <span>Por zonas de distancia</span>
               </label>
-
               {ownType === "zones" && (
                 <div className="grid grid-cols-2 gap-2">
                   <input placeholder="Zona 1 (0-15 km)" type="number" className="border px-2 py-1" value={zones.z1} onChange={(e) => setZones({ ...zones, z1: e.target.value })} />
@@ -664,7 +653,7 @@ export default function NuevoProductoPage() {
               <input type="checkbox" checked={noShipping} onChange={(e) => handleNoShippingChange(e.target.checked)} className="mt-0.5" />
               <div>
                 <span className="font-medium">No realizo envíos</span>
-                <p className="text-xs text-gray-500 mt-0.5">Los revendedores solo podrán comprar mediante pedidos fraccionados — la plataforma gestiona el envío por ellos.</p>
+                <p className="text-xs text-gray-500 mt-0.5">Los revendedores solo podrán comprar mediante pedidos fraccionados.</p>
               </div>
             </label>
             {noShipping && (

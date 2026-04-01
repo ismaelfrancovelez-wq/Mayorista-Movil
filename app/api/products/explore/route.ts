@@ -25,14 +25,12 @@ export async function GET(req: Request) {
     const idsParam = searchParams.get("ids") || "";
     const ids = idsParam ? idsParam.split(",").filter(Boolean) : [];
 
-    // ✅ FIX: soporte para filtro por categoría
     const categoryParam = searchParams.get("category") || "";
     const category = VALID_CATEGORIES.has(categoryParam) ? categoryParam : "";
 
     let snap;
 
     if (ids.length > 0) {
-      // Búsqueda por IDs específicos (desde el índice de búsqueda)
       const chunks: string[][] = [];
       for (let i = 0; i < ids.length; i += 30) {
         chunks.push(ids.slice(i, i + 30));
@@ -45,14 +43,12 @@ export async function GET(req: Request) {
       snap = { docs: snaps.flatMap((s) => s.docs) };
 
     } else if (search) {
-      // Búsqueda por nombre
       let query = adminDb
         .collection("products")
         .where("active", "==", true)
         .where("nameLower", ">=", search)
         .where("nameLower", "<=", search + "\uf8ff");
 
-      // ✅ Si además hay categoría, filtrar combinado
       if (category) {
         query = query.where("category", "==", category);
       }
@@ -60,8 +56,6 @@ export async function GET(req: Request) {
       snap = await query.limit(100).get();
 
     } else if (category) {
-      // ✅ FIX: filtro por categoría — consulta directa a Firestore
-      // Trae todos los productos de esa categoría con paginación correcta
       snap = await adminDb
         .collection("products")
         .where("active", "==", true)
@@ -72,7 +66,6 @@ export async function GET(req: Request) {
         .get();
 
     } else {
-      // Modo normal: todos los productos paginados
       snap = await adminDb
         .collection("products")
         .where("active", "==", true)
@@ -83,10 +76,8 @@ export async function GET(req: Request) {
     }
 
     const isNormalMode = !search && ids.length === 0;
-    const isCategoryMode = !!category && !search && ids.length === 0;
     const hasMore = isNormalMode && snap.docs.length === PAGE_SIZE * 3;
 
-    // Obtener accumulatedQty de lotes activos
     const productIds = snap.docs.map((doc) => doc.id);
     const accumulatedMap = new Map<string, number>();
 
@@ -177,7 +168,6 @@ export async function GET(req: Request) {
       const seller = sellerDataMap[factoryId];
       const sellerType = data.sellerType || seller?.sellerType || "manufacturer";
 
-      // ✅ Si la categoría del producto no es válida, la normalizamos a "otros"
       const rawCategory = data.category || "";
       const normalizedCategory = VALID_CATEGORIES.has(rawCategory) ? rawCategory : "otros";
 
@@ -204,6 +194,8 @@ export async function GET(req: Request) {
         manufacturerVerified: seller?.verified || false,
         stock: data.stock !== undefined ? data.stock : null,
         accumulatedQty: accumulatedMap.get(doc.id) || 0,
+        // ✅ NUEVO: precio minorista de referencia
+        retailReferencePrice: data.retailReferencePrice ?? null,
       };
     });
 

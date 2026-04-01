@@ -3,6 +3,7 @@
 //   - stock=0 ya NO desactiva el producto (active siempre es true)
 //   - El badge "Sin stock" lo muestra el frontend en ExplorarClient
 //   - ✅ NUEVO: se guarda "nameLower" para poder hacer búsquedas por nombre
+//   - ✅ NUEVO: se guarda "retailReferencePrice" y "retailReferencePriceSource"
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -67,6 +68,16 @@ export async function POST(req: Request) {
       stockValue = parsedStock;
     }
 
+    // ✅ NUEVO: validar precio minorista si viene en el body
+    let retailReferencePriceValue: number | null = null;
+    if (body.retailReferencePrice !== null && body.retailReferencePrice !== undefined && body.retailReferencePrice !== "") {
+      const parsed = Number(body.retailReferencePrice);
+      if (isNaN(parsed) || parsed < 0) {
+        return NextResponse.json({ error: "Precio minorista de referencia inválido" }, { status: 400 });
+      }
+      retailReferencePriceValue = parsed > 0 ? parsed : null;
+    }
+
     if (!body.shipping) return NextResponse.json({ error: "Falta configuración de envío" }, { status: 400 });
     validateShippingConfig(body.shipping);
 
@@ -74,7 +85,6 @@ export async function POST(req: Request) {
       factoryId,
       sellerType,
       name: body.name,
-      // ✅ NUEVO: nameLower = nombre en minúsculas para búsquedas
       nameLower: body.name.toLowerCase().trim(),
       description: body.description.trim(),
       unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim() ? body.unitLabel.trim().substring(0, 20) : null,
@@ -94,6 +104,9 @@ export async function POST(req: Request) {
             .filter((v: any) => v.unitLabel && v.price > 0 && v.minimumOrder > 0)
         : [],
       stock: stockValue,
+      // ✅ NUEVO: precio minorista de referencia
+      retailReferencePrice: retailReferencePriceValue,
+      retailReferencePriceSource: retailReferencePriceValue ? "manual" : null,
       featured: false,
       featuredUntil: null,
       active: true,

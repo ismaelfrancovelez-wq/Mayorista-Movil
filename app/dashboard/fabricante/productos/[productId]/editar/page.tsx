@@ -1,5 +1,6 @@
 // app/dashboard/fabricante/productos/[productId]/editar/page.tsx
 // ✅ MODIFICADO: agrega campo de stock opcional al editar
+// ✅ NUEVO: agrega campo retailReferencePrice con botón "Buscar en ML"
 
 "use client";
 
@@ -25,9 +26,6 @@ export default function EditarProductoPage() {
   const productId = params?.productId as string;
   const [loadingProduct, setLoadingProduct] = useState(true);
 
-  /* ===============================
-     📦 DATOS BÁSICOS
-  =============================== */
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState<number | "">("");
@@ -36,13 +34,14 @@ export default function EditarProductoPage() {
   const [category, setCategory] = useState<ProductCategory>("otros");
   const [unitLabel, setUnitLabel] = useState("");
 
-  // ✅ NUEVO: control de stock
   const [hasStock, setHasStock] = useState(false);
   const [stock, setStock] = useState<number | "">("");
 
-  /* ===============================
-     📐 VARIANTES
-  =============================== */
+  // ✅ NUEVO: precio minorista de referencia
+  const [retailReferencePrice, setRetailReferencePrice] = useState<number | "">("");
+  const [fetchingML, setFetchingML] = useState(false);
+  const [mlMessage, setMlMessage] = useState<string | null>(null);
+
   const [variants, setVariants] = useState<ProductVariant[]>([]);
 
   const addVariant = () => {
@@ -62,18 +61,12 @@ export default function EditarProductoPage() {
     }));
   };
 
-  /* ===============================
-     🖼️ IMÁGENES
-  =============================== */
   const MAX_IMAGES = 6;
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  /* ===============================
-     🚚 ENVÍO
-  =============================== */
   const [factoryPickup, setFactoryPickup] = useState(false);
   const [ownLogistics, setOwnLogistics] = useState(false);
   const [thirdParty, setThirdParty] = useState(false);
@@ -84,15 +77,37 @@ export default function EditarProductoPage() {
   const [zones, setZones] = useState({ z1: "", z2: "", z3: "", z4: "" });
   const [thirdPartyPrice, setThirdPartyPrice] = useState<number | "">("");
 
-  /* ===============================
-     ⚠️ UI
-  =============================== */
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  /* ===============================
-     📥 CARGAR PRODUCTO EXISTENTE
-  =============================== */
+  // ✅ NUEVO: buscar precio en MercadoLibre
+  async function handleBuscarEnML() {
+    if (!name.trim()) {
+      setMlMessage("⚠️ Primero guardá el nombre del producto.");
+      return;
+    }
+    setFetchingML(true);
+    setMlMessage(null);
+    try {
+      const res = await fetch("/api/products/fetch-retail-price-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productName: name }),
+      });
+      const data = await res.json();
+      if (data.retailReferencePrice) {
+        setRetailReferencePrice(data.retailReferencePrice);
+        setMlMessage(`✅ Encontrado en MercadoLibre: $${data.retailReferencePrice.toLocaleString("es-AR")}`);
+      } else {
+        setMlMessage("⚠️ No se encontró en MercadoLibre. Podés cargarlo manualmente.");
+      }
+    } catch {
+      setMlMessage("❌ Error al buscar. Podés cargarlo manualmente.");
+    } finally {
+      setFetchingML(false);
+    }
+  }
+
   useEffect(() => {
     if (!productId) return;
 
@@ -118,14 +133,16 @@ export default function EditarProductoPage() {
         setCategory(product.category || "otros");
         setUnitLabel(product.unitLabel || "");
 
-        // ✅ NUEVO: cargar stock existente
-        // Si el producto tiene stock definido (incluyendo 0), activamos el control
         if (product.stock !== null && product.stock !== undefined) {
           setHasStock(true);
           setStock(product.stock);
         }
 
-        // ✅ Cargar variantes existentes
+        // ✅ NUEVO: cargar precio minorista existente si lo tiene
+        if (product.retailReferencePrice) {
+          setRetailReferencePrice(product.retailReferencePrice);
+        }
+
         if (Array.isArray(product.variants) && product.variants.length > 0) {
           setVariants(product.variants.map((v: any) => ({
             unitLabel: v.unitLabel || "",
@@ -171,9 +188,6 @@ export default function EditarProductoPage() {
     loadProduct();
   }, [productId, router]);
 
-  /* ===============================
-     🖼️ MANEJO DE IMÁGENES
-  =============================== */
   const totalImages = existingImageUrls.length + imageFiles.length;
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -212,9 +226,6 @@ export default function EditarProductoPage() {
     setImagePreviews(updatedPreviews);
   };
 
-  /* ===============================
-     ✅ VALIDACIÓN ENVÍO
-  =============================== */
   const handleNoShippingChange = (checked: boolean) => {
     if (checked) { setOwnLogistics(false); setThirdParty(false); setOwnType(""); }
     setNoShipping(checked); setError(null);
@@ -230,9 +241,6 @@ export default function EditarProductoPage() {
     setThirdParty(checked); setError(null);
   };
 
-  /* ===============================
-     💾 SUBMIT
-  =============================== */
   async function handleSubmit() {
     setError(null);
     const sanitizedName = sanitizeText(name, 100);
@@ -244,7 +252,6 @@ export default function EditarProductoPage() {
     if (minimumOrder === "" || minimumOrder <= 0) { setError("Ingresá un pedido mínimo válido"); return; }
     if (netProfitPerUnit === "" || netProfitPerUnit < 0) { setError("Ingresá una ganancia neta válida (0 o mayor)"); return; }
 
-    // ✅ Validar stock si está activado
     if (hasStock) {
       if (stock === "" || Number(stock) < 0 || !Number.isInteger(Number(stock))) {
         setError("El stock debe ser un número entero igual o mayor a 0");
@@ -252,7 +259,6 @@ export default function EditarProductoPage() {
       }
     }
 
-    // ✅ Validar variantes
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
       if (!v.unitLabel.trim()) { setError(`La variante ${i + 1} necesita una medida (ej: 500g)`); return; }
@@ -294,16 +300,11 @@ export default function EditarProductoPage() {
       }
 
       const finalImageUrls = [...existingImageUrls, ...newImageUrls];
-
       const cleanVariants = variants.map(v => ({
         unitLabel: v.unitLabel.trim(),
         price: Number(v.price),
         minimumOrder: Number(v.minimumOrder),
       }));
-
-      // ✅ Preparar stock:
-      // Si el checkbox está desactivado → mandamos null (sin control)
-      // Si está activado → mandamos el número
       const stockToSend = hasStock ? Number(stock) : null;
 
       const res = await fetch("/api/products/edit", {
@@ -321,7 +322,9 @@ export default function EditarProductoPage() {
           shipping,
           imageUrls: finalImageUrls,
           variants: cleanVariants,
-          stock: stockToSend, // ✅ NUEVO
+          stock: stockToSend,
+          // ✅ NUEVO: mandar precio minorista (puede ser null para borrarlo)
+          retailReferencePrice: retailReferencePrice !== "" ? Number(retailReferencePrice) : null,
         }),
       });
 
@@ -421,10 +424,7 @@ export default function EditarProductoPage() {
 
           {/* PRESENTACIÓN PRINCIPAL */}
           <div className="border-t pt-4">
-            <p className="text-sm font-semibold text-gray-700 mb-3">
-              Presentación principal
-              <span className="ml-2 text-xs font-normal text-gray-400">(la que aparece primero)</span>
-            </p>
+            <p className="text-sm font-semibold text-gray-700 mb-3">Presentación principal</p>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Medida / unidad</label>
@@ -444,29 +444,64 @@ export default function EditarProductoPage() {
             )}
           </div>
 
-          {/* ✅ VARIANTES */}
+          {/* ✅ NUEVO: PRECIO MINORISTA DE REFERENCIA */}
+          <div className="border-t pt-4">
+            <p className="text-sm font-semibold text-gray-700 mb-1">
+              Precio minorista de referencia{" "}
+              <span className="text-xs font-normal text-gray-400">(opcional)</span>
+            </p>
+            <p className="text-xs text-gray-400 mb-3">
+              Este precio aparece tachado en la card para que el comprador vea cuánto ahorra.
+              Podés cargarlo a mano o buscarlo en MercadoLibre (gratis).
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                placeholder="Ej: 14200"
+                className="flex-1 border rounded px-3 py-2 text-sm"
+                value={retailReferencePrice}
+                onChange={(e) => {
+                  setRetailReferencePrice(e.target.value === "" ? "" : Number(e.target.value));
+                  setMlMessage(null);
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleBuscarEnML}
+                disabled={fetchingML}
+                className="px-4 py-2 bg-yellow-50 border border-yellow-300 text-yellow-800 text-sm font-semibold rounded-lg hover:bg-yellow-100 transition disabled:opacity-50 whitespace-nowrap"
+              >
+                {fetchingML ? "Buscando..." : "🔍 Buscar en ML"}
+              </button>
+            </div>
+            {mlMessage && (
+              <p className="text-xs mt-2 text-gray-600">{mlMessage}</p>
+            )}
+            {retailReferencePrice !== "" && price !== "" &&
+              Number(retailReferencePrice) > Number(price) && Number(price) > 0 && (
+              <p className="text-xs mt-2 text-green-600 font-medium">
+                💡 Tus compradores van a ver que ahorran un{" "}
+                {Math.round(((Number(retailReferencePrice) - Number(price)) / Number(retailReferencePrice)) * 100)}%
+                respecto al precio minorista.
+              </p>
+            )}
+          </div>
+
+          {/* VARIANTES */}
           <div className="border-t pt-4">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-sm font-semibold text-gray-700">Otras presentaciones</p>
-                <p className="text-xs text-gray-400 mt-0.5">Ej: 500g, 250g — cada una con su propio precio y mínimo</p>
+                <p className="text-xs text-gray-400 mt-0.5">Ej: 500g, 250g</p>
               </div>
-              <button
-                type="button"
-                onClick={addVariant}
-                className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 hover:border-blue-400 rounded-lg px-3 py-1.5 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+              <button type="button" onClick={addVariant} className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 hover:border-blue-400 rounded-lg px-3 py-1.5 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 Agregar
               </button>
             </div>
 
             {variants.length === 0 && (
-              <p className="text-xs text-gray-400 italic text-center py-3 border border-dashed border-gray-200 rounded-lg">
-                Sin presentaciones adicionales.
-              </p>
+              <p className="text-xs text-gray-400 italic text-center py-3 border border-dashed border-gray-200 rounded-lg">Sin presentaciones adicionales.</p>
             )}
 
             <div className="space-y-3">
@@ -492,52 +527,25 @@ export default function EditarProductoPage() {
             </div>
           </div>
 
-          {/* ✅ NUEVO: CONTROL DE STOCK */}
+          {/* CONTROL DE STOCK */}
           <div className="border-t pt-4">
             <div className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                id="hasStockEdit"
-                checked={hasStock}
-                onChange={(e) => {
-                  setHasStock(e.target.checked);
-                  if (!e.target.checked) setStock("");
-                }}
-                className="mt-1"
-              />
+              <input type="checkbox" id="hasStockEdit" checked={hasStock} onChange={(e) => { setHasStock(e.target.checked); if (!e.target.checked) setStock(""); }} className="mt-1" />
               <div className="flex-1">
-                <label htmlFor="hasStockEdit" className="text-sm font-semibold text-gray-700 cursor-pointer">
-                  Controlar stock disponible
-                </label>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  El producto se pausa automáticamente cuando llega a 0 unidades.
-                </p>
+                <label htmlFor="hasStockEdit" className="text-sm font-semibold text-gray-700 cursor-pointer">Controlar stock disponible</label>
+                <p className="text-xs text-gray-400 mt-0.5">El producto se pausa automáticamente cuando llega a 0 unidades.</p>
               </div>
             </div>
 
             {hasStock && (
               <div className="mt-3 ml-7">
-                <label className="block text-xs text-gray-500 mb-1">
-                  Unidades disponibles actualmente
-                </label>
-                <input
-                  type="number"
-                  placeholder="Ej: 500"
-                  className="border rounded px-3 py-2 text-sm w-48"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))}
-                  min={0}
-                  step={1}
-                />
+                <label className="block text-xs text-gray-500 mb-1">Unidades disponibles actualmente</label>
+                <input type="number" placeholder="Ej: 500" className="border rounded px-3 py-2 text-sm w-48" value={stock} onChange={(e) => setStock(e.target.value === "" ? "" : Number(e.target.value))} min={0} step={1} />
                 {stock !== "" && Number(stock) === 0 && (
-                  <p className="text-xs text-amber-600 mt-1.5 font-medium">
-                    ⚠️ Si guardás con stock 0, el producto se <strong>pausa</strong> automáticamente. Los compradores no podrán reservarlo.
-                  </p>
+                  <p className="text-xs text-amber-600 mt-1.5 font-medium">⚠️ Con stock 0 el producto se pausa.</p>
                 )}
                 {stock !== "" && Number(stock) > 0 && (
-                  <p className="text-xs text-green-600 mt-1.5">
-                    ✅ {Number(stock).toLocaleString("es-AR")} unidades disponibles.
-                  </p>
+                  <p className="text-xs text-green-600 mt-1.5">✅ {Number(stock).toLocaleString("es-AR")} unidades disponibles.</p>
                 )}
               </div>
             )}
