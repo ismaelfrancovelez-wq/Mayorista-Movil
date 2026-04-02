@@ -1,7 +1,6 @@
 "use client";
 
 // components/products/VariantSelectorClient.tsx
-// ✅ NUEVO: muestra pills de variantes, actualiza precio/mínimo al seleccionar
 
 import { useState } from "react";
 import ProductPurchaseClient from "./ProductPurchaseClient";
@@ -51,18 +50,26 @@ export default function VariantSelectorClient({
   const price = selected.price;
   const minimumOrder = selected.minimumOrder;
 
-  // Badge "llena el lote más rápido": variante con mayor minimumOrder
-  const fastestLotIndex = allVariants.reduce((bestIdx, v, i) =>
-    v.minimumOrder > allVariants[bestIdx].minimumOrder ? i : bestIdx, 0);
+  // Badge "llena el lote más rápido": variantes con MENOR minimumOrder
+  // Si hay más de 2 variantes, marcamos las 2 con menor minimumOrder
+  const fastestLotIndices = new Set<number>();
+  if (allVariants.length >= 2) {
+    const recommendCount = allVariants.length > 2 ? 2 : 1;
+    const sorted = allVariants
+      .map((v, i) => ({ i, minimumOrder: v.minimumOrder }))
+      .sort((a, b) => a.minimumOrder - b.minimumOrder);
+    sorted.slice(0, recommendCount).forEach(({ i }) => fastestLotIndices.add(i));
+  }
 
-  // Badge "mejor precio/unidad": solo si hay 2+ variantes, la de menor precio/unidad
-  const cheapestPerUnitIndex = allVariants.length >= 2
-    ? allVariants.reduce((bestIdx, v, i) => {
-        const units = extractUnits(v.unitLabel);
-        const bestUnits = extractUnits(allVariants[bestIdx].unitLabel);
-        return (v.price / units) < (allVariants[bestIdx].price / bestUnits) ? i : bestIdx;
-      }, 0)
-    : -1;
+  // Badge "mejor precio/unidad": solo si hay 2+ variantes, la de menor precio por unidad
+  const cheapestPerUnitIndex =
+    allVariants.length >= 2
+      ? allVariants.reduce((bestIdx, v, i) => {
+          const units = extractUnits(v.unitLabel);
+          const bestUnits = extractUnits(allVariants[bestIdx].unitLabel);
+          return v.price / units < allVariants[bestIdx].price / bestUnits ? i : bestIdx;
+        }, 0)
+      : -1;
 
   return (
     <>
@@ -71,31 +78,26 @@ export default function VariantSelectorClient({
         <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-2">
           Presentaciones disponibles
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-3">
           {allVariants.map((v, i) => {
             const isSelected = i === selectedIndex;
             const label = v.unitLabel || "Base";
-            const isFastest = i === fastestLotIndex;
-            const isCheapest = i === cheapestPerUnitIndex && i !== fastestLotIndex;
+            const isFastest = fastestLotIndices.has(i);
+            const isCheapest = i === cheapestPerUnitIndex;
+
             return (
-              <div key={i} className="flex flex-col gap-1">
-                {isFastest && (
-                  <span className="bg-green-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded self-start leading-none">
-                    ⚡ Llena el lote más rápido
-                  </span>
-                )}
-                {isCheapest && (
-                  <span className="bg-amber-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded self-start leading-none">
-                    💲 Mejor precio/unidad
-                  </span>
-                )}
+              <div key={i} className="flex flex-col items-center gap-1">
                 <button
                   onClick={() => setSelectedIndex(i)}
                   className={`
-                    px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150
+                    relative px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150
                     ${isSelected
                       ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                      : "bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:text-blue-600"
+                      : isFastest
+                        ? "bg-white text-gray-700 border-green-500 hover:border-green-600 hover:text-green-700"
+                        : isCheapest
+                          ? "bg-white text-gray-700 border-amber-400 hover:border-amber-500 hover:text-amber-700"
+                          : "bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:text-blue-600"
                     }
                   `}
                 >
@@ -104,6 +106,20 @@ export default function VariantSelectorClient({
                     ${v.price.toLocaleString("es-AR")}
                   </span>
                 </button>
+
+                {/* Badges debajo del pill — claramente asociados */}
+                <div className="flex flex-col items-center gap-0.5">
+                  {isFastest && (
+                    <span className="bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                      ⚡ Llena más rápido
+                    </span>
+                  )}
+                  {isCheapest && (
+                    <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                      💲 Mejor precio/ud
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
