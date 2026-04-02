@@ -605,7 +605,7 @@ export async function POST(req: Request) {
     // BLOQUE 2 impl 5 — datos de saliencia: cuánto paga de más vs nivel 1
     const level1Rate = 0.09;
     const savingsVsLevel1 = retailerLevel > 1
-      ? Math.round(productSubtotal * (baseCommissionRate - level1Rate))
+      ? Math.round(productSubtotal * (effectiveCommissionRate - level1Rate))
       : 0;
 
     return NextResponse.json({
