@@ -40,10 +40,33 @@ interface Props {
   userId?: string;
 }
 
-/** Extrae la cantidad numérica de un unitLabel. Ej: "Pack 6 unidades" → 6 */
+/**
+ * Infiere cuántas unidades contiene un formato a partir del label de texto.
+ * Usado solo en el modo legacy (productos sin estructura `minimums`).
+ */
 function extractUnits(unitLabel: string): number {
-  const match = unitLabel.match(/\d+/);
-  return match ? parseInt(match[0], 10) : 1;
+  const s = unitLabel.toLowerCase().trim();
+
+  // Palabras que siempre indican 1 unidad
+  if (/^(unidad|und|ud\.?|individual|suelto|pieza|pza\.?|c\/u|x1|1\s*u)$/.test(s)) return 1;
+
+  // Docenas y medias docenas
+  if (/media\s*docena|1\/2\s*doc/.test(s)) return 6;
+  if (/docena/.test(s)) return 12;
+
+  // Número explícito después de pack / caja / x / × / bolsa / fardo / atado
+  const packMatch = s.match(/(?:pack|caja|x|×|bolsa|fardo|atado|por|de)\s*(\d+)/);
+  if (packMatch) {
+    const n = parseInt(packMatch[1]);
+    if (n > 1 && n <= 10000) return n;
+  }
+
+  // Cualquier número en el label (el más grande gana para evitar confundir "1kg" → 1)
+  const nums = [...s.matchAll(/\d+/g)].map(m => parseInt(m[0]));
+  const big = nums.filter(n => n > 1 && n <= 10000);
+  if (big.length > 0) return Math.max(...big);
+
+  return 1;
 }
 
 function formatMinimumLabel(type: "quantity" | "amount", value: number): string {
