@@ -23,8 +23,12 @@ export interface Lot {
   productId: string;
   factoryId: string;
   type: LotType;
-  minimumOrder: number; // ✅ Antes era MF
-  accumulatedQty: number;
+  minimumOrder: number;           // cantidad mínima (para type "quantity")
+  minimumType?: "quantity" | "amount"; // tipo de mínimo
+  minimumValue?: number;          // valor real del mínimo (uds o pesos)
+  minimumIndex?: number;          // índice del mínimo seleccionado en el producto
+  accumulatedQty: number;         // unidades acumuladas
+  accumulatedAmount?: number;     // monto acumulado en pesos (para type "amount")
   orders: FraccionatedOrder[];
   status: "accumulating" | "closed";
   orderCreated?: boolean;

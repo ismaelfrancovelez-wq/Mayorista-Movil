@@ -45,6 +45,7 @@ export async function GET() {
         netProfitPerUnit: data.netProfitPerUnit || 0,
         category: data.category || "otros",
         unitLabel: data.unitLabel || null,
+        minimums: Array.isArray(data.minimums) ? data.minimums : [],
         variants: Array.isArray(data.variants) ? data.variants : [],
         imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls : [],
         shipping: data.shipping || null,

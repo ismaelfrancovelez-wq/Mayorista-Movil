@@ -6,6 +6,10 @@ import ShippingSimulatorSection from "../ShippingSimulatorSection";
 type Props = {
   price: number;
   MF: number;
+  minimumType?: "quantity" | "amount";
+  minimumValue?: number;
+  minimumIndex?: number;
+  formatIndex?: number;
   productId: string;
   productName: string;
   factoryId: string;
@@ -30,6 +34,10 @@ function formatNumber(n: number): string {
 export default function ProductPurchaseClient({
   price,
   MF,
+  minimumType = "quantity",
+  minimumValue,
+  minimumIndex = 0,
+  formatIndex = 0,
   productId,
   productName,
   factoryId,
@@ -42,7 +50,11 @@ export default function ProductPurchaseClient({
   userId,
 }: Props) {
   const [qty, setQty] = useState(1);
-  const isFraccionado = qty < MF;
+  // Para mínimo por monto: isFraccionado cuando precio×qty < monto mínimo
+  const effectiveMF = minimumType === "amount" && price > 0
+    ? Math.ceil((minimumValue ?? MF) / price)
+    : MF;
+  const isFraccionado = qty < effectiveMF;
 
   const [selectedShipping, setSelectedShipping] = useState<ShippingMode>(() => {
     if (noShipping) return "platform";
@@ -194,6 +206,8 @@ export default function ProductPurchaseClient({
             productId,
             qty: saved!.qty,
             shippingMode: saved!.shippingMode,
+            minimumIndex,
+            formatIndex,
           }),
         });
         const data = await res.json();
@@ -262,7 +276,7 @@ export default function ProductPurchaseClient({
       const res = await fetch("/api/lots/fraccionado/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, qty, shippingMode: selectedShipping }),
+        body: JSON.stringify({ productId, qty, shippingMode: selectedShipping, minimumIndex, formatIndex }),
       });
       const data = await res.json();
 
@@ -312,7 +326,7 @@ export default function ProductPurchaseClient({
       const res = await fetch("/api/lots/fraccionado/reserve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, qty, shippingMode: selectedShipping }),
+        body: JSON.stringify({ productId, qty, shippingMode: selectedShipping, minimumIndex, formatIndex }),
       });
       const data = await res.json();
       if (!res.ok) {

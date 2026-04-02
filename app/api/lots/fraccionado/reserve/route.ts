@@ -272,6 +272,8 @@ export async function POST(req: Request) {
     /* ── 2. BODY ────────────────────────────────────── */
     const body = await req.json();
     const { productId, qty, shippingMode } = body;
+    const minimumIndex: number = Number(body.minimumIndex ?? 0);
+    const formatIndex: number = Number(body.formatIndex ?? 0);
 
     if (
       !productId ||
@@ -321,16 +323,37 @@ export async function POST(req: Request) {
 
     const productData = productSnap.data()!;
     const factoryId = productData.factoryId;
-    const minimumOrder = productData.minimumOrder || 0;
+    const productName = productData.name || "Producto";
 
-    if (!minimumOrder || minimumOrder <= 0) {
+    // Resolver precio y mínimo desde nueva estructura `minimums` o estructura legacy
+    let productPrice: number;
+    let minimumOrder: number;
+    let minimumType: "quantity" | "amount" = "quantity";
+    let minimumValue: number;
+
+    const productMins = Array.isArray(productData.minimums) && productData.minimums.length > 0
+      ? productData.minimums
+      : null;
+
+    if (productMins) {
+      const selMin = productMins[minimumIndex] ?? productMins[0];
+      const selFmt = selMin?.formats?.[formatIndex] ?? selMin?.formats?.[0];
+      productPrice = selFmt?.price ?? productData.price ?? 0;
+      minimumType = selMin?.type === "amount" ? "amount" : "quantity";
+      minimumValue = selMin?.value ?? productData.minimumOrder ?? 0;
+      minimumOrder = minimumType === "quantity" ? minimumValue : productData.minimumOrder || 1;
+    } else {
+      productPrice = productData.price || 0;
+      minimumValue = productData.minimumOrder || 0;
+      minimumOrder = minimumValue;
+    }
+
+    if (!minimumValue || minimumValue <= 0) {
       return NextResponse.json(
         { error: "Este producto no tiene un mínimo de compra configurado. Contactá al administrador." },
         { status: 400 }
       );
     }
-    const productPrice = productData.price || 0;
-    const productName = productData.name || "Producto";
     const productSubtotal = productPrice * Number(qty);
 
     // ── TEMPORAL: comisión plana 4% (cubre costo de MercadoPago) ──────────
@@ -497,7 +520,7 @@ export async function POST(req: Request) {
       } else {
         targetLotRef = lotSnap.docs[0].ref;
         currentQty = lotSnap.docs[0].data().accumulatedQty || 0;
-        activeLotProgress = minimumOrder > 0 ? currentQty / minimumOrder : 0;
+        activeLotProgress = minimumValue > 0 ? currentQty / minimumValue : 0;
       }
 
       // ── 8. VERIFICAR DUPLICADO ─────────────────────────────────────────
@@ -559,7 +582,13 @@ export async function POST(req: Request) {
 
       // ── 10. ACTUALIZAR / CREAR LOTE ────────────────────────────────────
       const newAccumulatedQty = currentQty + Number(qty);
-      txLotClosed = newAccumulatedQty >= minimumOrder;
+      const currentAccumulatedAmount: number = lotSnap.empty ? 0 : (lotSnap.docs[0].data().accumulatedAmount ?? 0);
+      const orderAmount = productPrice * Number(qty);
+      const newAccumulatedAmount = currentAccumulatedAmount + orderAmount;
+
+      txLotClosed = minimumType === "amount"
+        ? newAccumulatedAmount >= minimumValue
+        : newAccumulatedQty >= minimumValue;
       txFinalLotId = targetLotRef.id;
 
       // ── 11. SI EL LOTE CERRÓ → GUARDAR VENTANA 2H ─────────────────────
@@ -576,8 +605,12 @@ export async function POST(req: Request) {
           productId,
           factoryId,
           type: lotType,
-          minimumOrder,
+          minimumOrder: minimumType === "quantity" ? minimumValue : 0,
+          minimumType,
+          minimumValue,
+          minimumIndex,
           accumulatedQty: newAccumulatedQty,
+          accumulatedAmount: newAccumulatedAmount,
           status: txLotClosed ? "closed" : "accumulating",
           orders: [],
           orderCreated: false,
@@ -591,6 +624,7 @@ export async function POST(req: Request) {
       } else {
         transaction.update(targetLotRef, {
           accumulatedQty: newAccumulatedQty,
+          accumulatedAmount: newAccumulatedAmount,
           status: txLotClosed ? "closed" : "accumulating",
           closedAt: txLotClosed ? FieldValue.serverTimestamp() : null,
           level1WindowExpiresAt,

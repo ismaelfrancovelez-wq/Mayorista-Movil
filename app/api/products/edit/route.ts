@@ -71,14 +71,22 @@ export async function POST(req: Request) {
 
     validateShippingConfig(body.shipping);
 
-    const cleanVariants = Array.isArray(body.variants)
-      ? body.variants
-          .map((v: any) => ({
-            unitLabel: String(v.unitLabel || "").trim().substring(0, 20),
-            price: Number(v.price),
-            minimumOrder: Number(v.minimumOrder),
+    const cleanMinimums = Array.isArray(body.minimums)
+      ? body.minimums
+          .map((m: any) => ({
+            type: m.type === "amount" ? "amount" : "quantity",
+            value: Number(m.value),
+            formats: Array.isArray(m.formats)
+              ? m.formats
+                  .map((f: any) => ({
+                    unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
+                    unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
+                    price: Number(f.price),
+                  }))
+                  .filter((f: any) => f.unitLabel && f.price > 0)
+              : [],
           }))
-          .filter((v: any) => v.unitLabel && v.price > 0 && v.minimumOrder > 0)
+          .filter((m: any) => m.value > 0 && m.formats.length > 0)
       : [];
 
     let stockValue: number | null = null;
@@ -124,9 +132,10 @@ export async function POST(req: Request) {
       imageUrls: Array.isArray(body.imageUrls) ? body.imageUrls : [],
       shipping: body.shipping,
       unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim()
-        ? body.unitLabel.trim().substring(0, 20)
+        ? body.unitLabel.trim().substring(0, 30)
         : null,
-      variants: cleanVariants,
+      minimums: cleanMinimums,
+      variants: [],
       stock: stockValue,
       ...retailPriceUpdate, // ✅ se agrega solo si vino en el body
       updatedAt: FieldValue.serverTimestamp(),

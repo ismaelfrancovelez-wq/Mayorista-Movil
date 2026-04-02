@@ -186,7 +186,11 @@ export default async function ProductDetailPage({
     ...variants.map(v => ({ ...v, isBase: false })),
   ];
 
-  const hasVariants = variants.length > 0;
+  const minimums: any[] | undefined = Array.isArray((product as any).minimums) && (product as any).minimums.length > 0
+    ? (product as any).minimums
+    : undefined;
+
+  const hasVariants = variants.length > 0 || !!minimums;
 
   // ✅ NUEVO: precio minorista de referencia
   const retailReferencePrice: number | null = (product as any).retailReferencePrice ?? null;
@@ -265,6 +269,7 @@ export default async function ProductDetailPage({
 
               {hasVariants ? (
                 <VariantSelectorClient
+                  minimums={minimums}
                   allVariants={allVariants}
                   progressData={progressData}
                   productId={product.id}

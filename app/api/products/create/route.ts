@@ -81,30 +81,41 @@ export async function POST(req: Request) {
     if (!body.shipping) return NextResponse.json({ error: "Falta configuración de envío" }, { status: 400 });
     validateShippingConfig(body.shipping);
 
+    // Limpiar y validar minimums
+    const cleanMinimums = Array.isArray(body.minimums)
+      ? body.minimums
+          .map((m: any) => ({
+            type: m.type === "amount" ? "amount" : "quantity",
+            value: Number(m.value),
+            formats: Array.isArray(m.formats)
+              ? m.formats
+                  .map((f: any) => ({
+                    unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
+                    unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
+                    price: Number(f.price),
+                  }))
+                  .filter((f: any) => f.unitLabel && f.price > 0)
+              : [],
+          }))
+          .filter((m: any) => m.value > 0 && m.formats.length > 0)
+      : [];
+
     const productRef = await db.collection("products").add({
       factoryId,
       sellerType,
       name: body.name,
       nameLower: body.name.toLowerCase().trim(),
       description: body.description.trim(),
-      unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim() ? body.unitLabel.trim().substring(0, 20) : null,
+      unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim() ? body.unitLabel.trim().substring(0, 30) : null,
       price: body.price,
       minimumOrder: body.minimumOrder,
       netProfitPerUnit: body.netProfitPerUnit,
       category: body.category || "otros",
       imageUrls: Array.isArray(body.imageUrls) ? body.imageUrls : [],
       shipping: body.shipping,
-      variants: Array.isArray(body.variants)
-        ? body.variants
-            .map((v: any) => ({
-              unitLabel: String(v.unitLabel || "").trim().substring(0, 20),
-              price: Number(v.price),
-              minimumOrder: Number(v.minimumOrder),
-            }))
-            .filter((v: any) => v.unitLabel && v.price > 0 && v.minimumOrder > 0)
-        : [],
+      minimums: cleanMinimums,
+      variants: [],
       stock: stockValue,
-      // ✅ NUEVO: precio minorista de referencia
       retailReferencePrice: retailReferencePriceValue,
       retailReferencePriceSource: retailReferencePriceValue ? "manual" : null,
       featured: false,

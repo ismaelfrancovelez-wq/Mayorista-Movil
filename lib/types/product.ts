@@ -92,6 +92,18 @@ export const SELLER_TYPE_COLORS: Record<SellerType, string> = {
   wholesaler: "bg-green-100 text-green-800",
 };
 
+export interface PurchaseFormat {
+  unitLabel: string;    // "Por unidad", "Pack 6", "Caja 12"
+  unitsPerPack: number; // 1, 6, 12 — para calcular precio/unidad
+  price: number;        // precio por este formato
+}
+
+export interface ProductMinimum {
+  type: "quantity" | "amount"; // "quantity" = N unidades, "amount" = $N pesos
+  value: number;               // 100 (uds) o 1000000 (pesos)
+  formats: PurchaseFormat[];   // presentaciones disponibles para este mínimo
+}
+
 export interface Product {
   id?: string;
 

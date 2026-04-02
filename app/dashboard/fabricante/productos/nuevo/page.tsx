@@ -1,6 +1,4 @@
 // app/dashboard/fabricante/productos/nuevo/page.tsx
-// ✅ MODIFICADO: agrega campo de stock opcional
-// ✅ NUEVO: agrega campo retailReferencePrice con botón "Buscar en ML"
 
 "use client";
 
@@ -14,10 +12,16 @@ function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
 }
 
-interface ProductVariant {
+interface FormatForm {
   unitLabel: string;
+  unitsPerPack: number | "";
   price: number | "";
-  minimumOrder: number | "";
+}
+
+interface MinimumForm {
+  type: "quantity" | "amount";
+  value: number | "";
+  formats: FormatForm[];
 }
 
 export default function NuevoProductoPage() {
@@ -25,36 +29,65 @@ export default function NuevoProductoPage() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<number | "">("");
-  const [minimumOrder, setMinimumOrder] = useState<number | "">("");
   const [netProfitPerUnit, setNetProfitPerUnit] = useState<number | "">("");
   const [category, setCategory] = useState<ProductCategory>("otros");
-  const [unitLabel, setUnitLabel] = useState("");
 
   const [stock, setStock] = useState<number | "">("");
   const [hasStock, setHasStock] = useState(false);
 
-  // ✅ NUEVO: precio minorista de referencia
   const [retailReferencePrice, setRetailReferencePrice] = useState<number | "">("");
   const [fetchingML, setFetchingML] = useState(false);
   const [mlMessage, setMlMessage] = useState<string | null>(null);
 
-  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [minimums, setMinimums] = useState<MinimumForm[]>([
+    { type: "quantity", value: "", formats: [{ unitLabel: "", unitsPerPack: 1, price: "" }] },
+  ]);
 
-  const addVariant = () => {
-    setVariants(prev => [...prev, { unitLabel: "", price: "", minimumOrder: "" }]);
+  // ── Handlers de mínimos ───────────────────────────────────────────────────
+  const addMinimum = () => {
+    setMinimums(prev => [...prev, {
+      type: "quantity", value: "",
+      formats: [{ unitLabel: "", unitsPerPack: 1, price: "" }],
+    }]);
   };
 
-  const removeVariant = (index: number) => {
-    setVariants(prev => prev.filter((_, i) => i !== index));
+  const removeMinimum = (mIdx: number) => {
+    if (minimums.length <= 1) return;
+    setMinimums(prev => prev.filter((_, i) => i !== mIdx));
   };
 
-  const updateVariant = (index: number, field: keyof ProductVariant, value: string) => {
-    setVariants(prev => prev.map((v, i) => {
-      if (i !== index) return v;
-      if (field === "unitLabel") return { ...v, unitLabel: value };
-      const num = value === "" ? "" : Number(value);
-      return { ...v, [field]: num };
+  const updateMinimumType = (mIdx: number, type: "quantity" | "amount") => {
+    setMinimums(prev => prev.map((m, i) => i === mIdx ? { ...m, type } : m));
+  };
+
+  const updateMinimumValue = (mIdx: number, value: string) => {
+    setMinimums(prev => prev.map((m, i) =>
+      i === mIdx ? { ...m, value: value === "" ? "" : Number(value) } : m
+    ));
+  };
+
+  const addFormat = (mIdx: number) => {
+    setMinimums(prev => prev.map((m, i) =>
+      i === mIdx ? { ...m, formats: [...m.formats, { unitLabel: "", unitsPerPack: 1, price: "" }] } : m
+    ));
+  };
+
+  const removeFormat = (mIdx: number, fIdx: number) => {
+    setMinimums(prev => prev.map((m, i) => {
+      if (i !== mIdx || m.formats.length <= 1) return m;
+      return { ...m, formats: m.formats.filter((_, fi) => fi !== fIdx) };
+    }));
+  };
+
+  const updateFormat = (mIdx: number, fIdx: number, field: keyof FormatForm, value: string) => {
+    setMinimums(prev => prev.map((m, i) => {
+      if (i !== mIdx) return m;
+      const newFormats = m.formats.map((f, fi) => {
+        if (fi !== fIdx) return f;
+        if (field === "unitLabel") return { ...f, unitLabel: value };
+        return { ...f, [field]: value === "" ? "" : Number(value) };
+      });
+      return { ...m, formats: newFormats };
     }));
   };
 
@@ -76,14 +109,8 @@ export default function NuevoProductoPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ NUEVO: buscar precio en MercadoLibre
-  // Llama a una API liviana que consulta ML gratis y devuelve el precio mediano.
-  // No guarda nada en Firestore — solo trae el número para que lo veas antes de guardar.
   async function handleBuscarEnML() {
-    if (!name.trim()) {
-      setMlMessage("⚠️ Primero escribí el nombre del producto.");
-      return;
-    }
+    if (!name.trim()) { setMlMessage("⚠️ Primero escribí el nombre del producto."); return; }
     setFetchingML(true);
     setMlMessage(null);
     try {
@@ -109,54 +136,42 @@ export default function NuevoProductoPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-
     const remaining = MAX_IMAGES - imageFiles.length;
-    if (remaining <= 0) {
-      toast.error(`Máximo ${MAX_IMAGES} fotos permitidas`);
-      e.target.value = "";
-      return;
-    }
-
+    if (remaining <= 0) { toast.error(`Máximo ${MAX_IMAGES} fotos permitidas`); e.target.value = ""; return; }
     const filesToAdd = files.slice(0, remaining);
-    if (files.length > remaining) {
-      toast.error(`Solo se agregaron ${remaining} foto(s). Límite: ${MAX_IMAGES}`);
-    }
-
+    if (files.length > remaining) toast.error(`Solo se agregaron ${remaining} foto(s). Límite: ${MAX_IMAGES}`);
     const validFiles: File[] = [];
     const newPreviews: string[] = [];
     let processed = 0;
-
     filesToAdd.forEach((file) => {
       const validation = validateImageFile(file);
       if (!validation.valid) {
         toast.error(`${file.name}: ${validation.error || "Imagen inválida"}`);
         processed++;
         if (processed === filesToAdd.length && validFiles.length > 0) {
-          setImageFiles((prev) => [...prev, ...validFiles]);
-          setImagePreviews((prev) => [...prev, ...newPreviews]);
+          setImageFiles(prev => [...prev, ...validFiles]);
+          setImagePreviews(prev => [...prev, ...newPreviews]);
         }
         return;
       }
-
       const reader = new FileReader();
       reader.onloadend = () => {
         validFiles.push(file);
         newPreviews.push(reader.result as string);
         processed++;
         if (processed === filesToAdd.length) {
-          setImageFiles((prev) => [...prev, ...validFiles]);
-          setImagePreviews((prev) => [...prev, ...newPreviews]);
+          setImageFiles(prev => [...prev, ...validFiles]);
+          setImagePreviews(prev => [...prev, ...newPreviews]);
         }
       };
       reader.readAsDataURL(file);
     });
-
     e.target.value = "";
   };
 
   const handleRemoveImage = (index: number) => {
-    setImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleNoShippingChange = (checked: boolean) => {
@@ -185,26 +200,37 @@ export default function NuevoProductoPage() {
 
     const sanitizedName = sanitizeText(name, 100);
     const sanitizedDescription = sanitizeText(description, 1000);
-    const sanitizedUnitLabel = sanitizeText(unitLabel, 20);
 
     if (sanitizedName.length < 3) { setError("El nombre debe tener al menos 3 caracteres"); return; }
     if (sanitizedDescription.length < 10) { setError("La descripción debe tener al menos 10 caracteres"); return; }
-    if (price === "" || price <= 0) { setError("Ingresá un precio válido"); return; }
-    if (minimumOrder === "" || minimumOrder <= 0) { setError("Ingresá un pedido mínimo válido"); return; }
     if (netProfitPerUnit === "" || netProfitPerUnit < 0) { setError("Ingresá una ganancia neta válida (0 o mayor)"); return; }
 
-    if (hasStock) {
-      if (stock === "" || Number(stock) < 0 || !Number.isInteger(Number(stock))) {
-        setError("El stock debe ser un número entero igual o mayor a 0");
-        return;
-      }
+    if (hasStock && (stock === "" || Number(stock) < 0 || !Number.isInteger(Number(stock)))) {
+      setError("El stock debe ser un número entero igual o mayor a 0"); return;
     }
 
-    for (let i = 0; i < variants.length; i++) {
-      const v = variants[i];
-      if (!v.unitLabel.trim()) { setError(`La variante ${i + 1} necesita una medida (ej: 500g)`); return; }
-      if (v.price === "" || Number(v.price) <= 0) { setError(`La variante ${i + 1} necesita un precio válido`); return; }
-      if (v.minimumOrder === "" || Number(v.minimumOrder) <= 0) { setError(`La variante ${i + 1} necesita un pedido mínimo válido`); return; }
+    if (minimums.length === 0) { setError("Agregá al menos un mínimo de compra"); return; }
+
+    for (let mi = 0; mi < minimums.length; mi++) {
+      const m = minimums[mi];
+      if (m.value === "" || Number(m.value) <= 0) {
+        setError(`El mínimo ${mi + 1} necesita un valor mayor a 0`); return;
+      }
+      if (m.formats.length === 0) {
+        setError(`El mínimo ${mi + 1} necesita al menos una presentación`); return;
+      }
+      for (let fi = 0; fi < m.formats.length; fi++) {
+        const f = m.formats[fi];
+        if (!f.unitLabel.trim()) {
+          setError(`La presentación ${fi + 1} del mínimo ${mi + 1} necesita un nombre (ej: "Por unidad", "Pack 6")`); return;
+        }
+        if (f.unitsPerPack === "" || Number(f.unitsPerPack) < 1) {
+          setError(`La presentación ${fi + 1} del mínimo ${mi + 1} necesita la cantidad de unidades por pack (mínimo 1)`); return;
+        }
+        if (f.price === "" || Number(f.price) <= 0) {
+          setError(`La presentación ${fi + 1} del mínimo ${mi + 1} necesita un precio válido`); return;
+        }
+      }
     }
 
     if (!factoryPickup && !ownLogistics && !thirdParty && !noShipping) {
@@ -245,19 +271,25 @@ export default function NuevoProductoPage() {
       if (imageFiles.length > 0) {
         setUploadingImage(true);
         toast.loading(`Subiendo ${imageFiles.length} foto(s)...`);
-        imageUrls = await Promise.all(imageFiles.map((file) => uploadImage(file, "products")));
+        imageUrls = await Promise.all(imageFiles.map(file => uploadImage(file, "products")));
         toast.dismiss();
         toast.success("Fotos subidas correctamente");
         setUploadingImage(false);
       }
 
-      const cleanVariants = variants.map(v => ({
-        unitLabel: v.unitLabel.trim(),
-        price: Number(v.price),
-        minimumOrder: Number(v.minimumOrder),
+      const cleanMinimums = minimums.map(m => ({
+        type: m.type,
+        value: Number(m.value),
+        formats: m.formats.map(f => ({
+          unitLabel: f.unitLabel.trim().substring(0, 30),
+          unitsPerPack: Number(f.unitsPerPack),
+          price: Number(f.price),
+        })),
       }));
 
-      const stockToSend = hasStock ? Number(stock) : null;
+      // Derivar campos legacy del primer mínimo/formato para compatibilidad
+      const firstFormat = cleanMinimums[0]?.formats[0];
+      const firstMinimum = cleanMinimums[0];
 
       const res = await fetch("/api/products/create", {
         method: "POST",
@@ -265,16 +297,16 @@ export default function NuevoProductoPage() {
         body: JSON.stringify({
           name: sanitizedName,
           description: sanitizedDescription,
-          price: Number(price),
-          minimumOrder: Number(minimumOrder),
+          price: firstFormat?.price ?? 0,
+          minimumOrder: firstMinimum?.type === "quantity" ? firstMinimum.value : 1,
+          unitLabel: firstFormat?.unitLabel ?? "",
           netProfitPerUnit: Number(netProfitPerUnit),
           category,
-          unitLabel: sanitizedUnitLabel || undefined,
           shipping,
           imageUrls,
-          variants: cleanVariants,
-          stock: stockToSend,
-          // ✅ NUEVO: mandar precio minorista si fue cargado (manual o desde ML)
+          minimums: cleanMinimums,
+          variants: [],
+          stock: hasStock ? Number(stock) : null,
           retailReferencePrice: retailReferencePrice !== "" ? Number(retailReferencePrice) : null,
         }),
       });
@@ -295,6 +327,8 @@ export default function NuevoProductoPage() {
       toast.error(err.message || "Error al crear producto");
     }
   }
+
+  const firstFormatPrice = Number(minimums[0]?.formats[0]?.price ?? 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -393,69 +427,180 @@ export default function NuevoProductoPage() {
             )}
           </div>
 
-          {/* PRECIO BASE */}
+          {/* MÍNIMOS DE COMPRA */}
           <div className="border-t pt-4">
-            <p className="text-sm font-semibold text-gray-700 mb-3">
-              Presentación principal
-              <span className="ml-2 text-xs font-normal text-gray-400">(la que aparece primero)</span>
-            </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="flex items-center justify-between mb-1">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Medida / unidad</label>
-                <input
-                  placeholder="Ej: 1kg"
-                  className="w-full border rounded px-3 py-2 text-sm"
-                  value={unitLabel}
-                  onChange={(e) => setUnitLabel(e.target.value)}
-                  maxLength={20}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Precio por unidad</label>
-                <input
-                  type="number"
-                  placeholder="5000"
-                  className="w-full border rounded px-3 py-2 text-sm"
-                  value={price}
-                  onChange={(e) => setPrice(Number(e.target.value))}
-                  min={0}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Pedido mínimo</label>
-                <input
-                  type="number"
-                  placeholder="10"
-                  className="w-full border rounded px-3 py-2 text-sm"
-                  value={minimumOrder}
-                  onChange={(e) => setMinimumOrder(Number(e.target.value))}
-                  min={1}
-                />
+                <p className="text-sm font-semibold text-gray-700">Mínimos de compra</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Definí cuánto debe comprar el minorista y en qué presentaciones puede hacerlo.
+                </p>
               </div>
             </div>
-            {unitLabel && price !== "" && (
-              <p className="text-xs text-blue-600 mt-2">
-                Vista previa: <strong>${Number(price).toLocaleString("es-AR")} / {unitLabel}</strong>
-              </p>
+
+            <div className="space-y-4 mt-3">
+              {minimums.map((m, mIdx) => (
+                <div key={mIdx} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                  {/* Cabecera del mínimo */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-gray-700">
+                      Mínimo {mIdx + 1}
+                    </span>
+                    {minimums.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeMinimum(mIdx)}
+                        className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                      >
+                        Eliminar mínimo
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Tipo de mínimo */}
+                  <div className="flex gap-3 mb-3">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={m.type === "quantity"}
+                        onChange={() => updateMinimumType(mIdx, "quantity")}
+                      />
+                      <span className="text-sm text-gray-700">Por cantidad (unidades)</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={m.type === "amount"}
+                        onChange={() => updateMinimumType(mIdx, "amount")}
+                      />
+                      <span className="text-sm text-gray-700">Por monto en pesos</span>
+                    </label>
+                  </div>
+
+                  {/* Valor del mínimo */}
+                  <div className="mb-4">
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {m.type === "quantity" ? "Cantidad mínima (unidades)" : "Monto mínimo (pesos)"}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {m.type === "amount" && <span className="text-sm text-gray-500 font-medium">$</span>}
+                      <input
+                        type="number"
+                        placeholder={m.type === "quantity" ? "Ej: 100" : "Ej: 1000000"}
+                        className="border rounded px-3 py-2 text-sm bg-white w-48"
+                        value={m.value}
+                        onChange={(e) => updateMinimumValue(mIdx, e.target.value)}
+                        min={1}
+                      />
+                      {m.type === "quantity" && <span className="text-sm text-gray-500">uds.</span>}
+                    </div>
+                  </div>
+
+                  {/* Presentaciones */}
+                  <div>
+                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-2">
+                      Presentaciones disponibles para este mínimo
+                    </p>
+                    <div className="space-y-2">
+                      {m.formats.map((f, fIdx) => (
+                        <div key={fIdx} className="bg-white border border-gray-100 rounded-lg p-3">
+                          <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-end">
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Nombre</label>
+                              <input
+                                placeholder='Ej: "Por unidad" o "Pack 6"'
+                                className="w-full border rounded px-2 py-1.5 text-sm"
+                                value={f.unitLabel}
+                                onChange={(e) => updateFormat(mIdx, fIdx, "unitLabel", e.target.value)}
+                                maxLength={30}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Uds. por pack</label>
+                              <input
+                                type="number"
+                                placeholder="1"
+                                className="w-16 border rounded px-2 py-1.5 text-sm"
+                                value={f.unitsPerPack}
+                                onChange={(e) => updateFormat(mIdx, fIdx, "unitsPerPack", e.target.value)}
+                                min={1}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Precio</label>
+                              <input
+                                type="number"
+                                placeholder="5000"
+                                className="w-full border rounded px-2 py-1.5 text-sm"
+                                value={f.price}
+                                onChange={(e) => updateFormat(mIdx, fIdx, "price", e.target.value)}
+                                min={0}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeFormat(mIdx, fIdx)}
+                              disabled={m.formats.length <= 1}
+                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          {f.unitLabel && f.price !== "" && f.unitsPerPack !== "" && Number(f.unitsPerPack) > 1 && (
+                            <p className="text-xs text-blue-600 mt-1.5">
+                              Precio/ud: <strong>${Math.round(Number(f.price) / Number(f.unitsPerPack)).toLocaleString("es-AR")}</strong>
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => addFormat(mIdx)}
+                      className="mt-2 flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 border border-blue-200 hover:border-blue-400 rounded-lg px-2.5 py-1.5 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Agregar presentación
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addMinimum}
+              className="mt-3 flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-300 hover:border-gray-400 rounded-lg px-3 py-2 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Agregar otro mínimo
+            </button>
+
+            {/* Nota sobre comisión MP */}
+            {firstFormatPrice > 0 && (
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                💳 El comprador pagará un <strong>4% adicional</strong> por comisión de Mercado Pago.
+                <span> Ej: $<strong>{firstFormatPrice.toLocaleString("es-AR")}</strong> → el comprador paga $<strong>{Math.round(firstFormatPrice * 1.04).toLocaleString("es-AR")}</strong>.</span>
+              </div>
             )}
-            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-              💳 El comprador pagará un <strong>4% adicional</strong> por comisión de Mercado Pago.
-              {price !== "" && (
-                <span> Ejemplo: si ponés <strong>${Number(price).toLocaleString("es-AR")}</strong>, el comprador pagará <strong>${Math.round(Number(price) * 1.04).toLocaleString("es-AR")}</strong>.</span>
-              )}
-            </div>
           </div>
 
-          {/* ✅ NUEVO: PRECIO MINORISTA DE REFERENCIA */}
+          {/* PRECIO MINORISTA DE REFERENCIA */}
           <div className="border-t pt-4">
             <p className="text-sm font-semibold text-gray-700 mb-1">
               Precio minorista de referencia{" "}
               <span className="text-xs font-normal text-gray-400">(opcional)</span>
             </p>
             <p className="text-xs text-gray-400 mb-3">
-              Este precio aparece tachado en la card del producto para que el comprador vea cuánto
-              ahorra comprando en tu plataforma. Podés cargarlo a mano o buscarlo automáticamente
-              en MercadoLibre (gratis).
+              Aparece tachado en la card para que el comprador vea cuánto ahorra. Podés cargarlo a
+              mano o buscarlo en MercadoLibre (gratis).
             </p>
             <div className="flex gap-2">
               <input
@@ -477,68 +622,15 @@ export default function NuevoProductoPage() {
                 {fetchingML ? "Buscando..." : "🔍 Buscar en ML"}
               </button>
             </div>
-            {mlMessage && (
-              <p className="text-xs mt-2 text-gray-600">{mlMessage}</p>
-            )}
-            {/* Preview del ahorro en tiempo real */}
-            {retailReferencePrice !== "" && price !== "" &&
-              Number(retailReferencePrice) > Number(price) && Number(price) > 0 && (
+            {mlMessage && <p className="text-xs mt-2 text-gray-600">{mlMessage}</p>}
+            {retailReferencePrice !== "" && firstFormatPrice > 0 &&
+              Number(retailReferencePrice) > firstFormatPrice && (
               <p className="text-xs mt-2 text-green-600 font-medium">
                 💡 Tus compradores van a ver que ahorran un{" "}
-                {Math.round(((Number(retailReferencePrice) - Number(price)) / Number(retailReferencePrice)) * 100)}%
+                {Math.round(((Number(retailReferencePrice) - firstFormatPrice) / Number(retailReferencePrice)) * 100)}%
                 respecto al precio minorista.
               </p>
             )}
-          </div>
-
-          {/* VARIANTES */}
-          <div className="border-t pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-sm font-semibold text-gray-700">Otras presentaciones</p>
-                <p className="text-xs text-gray-400 mt-0.5">Ej: 500g, 250g — cada una con su propio precio y mínimo</p>
-              </div>
-              <button
-                type="button"
-                onClick={addVariant}
-                className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-200 hover:border-blue-400 rounded-lg px-3 py-1.5 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Agregar
-              </button>
-            </div>
-
-            {variants.length === 0 && (
-              <p className="text-xs text-gray-400 italic text-center py-3 border border-dashed border-gray-200 rounded-lg">
-                Sin presentaciones adicionales. Hacé click en "Agregar" para sumar una.
-              </p>
-            )}
-
-            <div className="space-y-3">
-              {variants.map((v, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end bg-gray-50 rounded-lg p-3 border border-gray-100">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Medida</label>
-                    <input placeholder="Ej: 500g" className="w-full border rounded px-2 py-1.5 text-sm bg-white" value={v.unitLabel} onChange={(e) => updateVariant(i, "unitLabel", e.target.value)} maxLength={20} />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Precio</label>
-                    <input type="number" placeholder="2500" className="w-full border rounded px-2 py-1.5 text-sm bg-white" value={v.price} onChange={(e) => updateVariant(i, "price", e.target.value)} min={0} />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Mínimo</label>
-                    <input type="number" placeholder="20" className="w-full border rounded px-2 py-1.5 text-sm bg-white" value={v.minimumOrder} onChange={(e) => updateVariant(i, "minimumOrder", e.target.value)} min={1} />
-                  </div>
-                  <button type="button" onClick={() => removeVariant(i)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
           </div>
 
           {/* CONTROL DE STOCK */}
@@ -560,7 +652,6 @@ export default function NuevoProductoPage() {
                 </p>
               </div>
             </div>
-
             {hasStock && (
               <div className="mt-3 ml-7">
                 <label className="block text-xs text-gray-500 mb-1">Unidades disponibles actualmente</label>
@@ -574,14 +665,10 @@ export default function NuevoProductoPage() {
                   step={1}
                 />
                 {stock !== "" && Number(stock) === 0 && (
-                  <p className="text-xs text-amber-600 mt-1.5 font-medium">
-                    ⚠️ Con stock 0 el producto se crea como inactivo.
-                  </p>
+                  <p className="text-xs text-amber-600 mt-1.5 font-medium">⚠️ Con stock 0 el producto se crea como inactivo.</p>
                 )}
                 {stock !== "" && Number(stock) > 0 && (
-                  <p className="text-xs text-green-600 mt-1.5">
-                    ✅ Tenés {Number(stock).toLocaleString("es-AR")} unidades disponibles.
-                  </p>
+                  <p className="text-xs text-green-600 mt-1.5">✅ Tenés {Number(stock).toLocaleString("es-AR")} unidades disponibles.</p>
                 )}
               </div>
             )}
