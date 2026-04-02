@@ -90,6 +90,7 @@ export default function ExplorarClient({
   const [maxOrder, setMaxOrder] = useState("");
   const [onlyFeatured, setOnlyFeatured] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("name");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -407,14 +408,31 @@ export default function ExplorarClient({
           )}
         </div>
 
+        {/* BOTÓN FILTROS MOBILE */}
+        <div className="lg:hidden flex justify-between items-center mb-4">
+          <button
+            onClick={() => setMobileFiltersOpen(prev => !prev)}
+            className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 shadow-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M6 8h12M9 12h6" />
+            </svg>
+            {mobileFiltersOpen ? "Ocultar filtros" : "Filtros"}
+          </button>
+          <span className="text-sm text-gray-500">{filteredProducts.length} producto{filteredProducts.length !== 1 && "s"}</span>
+        </div>
+
         <div className="grid lg:grid-cols-4 gap-6">
 
           {/* SIDEBAR FILTROS */}
-          <aside className="lg:col-span-1">
+          <aside className={`lg:col-span-1 ${mobileFiltersOpen ? "block" : "hidden"} lg:block`}>
             <div className="bg-white rounded-xl shadow p-6 sticky top-20">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="font-semibold text-lg">Filtros</h2>
-                <button onClick={clearFilters} className="text-sm text-blue-600 hover:underline">Limpiar</button>
+                <div className="flex items-center gap-3">
+                  <button onClick={clearFilters} className="text-sm text-blue-600 hover:underline">Limpiar</button>
+                  <button onClick={() => setMobileFiltersOpen(false)} className="lg:hidden text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+                </div>
               </div>
               <div className="mb-5">
                 <label className="block text-sm font-medium mb-2">Buscar</label>
@@ -486,9 +504,9 @@ export default function ExplorarClient({
 
           {/* LISTA DE PRODUCTOS */}
           <div className="lg:col-span-3">
-            <div className="mb-4 text-sm text-gray-600">
+            <div className="hidden lg:block mb-4 text-sm text-gray-600">
               {filteredProducts.length} producto{filteredProducts.length !== 1 && "s"} encontrado{filteredProducts.length !== 1 && "s"}
-              {hasMore && " (hay más por cargar)"}
+              {hasMore && ""}
             </div>
 
             {filteredProducts.length === 0 ? (
@@ -498,7 +516,7 @@ export default function ExplorarClient({
               </div>
             ) : (
               <>
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                   {filteredProducts.map((product) => {
                     const sellerBadge = getSellerBadge(product.sellerType);
                     const outOfStock = isOutOfStock(product);
@@ -590,40 +608,38 @@ export default function ExplorarClient({
                           <h2 className="text-lg font-semibold mb-2 line-clamp-2">{product.name}</h2>
                           <p className="text-xs text-gray-500 mb-3">{CATEGORY_LABELS[product.category]}</p>
 
-                          {/* ✅ BLOQUE DE PRECIO CON COMPARACIÓN MINORISTA */}
+                          {/* BLOQUE DE PRECIO */}
                           <div className="mb-3">
                             <div className="flex items-baseline gap-2 flex-wrap">
-                              <span className="font-medium text-gray-900">Precio: </span>
-                              <span className="font-bold text-gray-900">
+                              <span className="text-xl font-bold text-gray-900">
                                 ${product.price.toLocaleString("es-AR")}
                                 {product.unitLabel && (
-                                  <span className="text-gray-500 font-normal text-sm"> / {product.unitLabel}</span>
+                                  <span className="text-gray-400 font-normal text-sm"> / {product.unitLabel}</span>
                                 )}
                               </span>
-                              {product.variants && product.variants.length > 0 && product.variants.map((v, i) => (
-                                <span key={i} className="text-gray-500 text-sm">
-                                  {"  "}·{"  "}
-                                  <span className="font-semibold text-gray-800">${v.price.toLocaleString("es-AR")}</span>
-                                  <span className="text-gray-400"> / {v.unitLabel}</span>
+                              {savingsPercent >= 5 && (
+                                <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                                  🏷️ -{savingsPercent}%
                                 </span>
-                              ))}
+                              )}
                             </div>
 
-                            {/* Precio minorista tachado + badge de ahorro */}
-                            {hasRetailPrice && (
-                              <div className="mt-1 flex items-center gap-2 flex-wrap">
-                                <span className="text-xs text-gray-400">
-                                  Minorista:{" "}
-                                  <span className="line-through">
-                                    ${product.retailReferencePrice!.toLocaleString("es-AR")}
+                            {/* Variantes como chips */}
+                            {product.variants && product.variants.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {product.variants.map((v, i) => (
+                                  <span key={i} className="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-0.5 rounded-md">
+                                    ${v.price.toLocaleString("es-AR")}{v.unitLabel ? ` / ${v.unitLabel}` : ""}
                                   </span>
-                                </span>
-                                {savingsPercent >= 5 && (
-                                  <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                                    🏷️ Ahorrás {savingsPercent}%
-                                  </span>
-                                )}
+                                ))}
                               </div>
+                            )}
+
+                            {/* Precio minorista tachado */}
+                            {hasRetailPrice && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                Minorista: <span className="line-through">${product.retailReferencePrice!.toLocaleString("es-AR")}</span>
+                              </p>
                             )}
                           </div>
 

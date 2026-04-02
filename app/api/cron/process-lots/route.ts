@@ -270,9 +270,8 @@ async function processLotClosure(params: {
       const shippingFinal = isPickup
         ? 0
         : Math.round(rawShipping * (1 - reservation.shippingDiscount));
-      const commissionFinal = reservation.commissionDiscount >= 1
-        ? 0
-        : reservation.commission;
+      // TEMPORAL: comisión plana 4%, descuentos por racha desactivados
+      const commissionFinal = reservation.commission;
 
       const totalFinal = reservation.productSubtotal + commissionFinal + shippingFinal;
 

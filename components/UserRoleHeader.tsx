@@ -984,6 +984,10 @@ const ROLE_COLORS: Record<Role, { dot: string; text: string; avatar: string }> =
   wholesaler:   { dot: "#16a34a", text: "#15803d", avatar: "linear-gradient(135deg,#15803d,#22c55e)" },
 };
 
+// ─── FEATURE FLAG ─────────────────────────────────────────────────────────────
+// Poner en true para re-habilitar el sistema de gamificación (badges, rachas, niveles)
+const SHOW_GAMIFICATION = false;
+
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 interface UserRoleHeaderProps {
   userEmail?: string;
@@ -1062,8 +1066,8 @@ export default function UserRoleHeader({
               Rol activo: {currentLabel}
             </span>
 
-            {/* Badges — solo para revendedor, igual que antes */}
-            {isRetailer && (
+            {/* Badges — temporalmente ocultos (SHOW_GAMIFICATION = false) */}
+            {SHOW_GAMIFICATION && isRetailer && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 3 }}>
                 <HeaderPill
                   tier={levelEntry.tier} icon={levelEntry.icon}
@@ -1098,8 +1102,8 @@ export default function UserRoleHeader({
         </div>
       </div>
 
-      {/* Modal — solo para revendedor, igual que antes */}
-      {modalOpen && isRetailer && (
+      {/* Modal — temporalmente oculto (SHOW_GAMIFICATION = false) */}
+      {SHOW_GAMIFICATION && modalOpen && isRetailer && (
         <ProgressModal
           onClose={() => setModalOpen(false)}
           currentStreak={currentStreak}

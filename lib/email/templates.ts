@@ -108,6 +108,7 @@ function emailWrapper(content: string): string {
       color: #6b7280;
       font-size: 14px;
     }
+    .footer a { color: #2563eb; text-decoration: none; }
     .retailer-item {
       background-color: white;
       border: 1px solid #e5e7eb;
@@ -115,6 +116,26 @@ function emailWrapper(content: string): string {
       padding: 15px;
       margin: 10px 0;
     }
+    .retailer-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 10px;
+    }
+    .retailer-table th {
+      background-color: #f3f4f6;
+      text-align: left;
+      padding: 8px 12px;
+      font-weight: 600;
+      color: #374151;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    .retailer-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #f3f4f6;
+      vertical-align: top;
+    }
+    .retailer-table tr:last-child td { border-bottom: none; }
   </style>
 </head>
 <body>
@@ -208,6 +229,7 @@ export function manufacturerDirectOrderEmail(data: {
     <div class="footer">
       <p><strong>Mayorista Móvil</strong></p>
       <p>Tu plataforma mayorista de confianza</p>
+      <p style="margin-top:8px;"><a href="https://mayoristamovil.com">mayoristamovil.com</a></p>
     </div>
   `;
 
@@ -258,14 +280,26 @@ export function manufacturerLotClosedEmail(data: {
 
     <div class="section">
       <div class="section-title">📋 Distribución por Revendedor</div>
-      ${data.retailers.map(r => `
-        <div class="retailer-item">
-          <div style="font-weight: bold; margin-bottom: 8px;">${r.name}</div>
-          <div>• Cantidad: ${r.qty} unidades</div>
-          <div>• Dirección: ${r.address}</div>
-          ${r.phone ? `<div>• Teléfono: ${r.phone}</div>` : ''}
-        </div>
-      `).join('')}
+      <table class="retailer-table">
+        <thead>
+          <tr>
+            <th>Revendedor</th>
+            <th>Cantidad</th>
+            <th>Dirección</th>
+            <th>Teléfono</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.retailers.map(r => `
+            <tr>
+              <td><strong>${r.name}</strong></td>
+              <td>${r.qty} uds.</td>
+              <td>${r.address}</td>
+              <td>${r.phone ?? '-'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
     </div>
 
     <div class="section">
@@ -305,6 +339,7 @@ export function manufacturerLotClosedEmail(data: {
     <div class="footer">
       <p><strong>Mayorista Móvil</strong></p>
       <p>Tu plataforma mayorista de confianza</p>
+      <p style="margin-top:8px;"><a href="https://mayoristamovil.com">mayoristamovil.com</a></p>
     </div>
   `;
 
@@ -431,6 +466,7 @@ export function retailerPickupEmail(data: {
     <div class="footer">
       <p><strong>Mayorista Móvil</strong></p>
       <p>Tu plataforma mayorista de confianza</p>
+      <p style="margin-top:8px;"><a href="https://mayoristamovil.com">mayoristamovil.com</a></p>
     </div>
   `;
 
@@ -478,25 +514,26 @@ export function manufacturerFractionalProgressEmail(data: {
 
     <div class="section">
       <div class="section-title">📈 Progreso del Lote</div>
-      <div class="info-row">
-        <span class="info-label">Acumulado:</span>
-        <span class="info-value">${data.accumulatedQty} / ${data.minimumOrder}</span>
-      </div>
-      <div style="margin: 15px 0;">
-        <div style="background-color: #e5e7eb; border-radius: 4px; height: 20px; overflow: hidden;">
-          <div style="background-color: #2563eb; height: 100%; width: ${data.percentage}%; transition: width 0.3s;"></div>
-        </div>
-        <div style="text-align: center; margin-top: 5px; font-weight: bold;">
+      <div style="text-align: center; margin: 10px 0 18px;">
+        <span style="font-size: 48px; font-weight: 900; color: #2563eb; line-height: 1;">
           ${data.percentage.toFixed(0)}%
-        </div>
+        </span>
+        <div style="font-size: 13px; color: #6b7280; margin-top: 4px;">completado</div>
       </div>
-      <div class="info-row">
-        <span class="info-label">Faltan:</span>
+      <div style="background-color: #e5e7eb; border-radius: 8px; height: 14px; overflow: hidden; margin-bottom: 10px;">
+        <div style="background: linear-gradient(90deg, #2563eb, #3b82f6); height: 100%; width: ${Math.min(data.percentage, 100)}%; border-radius: 8px;"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 13px; color: #6b7280;">
+        <span>Acumulado: <strong style="color:#111;">${data.accumulatedQty} uds.</strong></span>
+        <span>Mínimo: <strong style="color:#111;">${data.minimumOrder} uds.</strong></span>
+      </div>
+      <div class="info-row" style="margin-top: 12px;">
+        <span class="info-label">Faltan para cerrar:</span>
         <span class="info-value">${data.remaining} unidades</span>
       </div>
       ${data.percentage >= 80 ? `
         <div class="warning-box" style="margin-top: 15px;">
-          <strong>🎯 ¡Casi completo!</strong> Solo faltan ${data.remaining} unidades.
+          <strong>🎯 ¡Casi completo!</strong> Solo faltan <strong>${data.remaining} unidades</strong> para que el lote cierre.
         </div>
       ` : ''}
     </div>
@@ -508,6 +545,7 @@ export function manufacturerFractionalProgressEmail(data: {
     <div class="footer">
       <p><strong>Mayorista Móvil</strong></p>
       <p>Tu plataforma mayorista de confianza</p>
+      <p style="margin-top:8px;"><a href="https://mayoristamovil.com">mayoristamovil.com</a></p>
     </div>
   `;
 

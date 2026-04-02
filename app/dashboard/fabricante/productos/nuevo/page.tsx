@@ -438,6 +438,12 @@ export default function NuevoProductoPage() {
                 Vista previa: <strong>${Number(price).toLocaleString("es-AR")} / {unitLabel}</strong>
               </p>
             )}
+            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+              💳 El comprador pagará un <strong>4% adicional</strong> por comisión de Mercado Pago.
+              {price !== "" && (
+                <span> Ejemplo: si ponés <strong>${Number(price).toLocaleString("es-AR")}</strong>, el comprador pagará <strong>${Math.round(Number(price) * 1.04).toLocaleString("es-AR")}</strong>.</span>
+              )}
+            </div>
           </div>
 
           {/* ✅ NUEVO: PRECIO MINORISTA DE REFERENCIA */}

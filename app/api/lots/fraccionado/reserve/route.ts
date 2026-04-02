@@ -333,17 +333,11 @@ export async function POST(req: Request) {
     const productName = productData.name || "Producto";
     const productSubtotal = productPrice * Number(qty);
 
-    // ── BLOQUE 2 impl 4 — Comisión diferenciada por nivel con spread amplio ──
-    // Nivel 1 Verde   → 9%  (privilegio real, por debajo del estándar anterior)
-    // Nivel 2 Amarillo → 12% (base)
-    // Nivel 3 Naranja  → 14%
-    // Nivel 4 Rojo     → 16% (diferencia de $35 sobre lote de $500 vs nivel 1)
-    const commissionRateByLevel: Record<number, number> = { 1: 0.09, 2: 0.12, 3: 0.14, 4: 0.16 };
-    const baseCommissionRate = commissionRateByLevel[retailerLevel] ?? 0.12;
-
-    // ── BLOQUE 1: aplicar descuento de comisión por racha ────────────────
-    // En racha 50 pts → commissionDiscount = 1.0 → comisión = 0 (lote gratis)
-    const effectiveCommissionRate = Math.max(0, baseCommissionRate * (1 - commissionDiscount));
+    // ── TEMPORAL: comisión plana 4% (cubre costo de MercadoPago) ──────────
+    // Las comisiones diferenciadas por nivel y descuentos por racha están
+    // temporalmente desactivadas. Solo se cobra 4% fijo en todos los lotes.
+    const PLATFORM_COMMISSION_RATE = 0.04;
+    const effectiveCommissionRate = PLATFORM_COMMISSION_RATE;
     const commission = Math.round(productSubtotal * effectiveCommissionRate);
 
     const factorySnap = await db.collection("manufacturers").doc(factoryId).get();

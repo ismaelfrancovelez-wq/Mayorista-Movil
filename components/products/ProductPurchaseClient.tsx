@@ -63,6 +63,10 @@ export default function ProductPurchaseClient({
   const [reserved, setReserved] = useState(false);
   const [reserveError, setReserveError] = useState<string | null>(null);
 
+  const [showAddressInput, setShowAddressInput] = useState(false);
+  const [inlineAddress, setInlineAddress] = useState("");
+  const [savingAddress, setSavingAddress] = useState(false);
+
   const [showSimulator, setShowSimulator] = useState(false);
 
   // ✅ NUEVO: indica que la reserva se está ejecutando automáticamente post-login
@@ -196,7 +200,7 @@ export default function ProductPurchaseClient({
 
         if (!res.ok) {
           if (data.missingAddress) {
-            setReserveError("Necesitás configurar tu dirección antes de reservar. Andá a tu perfil.");
+            setShowAddressInput(true);
           } else if (data.alreadyReserved) {
             setReserveError("Ya tenés una reserva activa para este producto.");
           } else {
@@ -264,7 +268,7 @@ export default function ProductPurchaseClient({
 
       if (!res.ok) {
         if (data.missingAddress) {
-          setReserveError("Necesitás configurar tu dirección antes de reservar. Andá a tu perfil.");
+          setShowAddressInput(true);
         } else if (data.alreadyReserved) {
           setReserveError("Ya tenés una reserva activa para este producto. Revisá tu email cuando el lote cierre.");
         } else {
@@ -282,6 +286,45 @@ export default function ProductPurchaseClient({
       console.error("Error reservando:", err);
       setReserveError("Error de conexión. Intentá de nuevo.");
     } finally {
+      setReserving(false);
+    }
+  }
+
+  async function handleSaveAddressAndRetry() {
+    if (!inlineAddress.trim() || inlineAddress.trim().length < 5) return;
+    setSavingAddress(true);
+    setReserveError(null);
+    try {
+      const saveRes = await fetch("/api/retailers/address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formattedAddress: inlineAddress.trim() }),
+      });
+      if (!saveRes.ok) {
+        const err = await saveRes.json();
+        setReserveError(err.error || "No se pudo guardar la dirección.");
+        return;
+      }
+      setShowAddressInput(false);
+      setInlineAddress("");
+      // Reintentar la reserva automáticamente
+      setReserving(true);
+      const res = await fetch("/api/lots/fraccionado/reserve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, qty, shippingMode: selectedShipping }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReserveError(data.error || "Error al reservar. Intentá de nuevo.");
+        return;
+      }
+      if (typeof data.commissionRate === "number") setCommissionRate(data.commissionRate);
+      setReserved(true);
+    } catch {
+      setReserveError("Error de conexión. Intentá de nuevo.");
+    } finally {
+      setSavingAddress(false);
       setReserving(false);
     }
   }
@@ -533,9 +576,6 @@ export default function ProductPurchaseClient({
       {/* RESUMEN DE COSTOS */}
       <div className="border rounded p-4 text-sm mb-4 bg-gray-50">
         <p>Subtotal producto: $ {formatNumber(productSubtotal)}{unitLabel ? <span className="text-gray-400 text-xs"> ({qty}× {unitLabel})</span> : null}</p>
-        {commission > 0 && (
-          <p>Comisión ({commissionRate}%): $ {formatNumber(commission)}</p>
-        )}
         <p>Envío: $ {formatNumber(shippingCost)}</p>
         <p className="font-semibold mt-2 text-base">Total: $ {formatNumber(totalToCharge)}</p>
       </div>
@@ -592,17 +632,35 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
+      {/* Formulario de dirección inline (aparece cuando falta dirección) */}
+      {showAddressInput && selectedShipping === "platform" && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <p className="text-sm font-semibold text-blue-900 mb-1">📍 ¿Dónde te enviamos el pedido?</p>
+          <p className="text-xs text-blue-700 mb-3">
+            Necesitamos tu dirección para calcular el envío. Solo se necesita para envíos por plataforma.
+          </p>
+          <input
+            type="text"
+            placeholder="Ej: Av. Corrientes 1234, Buenos Aires"
+            className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            value={inlineAddress}
+            onChange={e => setInlineAddress(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") handleSaveAddressAndRetry(); }}
+          />
+          <button
+            onClick={handleSaveAddressAndRetry}
+            disabled={savingAddress || inlineAddress.trim().length < 5}
+            className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+          >
+            {savingAddress ? "Guardando y reservando..." : "Guardar y reservar →"}
+          </button>
+        </div>
+      )}
+
       {/* Error de reserva */}
       {reserveError && (
         <div className="bg-red-50 border border-red-300 rounded-lg p-3 mb-4">
           <p className="text-sm text-red-700">{reserveError}</p>
-          {reserveError.includes("dirección") && (
-            <a href="/dashboard/pedidos-fraccionados/perfil"
-              className="text-sm font-semibold text-red-800 underline mt-1 block"
-            >
-              Ir a configurar dirección
-            </a>
-          )}
         </div>
       )}
 

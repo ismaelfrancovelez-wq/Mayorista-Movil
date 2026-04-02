@@ -2,6 +2,7 @@
 // ✅ ACTUALIZADO: soporte para fabricante, distribuidor y mayorista
 // ✅ FIX: agregado generateMetadata para SEO por producto
 // ✅ FIX: ProductPurchaseClient siempre visible — auth-gate solo en el botón
+// ✅ NUEVO: muestra precio minorista de referencia con badge de ahorro
 
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
@@ -187,6 +188,13 @@ export default async function ProductDetailPage({
 
   const hasVariants = variants.length > 0;
 
+  // ✅ NUEVO: precio minorista de referencia
+  const retailReferencePrice: number | null = (product as any).retailReferencePrice ?? null;
+  const hasRetailPrice = retailReferencePrice !== null && retailReferencePrice > product.price;
+  const savingsPercent = hasRetailPrice
+    ? Math.round(((retailReferencePrice! - product.price) / retailReferencePrice!) * 100)
+    : 0;
+
   const sellerBadgeColors: Record<string, string> = {
     manufacturer: "bg-blue-100 text-blue-800",
     distributor: "bg-purple-100 text-purple-800",
@@ -270,6 +278,7 @@ export default async function ProductDetailPage({
                 />
               ) : (
                 <>
+                  {/* ✅ BLOQUE DE PRECIO CON COMPARACIÓN MINORISTA */}
                   <div className="mb-3">
                     <p className="text-3xl font-light text-gray-900 leading-none">
                       ${product.price.toLocaleString("es-AR")}
@@ -281,6 +290,23 @@ export default async function ProductDetailPage({
                     </p>
                     {unitLabel && (
                       <p className="text-xs text-gray-400 mt-1">precio por {unitLabel}</p>
+                    )}
+
+                    {/* Precio minorista tachado + badge ahorro */}
+                    {hasRetailPrice && (
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <span className="text-sm text-gray-400">
+                          Minorista:{" "}
+                          <span className="line-through">
+                            ${retailReferencePrice!.toLocaleString("es-AR")}
+                          </span>
+                        </span>
+                        {savingsPercent >= 5 && (
+                          <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 text-sm font-bold px-2.5 py-1 rounded-full">
+                            🏷️ Ahorrás {savingsPercent}%
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -341,7 +367,6 @@ export default async function ProductDetailPage({
                     </div>
                   )}
 
-                  {/* ✅ Siempre renderiza ProductPurchaseClient — userId controla solo el botón */}
                   <ProductPurchaseClient
                     price={product.price}
                     MF={minimumOrder}

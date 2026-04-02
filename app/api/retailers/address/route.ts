@@ -59,11 +59,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { formattedAddress, lat, lng } = body;
 
-    if (
-      !formattedAddress ||
-      typeof lat !== "number" ||
-      typeof lng !== "number"
-    ) {
+    if (!formattedAddress || typeof formattedAddress !== "string" || formattedAddress.trim().length < 5) {
       return NextResponse.json(
         { error: "Datos inválidos" },
         { status: 400 }
@@ -76,9 +72,9 @@ export async function POST(req: Request) {
       .set(
         {
           address: {
-            formattedAddress,
-            lat,
-            lng,
+            formattedAddress: formattedAddress.trim(),
+            lat: typeof lat === "number" ? lat : 0,
+            lng: typeof lng === "number" ? lng : 0,
           },
           updatedAt: new Date(),
         },

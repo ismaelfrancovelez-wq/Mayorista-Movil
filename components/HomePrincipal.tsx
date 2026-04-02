@@ -301,7 +301,14 @@ export default function HomePrincipal({
     }
   }, [featuredProducts, loadingFeaturedProducts]);
 
-  const banners = [
+  const banners: Array<{
+    title: string;
+    subtitle: string;
+    bgColor: string;
+    image: string;
+    cta: string;
+    type?: 'explainer';
+  }> = [
     {
       title: '¡Pedidos desde 1 unidad!',
       subtitle: 'Comprá a precio de fábrica sin invertir grandes volúmenes.',
@@ -329,6 +336,14 @@ export default function HomePrincipal({
       bgColor: 'from-orange-600 via-orange-700 to-orange-900',
       image: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1200',
       cta: 'Ver Lotes'
+    },
+    {
+      title: '¿Cómo funciona?',
+      subtitle: 'Comprá en grupo, pagá solo tu parte.',
+      bgColor: 'from-violet-700 via-violet-800 to-purple-900',
+      image: '',
+      cta: 'Ver cómo funciona',
+      type: 'explainer'
     }
   ];
 
@@ -520,19 +535,54 @@ export default function HomePrincipal({
         <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-bold z-30">{currentBanner + 1} / {banners.length}</div>
         {banners.map((banner, index) => (
           <div key={index} className={`absolute inset-0 transition-all duration-700 ${currentBanner === index ? 'opacity-100 scale-100' : 'opacity-0 scale-105'}`}>
-            <div className={`absolute inset-0 bg-gradient-to-r ${banner.bgColor} opacity-90`} />
-            <img src={banner.image} alt={banner.title} className="w-full h-full object-cover mix-blend-overlay" />
-            <div className="absolute inset-0 flex items-center">
-              <div className="max-w-7xl mx-auto px-4 w-full">
-                <div className="max-w-2xl">
-                  <h2 className="text-4xl md:text-6xl font-black text-white mb-4 leading-tight animate-fade-in-up">{banner.title}</h2>
-                  <p className="text-xl md:text-2xl text-white/90 mb-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>{banner.subtitle}</p>
-                  <Link href={banner.cta === 'Ver Lotes' ? '/explorar/cerrando' : '/explorar'}>
-                    <button className="px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-blue-50 transform hover:scale-105 transition-all shadow-2xl animate-fade-in-up" style={{ animationDelay: '0.2s' }}>{banner.cta} →</button>
-                  </Link>
+            <div className={`absolute inset-0 bg-gradient-to-r ${banner.bgColor} opacity-95`} />
+            {banner.image && <img src={banner.image} alt={banner.title} className="w-full h-full object-cover mix-blend-overlay" />}
+
+            {banner.type === 'explainer' ? (
+              /* Slide especial: explicación de pedidos fraccionados */
+              <div className="absolute inset-0 flex items-center">
+                <div className="max-w-7xl mx-auto px-6 w-full">
+                  <h2 className="text-3xl md:text-4xl font-black text-white mb-2 text-center">{banner.title}</h2>
+                  <p className="text-white/80 text-center mb-6 md:mb-8 text-base md:text-lg">{banner.subtitle}</p>
+                  <div className="grid grid-cols-4 gap-3 md:gap-6 mb-6">
+                    {[
+                      { emoji: '🛒', step: '1', label: 'Elegí tu producto' },
+                      { emoji: '📋', step: '2', label: 'Reservá tu lugar' },
+                      { emoji: '⏳', step: '3', label: 'El lote se llena' },
+                      { emoji: '💰', step: '4', label: 'Pagás y recibís' },
+                    ].map((item, i) => (
+                      <div key={i} className="flex flex-col items-center text-center gap-2">
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-2xl md:text-3xl border border-white/30">
+                          {item.emoji}
+                        </div>
+                        <span className="text-white/50 text-xs font-bold uppercase tracking-widest">Paso {item.step}</span>
+                        <span className="text-white text-xs md:text-sm font-semibold leading-tight">{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-center">
+                    <Link href="#como-funciona">
+                      <button className="px-6 py-3 bg-white text-violet-700 font-bold rounded-xl hover:bg-violet-50 transition-all shadow-xl text-sm md:text-base">
+                        Ver explicación completa →
+                      </button>
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              /* Slide estándar */
+              <div className="absolute inset-0 flex items-center">
+                <div className="max-w-7xl mx-auto px-4 w-full">
+                  <div className="max-w-2xl">
+                    <h2 className="text-4xl md:text-6xl font-black text-white mb-4 leading-tight animate-fade-in-up">{banner.title}</h2>
+                    <p className="text-xl md:text-2xl text-white/90 mb-8 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>{banner.subtitle}</p>
+                    <Link href={banner.cta === 'Ver Lotes' ? '/explorar/cerrando' : '/explorar'}>
+                      <button className="px-8 py-4 bg-white text-blue-600 font-bold rounded-xl hover:bg-blue-50 transform hover:scale-105 transition-all shadow-2xl animate-fade-in-up" style={{ animationDelay: '0.2s' }}>{banner.cta} →</button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3 z-20">

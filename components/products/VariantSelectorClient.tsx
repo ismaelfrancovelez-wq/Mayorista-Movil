@@ -26,6 +26,12 @@ interface Props {
   userId?: string;
 }
 
+/** Extrae la cantidad numérica de un unitLabel. Ej: "Pack 6 unidades" → 6 */
+function extractUnits(unitLabel: string): number {
+  const match = unitLabel.match(/\d+/);
+  return match ? parseInt(match[0], 10) : 1;
+}
+
 export default function VariantSelectorClient({
   allVariants,
   progressData,
@@ -45,6 +51,19 @@ export default function VariantSelectorClient({
   const price = selected.price;
   const minimumOrder = selected.minimumOrder;
 
+  // Badge "llena el lote más rápido": variante con mayor minimumOrder
+  const fastestLotIndex = allVariants.reduce((bestIdx, v, i) =>
+    v.minimumOrder > allVariants[bestIdx].minimumOrder ? i : bestIdx, 0);
+
+  // Badge "mejor precio/unidad": solo si hay 2+ variantes, la de menor precio/unidad
+  const cheapestPerUnitIndex = allVariants.length >= 2
+    ? allVariants.reduce((bestIdx, v, i) => {
+        const units = extractUnits(v.unitLabel);
+        const bestUnits = extractUnits(allVariants[bestIdx].unitLabel);
+        return (v.price / units) < (allVariants[bestIdx].price / bestUnits) ? i : bestIdx;
+      }, 0)
+    : -1;
+
   return (
     <>
       {/* PILLS DE VARIANTES */}
@@ -56,23 +75,36 @@ export default function VariantSelectorClient({
           {allVariants.map((v, i) => {
             const isSelected = i === selectedIndex;
             const label = v.unitLabel || "Base";
+            const isFastest = i === fastestLotIndex;
+            const isCheapest = i === cheapestPerUnitIndex && i !== fastestLotIndex;
             return (
-              <button
-                key={i}
-                onClick={() => setSelectedIndex(i)}
-                className={`
-                  px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150
-                  ${isSelected
-                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                    : "bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:text-blue-600"
-                  }
-                `}
-              >
-                {label}
-                <span className={`ml-1.5 text-xs ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
-                  ${v.price.toLocaleString("es-AR")}
-                </span>
-              </button>
+              <div key={i} className="flex flex-col gap-1">
+                {isFastest && (
+                  <span className="bg-green-700 text-white text-[10px] font-bold px-1.5 py-0.5 rounded self-start leading-none">
+                    ⚡ Llena el lote más rápido
+                  </span>
+                )}
+                {isCheapest && (
+                  <span className="bg-amber-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded self-start leading-none">
+                    💲 Mejor precio/unidad
+                  </span>
+                )}
+                <button
+                  onClick={() => setSelectedIndex(i)}
+                  className={`
+                    px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150
+                    ${isSelected
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                      : "bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:text-blue-600"
+                    }
+                  `}
+                >
+                  {label}
+                  <span className={`ml-1.5 text-xs ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
+                    ${v.price.toLocaleString("es-AR")}
+                  </span>
+                </button>
+              </div>
             );
           })}
         </div>
