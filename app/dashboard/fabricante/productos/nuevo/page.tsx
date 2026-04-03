@@ -13,10 +13,25 @@ function sanitizeText(text: string, maxLength: number = 100): string {
 }
 
 interface FormatForm {
-  unitLabel: string;
+  presetId: string;       // which preset button is selected, or "custom"
+  packQty: number | "";   // only used when presetId === "pack"
+  unitLabel: string;      // auto-filled by preset, or manual if custom
   unitsPerPack: number | "";
   price: number | "";
 }
+
+const FORMAT_PRESETS = [
+  { id: "unit",      label: "Unidad",    unitLabel: "Por unidad",   unitsPerPack: 1,    needsQty: false },
+  { id: "pack",      label: "Pack",      unitLabel: "",             unitsPerPack: 0,    needsQty: true  },
+  { id: "dozen",     label: "Docena",    unitLabel: "Docena",       unitsPerPack: 12,   needsQty: false },
+  { id: "halfdozen", label: "½ Docena",  unitLabel: "Media docena", unitsPerPack: 6,    needsQty: false },
+  { id: "kg",        label: "Kg",        unitLabel: "Por kg",       unitsPerPack: 1,    needsQty: false },
+  { id: "500g",      label: "500g",      unitLabel: "500g",         unitsPerPack: 1,    needsQty: false },
+  { id: "250g",      label: "250g",      unitLabel: "250g",         unitsPerPack: 1,    needsQty: false },
+  { id: "liter",     label: "Litro",     unitLabel: "Por litro",    unitsPerPack: 1,    needsQty: false },
+  { id: "500ml",     label: "500ml",     unitLabel: "500ml",        unitsPerPack: 1,    needsQty: false },
+  { id: "custom",    label: "Otro",      unitLabel: "",             unitsPerPack: 0,    needsQty: false },
+] as const;
 
 interface MinimumForm {
   type: "quantity" | "amount";
@@ -40,14 +55,14 @@ export default function NuevoProductoPage() {
   const [mlMessage, setMlMessage] = useState<string | null>(null);
 
   const [minimums, setMinimums] = useState<MinimumForm[]>([
-    { type: "quantity", value: "", formats: [{ unitLabel: "", unitsPerPack: 1, price: "" }] },
+    { type: "quantity", value: "", formats: [{ presetId: "", packQty: "", unitLabel: "", unitsPerPack: "", price: "" }] },
   ]);
 
   // ── Handlers de mínimos ───────────────────────────────────────────────────
   const addMinimum = () => {
     setMinimums(prev => [...prev, {
       type: "quantity", value: "",
-      formats: [{ unitLabel: "", unitsPerPack: 1, price: "" }],
+      formats: [{ presetId: "", packQty: "", unitLabel: "", unitsPerPack: "", price: "" }],
     }]);
   };
 
@@ -68,7 +83,7 @@ export default function NuevoProductoPage() {
 
   const addFormat = (mIdx: number) => {
     setMinimums(prev => prev.map((m, i) =>
-      i === mIdx ? { ...m, formats: [...m.formats, { unitLabel: "", unitsPerPack: 1, price: "" }] } : m
+      i === mIdx ? { ...m, formats: [...m.formats, { presetId: "", packQty: "", unitLabel: "", unitsPerPack: "", price: "" }] } : m
     ));
   };
 
@@ -88,6 +103,40 @@ export default function NuevoProductoPage() {
         return { ...f, [field]: value === "" ? "" : Number(value) };
       });
       return { ...m, formats: newFormats };
+    }));
+  };
+
+  const selectPreset = (mIdx: number, fIdx: number, presetId: string) => {
+    const preset = FORMAT_PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+    setMinimums(prev => prev.map((m, i) => {
+      if (i !== mIdx) return m;
+      return {
+        ...m,
+        formats: m.formats.map((f, fi) => fi !== fIdx ? f : {
+          ...f,
+          presetId,
+          packQty: "",
+          unitLabel: preset.unitLabel,
+          unitsPerPack: preset.needsQty ? "" : preset.unitsPerPack,
+        }),
+      };
+    }));
+  };
+
+  const updatePackQty = (mIdx: number, fIdx: number, val: string) => {
+    const n = val === "" ? "" : Number(val);
+    setMinimums(prev => prev.map((m, i) => {
+      if (i !== mIdx) return m;
+      return {
+        ...m,
+        formats: m.formats.map((f, fi) => fi !== fIdx ? f : {
+          ...f,
+          packQty: n,
+          unitLabel: n !== "" ? `Pack ${n}` : "",
+          unitsPerPack: n !== "" ? n : "",
+        }),
+      };
     }));
   };
 
@@ -221,11 +270,17 @@ export default function NuevoProductoPage() {
       }
       for (let fi = 0; fi < m.formats.length; fi++) {
         const f = m.formats[fi];
-        if (!f.unitLabel.trim()) {
-          setError(`La presentación ${fi + 1} del mínimo ${mi + 1} necesita un nombre (ej: "Por unidad", "Pack 6")`); return;
+        if (!f.presetId) {
+          setError(`Elegí el tipo de presentación ${fi + 1} del mínimo ${mi + 1}`); return;
+        }
+        if (f.presetId === "pack" && (f.packQty === "" || Number(f.packQty) < 2)) {
+          setError(`El Pack del mínimo ${mi + 1} necesita cantidad (mínimo 2)`); return;
+        }
+        if (f.presetId === "custom" && !f.unitLabel.trim()) {
+          setError(`La presentación personalizada del mínimo ${mi + 1} necesita un nombre`); return;
         }
         if (f.unitsPerPack === "" || Number(f.unitsPerPack) < 1) {
-          setError(`La presentación ${fi + 1} del mínimo ${mi + 1} necesita la cantidad de unidades por pack (mínimo 1)`); return;
+          setError(`La presentación ${fi + 1} del mínimo ${mi + 1} necesita unidades por pack (mínimo 1)`); return;
         }
         if (f.price === "" || Number(f.price) <= 0) {
           setError(`La presentación ${fi + 1} del mínimo ${mi + 1} necesita un precio válido`); return;
@@ -503,56 +558,113 @@ export default function NuevoProductoPage() {
                     </p>
                     <div className="space-y-2">
                       {m.formats.map((f, fIdx) => (
-                        <div key={fIdx} className="bg-white border border-gray-100 rounded-lg p-3">
-                          <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-end">
-                            <div>
-                              <label className="block text-xs text-gray-500 mb-1">Nombre</label>
-                              <input
-                                placeholder='Ej: "Por unidad" o "Pack 6"'
-                                className="w-full border rounded px-2 py-1.5 text-sm"
-                                value={f.unitLabel}
-                                onChange={(e) => updateFormat(mIdx, fIdx, "unitLabel", e.target.value)}
-                                maxLength={30}
-                              />
+                        <div key={fIdx} className="bg-white border border-gray-100 rounded-lg p-3 space-y-3">
+                          {/* Preset selector */}
+                          <div>
+                            <p className="text-xs text-gray-500 font-semibold mb-1.5">Tipo de presentación</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {FORMAT_PRESETS.map(preset => (
+                                <button
+                                  key={preset.id}
+                                  type="button"
+                                  onClick={() => selectPreset(mIdx, fIdx, preset.id)}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                                    f.presetId === preset.id
+                                      ? "bg-blue-600 text-white border-blue-600"
+                                      : "bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600"
+                                  }`}
+                                >
+                                  {preset.label}
+                                </button>
+                              ))}
                             </div>
+                          </div>
+
+                          {/* Pack qty input */}
+                          {f.presetId === "pack" && (
                             <div>
-                              <label className="block text-xs text-gray-500 mb-1">Uds. por pack</label>
-                              <input
-                                type="number"
-                                placeholder="1"
-                                className="w-16 border rounded px-2 py-1.5 text-sm"
-                                value={f.unitsPerPack}
-                                onChange={(e) => updateFormat(mIdx, fIdx, "unitsPerPack", e.target.value)}
-                                min={1}
-                              />
+                              <label className="block text-xs text-gray-500 mb-1">Unidades en el pack</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  placeholder="Ej: 6"
+                                  className="w-24 border rounded px-2 py-1.5 text-sm"
+                                  value={f.packQty}
+                                  onChange={e => updatePackQty(mIdx, fIdx, e.target.value)}
+                                  min={2}
+                                />
+                                {f.packQty !== "" && (
+                                  <span className="text-xs text-blue-600">→ se llamará "Pack {f.packQty}"</span>
+                                )}
+                              </div>
                             </div>
-                            <div>
+                          )}
+
+                          {/* Custom inputs */}
+                          {f.presetId === "custom" && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">Nombre</label>
+                                <input
+                                  placeholder="Ej: Bandeja 30"
+                                  className="w-full border rounded px-2 py-1.5 text-sm"
+                                  value={f.unitLabel}
+                                  onChange={e => updateFormat(mIdx, fIdx, "unitLabel", e.target.value)}
+                                  maxLength={30}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">Uds. que contiene</label>
+                                <input
+                                  type="number"
+                                  placeholder="30"
+                                  className="w-full border rounded px-2 py-1.5 text-sm"
+                                  value={f.unitsPerPack}
+                                  onChange={e => updateFormat(mIdx, fIdx, "unitsPerPack", e.target.value)}
+                                  min={1}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Preview for non-custom presets */}
+                          {f.presetId && f.presetId !== "pack" && f.presetId !== "custom" && f.unitLabel && (
+                            <p className="text-xs text-blue-600">
+                              Presentación: <strong>{f.unitLabel}</strong>
+                              {Number(f.unitsPerPack) > 1 && ` (${f.unitsPerPack} uds.)`}
+                            </p>
+                          )}
+
+                          {/* Price + remove button */}
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1">
                               <label className="block text-xs text-gray-500 mb-1">Precio</label>
                               <input
                                 type="number"
                                 placeholder="5000"
                                 className="w-full border rounded px-2 py-1.5 text-sm"
                                 value={f.price}
-                                onChange={(e) => updateFormat(mIdx, fIdx, "price", e.target.value)}
+                                onChange={e => updateFormat(mIdx, fIdx, "price", e.target.value)}
                                 min={0}
+                                disabled={!f.presetId}
                               />
                             </div>
+                            {f.price !== "" && f.unitsPerPack !== "" && Number(f.unitsPerPack) > 1 && (
+                              <p className="text-xs text-gray-400 pb-2 whitespace-nowrap">
+                                = ${Math.round(Number(f.price) / Number(f.unitsPerPack)).toLocaleString("es-AR")}/ud
+                              </p>
+                            )}
                             <button
                               type="button"
                               onClick={() => removeFormat(mIdx, fIdx)}
                               disabled={m.formats.length <= 1}
-                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              className="p-1.5 text-red-400 hover:text-red-600 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed mb-0.5"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </button>
                           </div>
-                          {f.unitLabel && f.price !== "" && f.unitsPerPack !== "" && Number(f.unitsPerPack) > 1 && (
-                            <p className="text-xs text-blue-600 mt-1.5">
-                              Precio/ud: <strong>${Math.round(Number(f.price) / Number(f.unitsPerPack)).toLocaleString("es-AR")}</strong>
-                            </p>
-                          )}
                         </div>
                       ))}
                     </div>

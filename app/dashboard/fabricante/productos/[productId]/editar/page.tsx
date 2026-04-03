@@ -13,15 +13,44 @@ function sanitizeText(text: string, maxLength: number = 100): string {
 }
 
 interface FormatForm {
-  unitLabel: string;
+  presetId: string;       // which preset button is selected, or "custom"
+  packQty: number | "";   // only used when presetId === "pack"
+  unitLabel: string;      // auto-filled by preset, or manual if custom
   unitsPerPack: number | "";
   price: number | "";
 }
+
+const FORMAT_PRESETS = [
+  { id: "unit",      label: "Unidad",    unitLabel: "Por unidad",   unitsPerPack: 1,    needsQty: false },
+  { id: "pack",      label: "Pack",      unitLabel: "",             unitsPerPack: 0,    needsQty: true  },
+  { id: "dozen",     label: "Docena",    unitLabel: "Docena",       unitsPerPack: 12,   needsQty: false },
+  { id: "halfdozen", label: "½ Docena",  unitLabel: "Media docena", unitsPerPack: 6,    needsQty: false },
+  { id: "kg",        label: "Kg",        unitLabel: "Por kg",       unitsPerPack: 1,    needsQty: false },
+  { id: "500g",      label: "500g",      unitLabel: "500g",         unitsPerPack: 1,    needsQty: false },
+  { id: "250g",      label: "250g",      unitLabel: "250g",         unitsPerPack: 1,    needsQty: false },
+  { id: "liter",     label: "Litro",     unitLabel: "Por litro",    unitsPerPack: 1,    needsQty: false },
+  { id: "500ml",     label: "500ml",     unitLabel: "500ml",        unitsPerPack: 1,    needsQty: false },
+  { id: "custom",    label: "Otro",      unitLabel: "",             unitsPerPack: 0,    needsQty: false },
+] as const;
 
 interface MinimumForm {
   type: "quantity" | "amount";
   value: number | "";
   formats: FormatForm[];
+}
+
+function inferPresetId(unitLabel: string, unitsPerPack: number): string {
+  const s = unitLabel.toLowerCase().trim();
+  if (s === "por unidad" || s === "unidad" || (unitsPerPack === 1 && /unidad|individual|suelto/.test(s))) return "unit";
+  if (/^pack\s*\d+/.test(s)) return "pack";
+  if (/media\s*docena|½\s*docena/.test(s) || unitsPerPack === 6) return "halfdozen";
+  if (/docena/.test(s) || unitsPerPack === 12) return "dozen";
+  if (s === "por kg" || s === "kg") return "kg";
+  if (s === "500g") return "500g";
+  if (s === "250g") return "250g";
+  if (s === "por litro" || s === "litro") return "liter";
+  if (s === "500ml") return "500ml";
+  return "custom";
 }
 
 export default function EditarProductoPage() {
