@@ -72,14 +72,14 @@ export default function EditarProductoPage() {
   const [mlMessage, setMlMessage] = useState<string | null>(null);
 
   const [minimums, setMinimums] = useState<MinimumForm[]>([
-    { type: "quantity", value: "", formats: [{ unitLabel: "", unitsPerPack: 1, price: "" }] },
+    { type: "quantity", value: "", formats: [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "" }] },
   ]);
 
   // ── Handlers de mínimos ───────────────────────────────────────────────────
   const addMinimum = () => {
     setMinimums(prev => [...prev, {
       type: "quantity", value: "",
-      formats: [{ unitLabel: "", unitsPerPack: 1, price: "" }],
+      formats: [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "" }],
     }]);
   };
 
@@ -100,7 +100,7 @@ export default function EditarProductoPage() {
 
   const addFormat = (mIdx: number) => {
     setMinimums(prev => prev.map((m, i) =>
-      i === mIdx ? { ...m, formats: [...m.formats, { unitLabel: "", unitsPerPack: 1, price: "" }] } : m
+      i === mIdx ? { ...m, formats: [...m.formats, { presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "" }] } : m
     ));
   };
 
