@@ -40,32 +40,19 @@ interface Props {
   userId?: string;
 }
 
-/**
- * Infiere cuántas unidades contiene un formato a partir del label de texto.
- * Usado solo en el modo legacy (productos sin estructura `minimums`).
- */
 function extractUnits(unitLabel: string): number {
   const s = unitLabel.toLowerCase().trim();
-
-  // Palabras que siempre indican 1 unidad
   if (/^(unidad|und|ud\.?|individual|suelto|pieza|pza\.?|c\/u|x1|1\s*u)$/.test(s)) return 1;
-
-  // Docenas y medias docenas
   if (/media\s*docena|1\/2\s*doc/.test(s)) return 6;
   if (/docena/.test(s)) return 12;
-
-  // Número explícito después de pack / caja / x / × / bolsa / fardo / atado
   const packMatch = s.match(/(?:pack|caja|x|×|bolsa|fardo|atado|por|de)\s*(\d+)/);
   if (packMatch) {
     const n = parseInt(packMatch[1]);
     if (n > 1 && n <= 10000) return n;
   }
-
-  // Cualquier número en el label (el más grande gana para evitar confundir "1kg" → 1)
   const nums = [...s.matchAll(/\d+/g)].map(m => parseInt(m[0]));
   const big = nums.filter(n => n > 1 && n <= 10000);
   if (big.length > 0) return Math.max(...big);
-
   return 1;
 }
 
@@ -100,8 +87,6 @@ function NewMinimumSelector({
   const minimumType = selectedMin.type;
   const unitLabel = selectedFmt.unitLabel;
 
-  // ── Badge "Llena el lote más rápido" ────────────────────────────────────
-  // Marca los 1-2 mínimos con MENOR valor (más fácil de alcanzar)
   const fastestMinIndices = new Set<number>();
   if (minimums.length >= 2) {
     const count = minimums.length > 2 ? 2 : 1;
@@ -112,9 +97,6 @@ function NewMinimumSelector({
       .forEach(({ i }) => fastestMinIndices.add(i));
   }
 
-  // ── Badge "Mejor precio/ud" ─────────────────────────────────────────────
-  // Formato con menor precio/unidad entre TODOS los formatos de TODOS los mínimos,
-  // excluyendo los de unitsPerPack===1 si existen packs (unitsPerPack>1)
   const allFormats = minimums.flatMap((m, mi) =>
     m.formats.map((f, fi) => ({ mi, fi, pricePerUnit: f.price / f.unitsPerPack, unitsPerPack: f.unitsPerPack }))
   );
@@ -126,7 +108,6 @@ function NewMinimumSelector({
     cheapestFmt = { mi: best.mi, fi: best.fi };
   }
 
-  // Computed para mostrar en el cuadro de pedido mínimo
   const effectiveMF = minimumType === "amount"
     ? (price > 0 ? Math.ceil(minimumValue / price) : 1)
     : minimumValue;
@@ -152,7 +133,6 @@ function NewMinimumSelector({
                     : "border-gray-200 bg-white hover:border-gray-300"
                 }`}
               >
-                {/* Cabecera del mínimo */}
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                     {formatMinimumLabel(m.type, m.value)}
@@ -164,7 +144,6 @@ function NewMinimumSelector({
                   )}
                 </div>
 
-                {/* Pills de formatos */}
                 <div className="flex flex-wrap gap-2">
                   {m.formats.map((f, fi) => {
                     const isSelectedFmt = selectedMinIdx === mi && selectedFmtIdx === fi;
@@ -262,26 +241,24 @@ function NewMinimumSelector({
         </div>
       )}
 
-      {/* COMPRA */}
-      {userId && (
-        <ProductPurchaseClient
-  price={price}
-  MF={effectiveMF}
-  minimumType={minimumType}
-  minimumValue={minimumValue}
-  minimumIndex={selectedMinIdx}
-  formatIndex={selectedFmtIdx}
-  productId={productId}
-  productName={productName}
-  factoryId={factoryId}
-  allowPickup={allowPickup}
-  allowFactoryShipping={allowFactoryShipping}
-  hasFactoryAddress={hasFactoryAddress}
-  noShipping={noShipping}
-  unitLabel={unitLabel || undefined}
-  userId={userId}
-/>
-      )}
+      {/* ✅ FIX: sin {userId && (...)} — siempre se renderiza, userId controla solo el botón */}
+      <ProductPurchaseClient
+        price={price}
+        MF={effectiveMF}
+        minimumType={minimumType}
+        minimumValue={minimumValue}
+        minimumIndex={selectedMinIdx}
+        formatIndex={selectedFmtIdx}
+        productId={productId}
+        productName={productName}
+        factoryId={factoryId}
+        allowPickup={allowPickup}
+        allowFactoryShipping={allowFactoryShipping}
+        hasFactoryAddress={hasFactoryAddress}
+        noShipping={noShipping}
+        unitLabel={unitLabel || undefined}
+        userId={userId}
+      />
     </>
   );
 }
@@ -308,7 +285,6 @@ function LegacyVariantSelector({
   const price = selected.price;
   const minimumOrder = selected.minimumOrder;
 
-  // Badge "llena el lote más rápido": variantes con MENOR minimumOrder
   const fastestLotIndices = new Set<number>();
   if (allVariants.length >= 2) {
     const count = allVariants.length > 2 ? 2 : 1;
@@ -319,7 +295,6 @@ function LegacyVariantSelector({
       .forEach(({ i }) => fastestLotIndices.add(i));
   }
 
-  // Badge "mejor precio/ud": excluye por-unidad si hay packs
   const hasAnyPack = allVariants.some(v => extractUnits(v.unitLabel) > 1);
   const eligible = hasAnyPack
     ? allVariants.filter(v => extractUnits(v.unitLabel) > 1)
@@ -422,21 +397,20 @@ function LegacyVariantSelector({
         </div>
       )}
 
-      {userId && (
-        <ProductPurchaseClient
-  price={price}
-  MF={minimumOrder}
-  productId={productId}
-  productName={productName}
-  factoryId={factoryId}
-  allowPickup={allowPickup}
-  allowFactoryShipping={allowFactoryShipping}
-  hasFactoryAddress={hasFactoryAddress}
-  noShipping={noShipping}
-  unitLabel={unitLabel || undefined}
-  userId={userId}
-/>
-      )}
+      {/* ✅ FIX: sin {userId && (...)} — siempre se renderiza, userId controla solo el botón */}
+      <ProductPurchaseClient
+        price={price}
+        MF={minimumOrder}
+        productId={productId}
+        productName={productName}
+        factoryId={factoryId}
+        allowPickup={allowPickup}
+        allowFactoryShipping={allowFactoryShipping}
+        hasFactoryAddress={hasFactoryAddress}
+        noShipping={noShipping}
+        unitLabel={unitLabel || undefined}
+        userId={userId}
+      />
     </>
   );
 }
