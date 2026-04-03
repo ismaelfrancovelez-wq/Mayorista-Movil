@@ -69,14 +69,14 @@ export async function GET(req: Request) {
       snap = await adminDb
         .collection("products")
         .where("active", "==", true)
-        .limit(500)
+        .orderBy("nameLower")
+        .limit(PAGE_SIZE * 3)
+        .offset(offset)
         .get();
     }
 
     const isNormalMode = !search && ids.length === 0;
-    const hasMore = category
-      ? snap.docs.length === PAGE_SIZE * 3
-      : false;
+    const hasMore = isNormalMode && snap.docs.length === PAGE_SIZE * 3;
 
     const productIds = snap.docs.map((doc) => doc.id);
     const accumulatedMap = new Map<string, number>();

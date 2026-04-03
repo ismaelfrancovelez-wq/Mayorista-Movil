@@ -92,7 +92,8 @@ async function getInitialProducts(): Promise<Product[]> {
     const snap = await db
       .collection("products")
       .where("active", "==", true)
-      .limit(500)
+      .orderBy("nameLower")
+      .limit(PAGE_SIZE * 3)
       .get();
 
     if (snap.empty) return [];
@@ -207,7 +208,6 @@ async function getInitialProducts(): Promise<Product[]> {
     });
 
     products.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0));
-    products = products.slice(0, PAGE_SIZE);
 
     return products;
 

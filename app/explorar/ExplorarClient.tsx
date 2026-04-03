@@ -72,7 +72,7 @@ export default function ExplorarClient({
   const [filteredProducts, setFilteredProducts] = useState<Product[]>(initialProducts);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
+  const [hasMore, setHasMore] = useState(initialProducts.length >= 60);
   const [loadingMore, setLoadingMore] = useState(false);
   const [categoryLoading, setCategoryLoading] = useState(false);
 
@@ -192,7 +192,7 @@ export default function ExplorarClient({
   useEffect(() => {
     if (selectedCategory === "all") {
       setAllProducts(initialProducts);
-      setHasMore(false);
+      setHasMore(initialProducts.length >= 60);
       setCurrentPage(1);
       return;
     }
