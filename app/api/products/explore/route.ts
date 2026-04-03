@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
 
-// ✅ Categorías válidas — si llega una categoría desconocida (ej: "almacen") la ignoramos
 const VALID_CATEGORIES = new Set([
   "hogar", "electronica", "indumentaria", "calzado",
   "alimentos", "bebidas", "construccion", "salud_belleza",
@@ -19,6 +18,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    // ✅ FIX: el offset usa PAGE_SIZE real, no PAGE_SIZE*3
     const offset = (page - 1) * PAGE_SIZE;
 
     const search = searchParams.get("search")?.trim().toLowerCase() || "";
@@ -56,30 +56,36 @@ export async function GET(req: Request) {
       snap = await query.limit(100).get();
 
     } else if (category) {
+      // ✅ FIX: pedir PAGE_SIZE+1 para saber si hay más, no PAGE_SIZE*3
       snap = await adminDb
         .collection("products")
         .where("active", "==", true)
         .where("category", "==", category)
         .orderBy("createdAt", "desc")
-        .limit(PAGE_SIZE * 3)
+        .limit(PAGE_SIZE + 1)
         .offset(offset)
         .get();
 
     } else {
+      // ✅ FIX: pedir PAGE_SIZE+1 para saber si hay más, no PAGE_SIZE*3
       snap = await adminDb
         .collection("products")
         .where("active", "==", true)
-        .limit(PAGE_SIZE * 3)
+        .orderBy("createdAt", "desc")
+        .limit(PAGE_SIZE + 1)
         .offset(offset)
         .get();
     }
 
     const isNormalMode = !search && ids.length === 0;
-    const hasMore = category
-      ? snap.docs.length === PAGE_SIZE * 3
-      : isNormalMode && snap.docs.length === PAGE_SIZE * 3;
 
-    const productIds = snap.docs.map((doc) => doc.id);
+    // ✅ FIX: hasMore se calcula correctamente — si trajo PAGE_SIZE+1 hay más
+    const hasMore = isNormalMode && snap.docs.length > PAGE_SIZE;
+
+    // Cortar al tamaño real de página
+    const docs = hasMore ? snap.docs.slice(0, PAGE_SIZE) : snap.docs;
+
+    const productIds = docs.map((doc) => doc.id);
     const accumulatedMap = new Map<string, number>();
 
     if (isNormalMode && productIds.length > 0) {
@@ -106,7 +112,7 @@ export async function GET(req: Request) {
 
     const factoryIds = [
       ...new Set(
-        snap.docs
+        docs
           .map((doc) => doc.data().factoryId as string)
           .filter(Boolean)
       ),
@@ -163,7 +169,7 @@ export async function GET(req: Request) {
       });
     }
 
-    let products = snap.docs.map((doc) => {
+    const products = docs.map((doc) => {
       const data = doc.data();
       const factoryId = data.factoryId;
       const seller = sellerDataMap[factoryId];
@@ -195,15 +201,9 @@ export async function GET(req: Request) {
         manufacturerVerified: seller?.verified || false,
         stock: data.stock !== undefined ? data.stock : null,
         accumulatedQty: accumulatedMap.get(doc.id) || 0,
-        // ✅ NUEVO: precio minorista de referencia
         retailReferencePrice: data.retailReferencePrice ?? null,
       };
     });
-
-    if (isNormalMode) {
-      products.sort((a, b) => b.accumulatedQty - a.accumulatedQty);
-      products = products.slice(0, PAGE_SIZE);
-    }
 
     return NextResponse.json({
       products,

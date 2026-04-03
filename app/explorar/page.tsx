@@ -6,6 +6,7 @@ import ExplorarClient from "./ExplorarClient";
 
 export const revalidate = 60;
 
+// ✅ FIX: PAGE_SIZE debe coincidir exactamente con el de explore/route.ts
 const PAGE_SIZE = 20;
 
 type Product = {
@@ -26,9 +27,9 @@ type Product = {
   variants?: { unitLabel: string; price: number; minimumOrder: number }[];
   stock?: number | null;
   accumulatedQty?: number;
+  retailReferencePrice?: number | null; // ✅ AGREGADO
 };
 
-// ── datos del retailer para el panel superior ──────────────────────────────
 type RetailerPanelData = {
   userId: string;
   userEmail: string;
@@ -67,8 +68,6 @@ async function getRetailerPanelData(): Promise<RetailerPanelData | null> {
     retailerData.address?.formattedAddress ||
     retailerData.address?.lat
   );
-
-  // hasOrders: al menos un pago registrado
   const hasOrders = !paymentsSnap.empty;
 
   return {
@@ -89,22 +88,22 @@ async function getRetailerPanelData(): Promise<RetailerPanelData | null> {
 
 async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boolean }> {
   try {
-    const [snap, countSnap] = await Promise.all([
-      db.collection("products")
-        .where("active", "==", true)
-        .limit(PAGE_SIZE * 3)
-        .get(),
-      db.collection("products")
-        .where("active", "==", true)
-        .count()
-        .get(),
-    ]);
-
-    const total = countSnap.data().count;
+    // ✅ FIX: pedir PAGE_SIZE+1 para detectar si hay más, no PAGE_SIZE*3
+    const snap = await db
+      .collection("products")
+      .where("active", "==", true)
+      .orderBy("createdAt", "desc")
+      .limit(PAGE_SIZE + 1)
+      .get();
 
     if (snap.empty) return { products: [], hasMore: false };
 
-    const productIds = snap.docs.map((doc) => doc.id);
+    // ✅ FIX: hasMore = si trajo más de PAGE_SIZE docs
+    const hasMore = snap.docs.length > PAGE_SIZE;
+    // ✅ FIX: solo procesar los primeros PAGE_SIZE docs
+    const docs = hasMore ? snap.docs.slice(0, PAGE_SIZE) : snap.docs;
+
+    const productIds = docs.map((doc) => doc.id);
 
     const accumulatedMap = new Map<string, number>();
     const lotChunks: string[][] = [];
@@ -128,7 +127,7 @@ async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boo
 
     const factoryIds = [
       ...new Set(
-        snap.docs.map((doc) => doc.data().factoryId as string).filter(Boolean)
+        docs.map((doc) => doc.data().factoryId as string).filter(Boolean)
       ),
     ];
 
@@ -183,7 +182,7 @@ async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boo
       });
     }
 
-    let products: Product[] = snap.docs.map((doc) => {
+    const products: Product[] = docs.map((doc) => {
       const data = doc.data();
       const seller = data.factoryId ? sellerMap[data.factoryId] : null;
       const sellerType = (data.sellerType || seller?.sellerType || "manufacturer") as SellerType;
@@ -210,12 +209,15 @@ async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boo
         variants: Array.isArray(data.variants) ? data.variants : [],
         stock: data.stock !== undefined ? data.stock : null,
         accumulatedQty: accumulatedMap.get(doc.id) || 0,
+        // ✅ AGREGADO
+        retailReferencePrice: data.retailReferencePrice ?? null,
       };
     });
 
+    // Ordenar por actividad (lotes en curso primero)
     products.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0));
 
-    return { products, hasMore: total > PAGE_SIZE * 3 };
+    return { products, hasMore };
 
   } catch (error) {
     console.error("Error cargando productos:", error);
@@ -229,5 +231,11 @@ export default async function ExplorarPage() {
     getRetailerPanelData(),
   ]);
 
-  return <ExplorarClient initialProducts={products} initialHasMore={hasMore} retailerPanel={retailerPanel} />;
+  return (
+    <ExplorarClient
+      initialProducts={products}
+      initialHasMore={hasMore}
+      retailerPanel={retailerPanel}
+    />
+  );
 }

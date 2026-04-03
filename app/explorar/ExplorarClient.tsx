@@ -74,7 +74,7 @@ export default function ExplorarClient({
   const [filteredProducts, setFilteredProducts] = useState<Product[]>(initialProducts);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(initialHasMore || initialProducts.length > 0);
+  const [hasMore, setHasMore] = useState(initialHasMore ?? false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [categoryLoading, setCategoryLoading] = useState(false);
 
@@ -141,7 +141,7 @@ export default function ExplorarClient({
 
     if (searchTerm.trim() === "") {
       setAllProducts(initialProducts);
-      setHasMore(initialProducts.length === 20);
+      setHasMore(initialHasMore ?? false);
       setCurrentPage(1);
       return;
     }
