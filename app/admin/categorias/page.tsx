@@ -33,6 +33,8 @@ export default function CategoriasAdminPage() {
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [fixing, setFixing] = useState(false);
   const [fixResult, setFixResult] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
+  const [activateResult, setActivateResult] = useState<string | null>(null);
 
   async function loadAudit() {
     setLoading(true); setError(null);
@@ -51,6 +53,17 @@ export default function CategoriasAdminPage() {
   const correctRows   = rows.filter(r =>  VALID_KEYS.includes(r.value));
   const pendingFix    = incorrectRows.filter(r => !!mapping[r.value]);
   const unmapped      = incorrectRows.filter(r => !mapping[r.value]);
+
+  async function handleActivate() {
+    setActivating(true); setActivateResult(null);
+    try {
+      const res = await fetch("/api/admin/activate-products", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) { setActivateResult(`Error: ${data.error}`); return; }
+      setActivateResult(`✅ ${data.message}`);
+    } catch { setActivateResult("❌ Error de red."); }
+    finally { setActivating(false); }
+  }
 
   async function handleFix() {
     if (pendingFix.length === 0) return;
@@ -80,6 +93,24 @@ export default function CategoriasAdminPage() {
       <div className="max-w-3xl mx-auto p-8">
         <h1 className="text-2xl font-semibold mb-1">Auditoría de categorías</h1>
         <p className="text-sm text-gray-400 mb-6">{total} productos en total</p>
+
+        {/* ACTIVAR PRODUCTOS */}
+        <div className="bg-white rounded-xl shadow p-6 mb-6">
+          <h2 className="font-semibold mb-1">Activar productos en el explorador</h2>
+          <p className="text-xs text-gray-400 mb-4">
+            Setea <code>active=true</code> en todos los productos que no lo tengan. Solo necesitás correr esto una vez.
+          </p>
+          <button
+            onClick={handleActivate}
+            disabled={activating}
+            className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {activating ? "Activando..." : "Activar todos los productos"}
+          </button>
+          {activateResult && (
+            <p className="mt-3 text-sm text-gray-700">{activateResult}</p>
+          )}
+        </div>
 
         {/* CATEGORÍAS INCORRECTAS */}
         {incorrectRows.length === 0 ? (
