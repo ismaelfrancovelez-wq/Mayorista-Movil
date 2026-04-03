@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import ShippingSimulatorSection from "../ShippingSimulatorSection";
+import GooglePlacesAutocomplete, { PlaceResult } from "../GooglePlacesAutocomplete";
 
 type Props = {
   price: number;
@@ -78,6 +79,7 @@ export default function ProductPurchaseClient({
   const [showAddressInput, setShowAddressInput] = useState(false);
   const [inlineAddress, setInlineAddress] = useState("");
   const [savingAddress, setSavingAddress] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
 
   const [showSimulator, setShowSimulator] = useState(false);
 
@@ -309,15 +311,19 @@ export default function ProductPurchaseClient({
     setSavingAddress(true);
     setReserveError(null);
     try {
-      const saveRes = await fetch("/api/retailers/address", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formattedAddress: inlineAddress.trim() }),
-      });
-      if (!saveRes.ok) {
-        const err = await saveRes.json();
-        setReserveError(err.error || "No se pudo guardar la dirección.");
-        return;
+     const saveRes = await fetch("/api/retailers/address", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    formattedAddress: selectedPlace?.formattedAddress || inlineAddress.trim(),
+    lat: selectedPlace?.lat,
+    lng: selectedPlace?.lng,
+  }),
+});
+if (!saveRes.ok) {
+  const err = await saveRes.json();
+  setReserveError(err.error || "No se pudo guardar la dirección.");
+  return;
       }
       setShowAddressInput(false);
       setInlineAddress("");
@@ -648,28 +654,30 @@ export default function ProductPurchaseClient({
 
       {/* Formulario de dirección inline (aparece cuando falta dirección) */}
       {showAddressInput && selectedShipping === "platform" && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <p className="text-sm font-semibold text-blue-900 mb-1">📍 ¿Dónde te enviamos el pedido?</p>
-          <p className="text-xs text-blue-700 mb-3">
-            Necesitamos tu dirección para calcular el envío. Solo se necesita para envíos por plataforma.
-          </p>
-          <input
-            type="text"
-            placeholder="Ej: Av. Corrientes 1234, Buenos Aires"
-            className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={inlineAddress}
-            onChange={e => setInlineAddress(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") handleSaveAddressAndRetry(); }}
-          />
-          <button
-            onClick={handleSaveAddressAndRetry}
-            disabled={savingAddress || inlineAddress.trim().length < 5}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-          >
-            {savingAddress ? "Guardando y reservando..." : "Guardar y reservar →"}
-          </button>
-        </div>
-      )}
+  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+    <p className="text-sm font-semibold text-blue-900 mb-1">📍 ¿Dónde te enviamos el pedido?</p>
+    <p className="text-xs text-blue-700 mb-3">
+      Necesitamos tu dirección para calcular el envío. Solo se necesita para envíos por plataforma.
+    </p>
+    <GooglePlacesAutocomplete
+      value={inlineAddress}
+      onChange={setInlineAddress}
+      onPlaceSelected={(place) => {
+        setInlineAddress(place.formattedAddress);
+        setSelectedPlace(place);
+      }}
+      placeholder="Ej: Av. Corrientes 1234, Buenos Aires"
+      className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400"
+    />
+    <button
+      onClick={handleSaveAddressAndRetry}
+      disabled={savingAddress || inlineAddress.trim().length < 5}
+      className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+    >
+      {savingAddress ? "Guardando y reservando..." : "Guardar y reservar →"}
+    </button>
+  </div>
+)}
 
       {/* Error de reserva */}
       {reserveError && (
