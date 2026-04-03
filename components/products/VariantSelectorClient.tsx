@@ -265,21 +265,22 @@ function NewMinimumSelector({
       {/* COMPRA */}
       {userId && (
         <ProductPurchaseClient
-          price={price}
-          MF={effectiveMF}
-          minimumType={minimumType}
-          minimumValue={minimumValue}
-          minimumIndex={selectedMinIdx}
-          formatIndex={selectedFmtIdx}
-          productId={productId}
-          productName={productName}
-          factoryId={factoryId}
-          allowPickup={allowPickup}
-          allowFactoryShipping={allowFactoryShipping}
-          hasFactoryAddress={hasFactoryAddress}
-          noShipping={noShipping}
-          unitLabel={unitLabel || undefined}
-        />
+  price={price}
+  MF={effectiveMF}
+  minimumType={minimumType}
+  minimumValue={minimumValue}
+  minimumIndex={selectedMinIdx}
+  formatIndex={selectedFmtIdx}
+  productId={productId}
+  productName={productName}
+  factoryId={factoryId}
+  allowPickup={allowPickup}
+  allowFactoryShipping={allowFactoryShipping}
+  hasFactoryAddress={hasFactoryAddress}
+  noShipping={noShipping}
+  unitLabel={unitLabel || undefined}
+  userId={userId}
+/>
       )}
     </>
   );
@@ -423,17 +424,18 @@ function LegacyVariantSelector({
 
       {userId && (
         <ProductPurchaseClient
-          price={price}
-          MF={minimumOrder}
-          productId={productId}
-          productName={productName}
-          factoryId={factoryId}
-          allowPickup={allowPickup}
-          allowFactoryShipping={allowFactoryShipping}
-          hasFactoryAddress={hasFactoryAddress}
-          noShipping={noShipping}
-          unitLabel={unitLabel || undefined}
-        />
+  price={price}
+  MF={minimumOrder}
+  productId={productId}
+  productName={productName}
+  factoryId={factoryId}
+  allowPickup={allowPickup}
+  allowFactoryShipping={allowFactoryShipping}
+  hasFactoryAddress={hasFactoryAddress}
+  noShipping={noShipping}
+  unitLabel={unitLabel || undefined}
+  userId={userId}
+/>
       )}
     </>
   );
