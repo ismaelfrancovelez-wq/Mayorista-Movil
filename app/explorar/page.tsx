@@ -89,12 +89,18 @@ async function getRetailerPanelData(): Promise<RetailerPanelData | null> {
 
 async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boolean }> {
   try {
-    const snap = await db
-      .collection("products")
-      .where("active", "==", true)
-      .orderBy("nameLower")
-      .limit(PAGE_SIZE * 3)
-      .get();
+    const [snap, countSnap] = await Promise.all([
+      db.collection("products")
+        .where("active", "==", true)
+        .limit(PAGE_SIZE * 3)
+        .get(),
+      db.collection("products")
+        .where("active", "==", true)
+        .count()
+        .get(),
+    ]);
+
+    const total = countSnap.data().count;
 
     if (snap.empty) return { products: [], hasMore: false };
 
@@ -209,7 +215,7 @@ async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boo
 
     products.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0));
 
-    return { products, hasMore: snap.docs.length === PAGE_SIZE * 3 };
+    return { products, hasMore: total > PAGE_SIZE * 3 };
 
   } catch (error) {
     console.error("Error cargando productos:", error);
