@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import ShippingSimulatorSection from "../ShippingSimulatorSection";
 import GooglePlacesAutocomplete, { PlaceResult } from "../GooglePlacesAutocomplete";
+import AddressShippingModal from "./AddressShippingModal";
 
 type Props = {
   price: number;
@@ -76,6 +77,7 @@ export default function ProductPurchaseClient({
   const [reserved, setReserved] = useState(false);
   const [reserveError, setReserveError] = useState<string | null>(null);
 
+  const [showAddressModal, setShowAddressModal] = useState(false);
   const [showAddressInput, setShowAddressInput] = useState(false);
   const [inlineAddress, setInlineAddress] = useState("");
   const [savingAddress, setSavingAddress] = useState(false);
@@ -216,7 +218,7 @@ export default function ProductPurchaseClient({
 
         if (!res.ok) {
           if (data.missingAddress) {
-            setShowAddressInput(true);
+            setShowAddressModal(true);
           } else if (data.alreadyReserved) {
             setReserveError("Ya tenés una reserva activa para este producto.");
           } else {
@@ -284,7 +286,7 @@ export default function ProductPurchaseClient({
 
       if (!res.ok) {
         if (data.missingAddress) {
-          setShowAddressInput(true);
+          setShowAddressModal(true);
         } else if (data.alreadyReserved) {
           setReserveError("Ya tenés una reserva activa para este producto. Revisá tu email cuando el lote cierre.");
         } else {
@@ -653,31 +655,84 @@ if (!saveRes.ok) {
       )}
 
       {/* Formulario de dirección inline (aparece cuando falta dirección) */}
-      {showAddressInput && selectedShipping === "platform" && (
-  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-    <p className="text-sm font-semibold text-blue-900 mb-1">📍 ¿Dónde te enviamos el pedido?</p>
-    <p className="text-xs text-blue-700 mb-3">
-      Necesitamos tu dirección para calcular el envío. Solo se necesita para envíos por plataforma.
-    </p>
-    <GooglePlacesAutocomplete
-      value={inlineAddress}
-      onChange={setInlineAddress}
-      onPlaceSelected={(place) => {
-        setInlineAddress(place.formattedAddress);
-        setSelectedPlace(place);
-      }}
-      placeholder="Ej: Av. Corrientes 1234, Buenos Aires"
-      className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-400"
-    />
-    <button
-      onClick={handleSaveAddressAndRetry}
-      disabled={savingAddress || inlineAddress.trim().length < 5}
-      className="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
-    >
-      {savingAddress ? "Guardando y reservando..." : "Guardar y reservar →"}
-    </button>
-  </div>
-)}
+      {showAddressModal && (
+        <AddressShippingModal
+          productName={productName}
+          qty={qty}
+          onQtyChange={(newQty) => setQty(Math.max(1, newQty))}
+          allowPickup={allowPickup}
+          allowFactoryShipping={allowFactoryShipping}
+          noShipping={noShipping}
+          selectedShipping={selectedShipping}
+          onShippingChange={(mode) => {
+            setSelectedShipping(mode);
+            setShippingCost(0);
+            setShippingKm(null);
+          }}
+          onConfirm={async (place, shipping, newQty) => {
+            setSavingAddress(true);
+            setReserveError(null);
+ 
+            // Si el modo necesita dirección, guardarla primero
+            if (shipping === "platform" || shipping === "factory") {
+              const saveRes = await fetch("/api/retailers/address", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  formattedAddress: place.formattedAddress,
+                  lat: place.lat,
+                  lng: place.lng,
+                }),
+              });
+              if (!saveRes.ok) {
+                const err = await saveRes.json();
+                setReserveError(err.error || "No se pudo guardar la dirección.");
+                setSavingAddress(false);
+                return;
+              }
+            }
+ 
+            // Actualizar qty si cambió
+            setQty(newQty);
+            setSelectedShipping(shipping);
+ 
+            // Intentar reserva
+            const res = await fetch("/api/lots/fraccionado/reserve", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                productId,
+                qty: newQty,
+                shippingMode: shipping,
+                minimumIndex,
+                formatIndex,
+              }),
+            });
+            const data = await res.json();
+ 
+            setSavingAddress(false);
+ 
+            if (!res.ok) {
+              if (data.alreadyReserved) {
+                setReserveError("Ya tenés una reserva activa para este producto.");
+              } else {
+                setReserveError(data.error || "Error al reservar. Intentá de nuevo.");
+              }
+              setShowAddressModal(false);
+              return;
+            }
+ 
+            if (typeof data.commissionRate === "number") {
+              setCommissionRate(data.commissionRate);
+            }
+ 
+            setShowAddressModal(false);
+            setReserved(true);
+          }}
+          onClose={() => setShowAddressModal(false)}
+          saving={savingAddress}
+        />
+      )}
 
       {/* Error de reserva */}
       {reserveError && (
