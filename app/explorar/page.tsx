@@ -4,7 +4,7 @@ import { db } from "../../lib/firebase-admin";
 import { ProductCategory, SellerType } from "../../lib/types/product";
 import ExplorarClient from "./ExplorarClient";
 
-export const revalidate = 60;
+export const revalidate = 0;
 
 const PAGE_SIZE = 20;
 
