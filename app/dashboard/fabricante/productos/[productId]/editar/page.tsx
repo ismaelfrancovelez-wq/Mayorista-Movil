@@ -209,7 +209,7 @@ export default function EditarProductoPage() {
                   unitsPerPack: f.unitsPerPack || 1,
                   price: f.price || "",
                 }))
-              : [{ unitLabel: "", unitsPerPack: 1, price: "" }],
+              : [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "" }],
           })));
         } else {
           // Migración desde estructura antigua: base + variants → minimums
@@ -217,6 +217,8 @@ export default function EditarProductoPage() {
             type: "quantity",
             value: product.minimumOrder || "",
             formats: [{
+              presetId: "custom",
+              packQty: "",
               unitLabel: product.unitLabel || "Por unidad",
               unitsPerPack: 1,
               price: product.price || "",
@@ -227,6 +229,8 @@ export default function EditarProductoPage() {
                 type: "quantity" as const,
                 value: v.minimumOrder || "",
                 formats: [{
+                  presetId: "custom",
+                  packQty: "",
                   unitLabel: v.unitLabel || "",
                   unitsPerPack: 1,
                   price: v.price || "",
