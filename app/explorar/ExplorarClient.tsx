@@ -63,16 +63,18 @@ type RetailerPanelData = {
 
 export default function ExplorarClient({
   initialProducts,
+  initialHasMore,
   retailerPanel,
 }: {
   initialProducts: Product[];
+  initialHasMore: boolean;
   retailerPanel: RetailerPanelData | null;
 }) {
   const [allProducts, setAllProducts] = useState<Product[]>(initialProducts);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>(initialProducts);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(initialProducts.length >= 60);
+  const [hasMore, setHasMore] = useState(initialHasMore);
   const [loadingMore, setLoadingMore] = useState(false);
   const [categoryLoading, setCategoryLoading] = useState(false);
 
@@ -192,7 +194,7 @@ export default function ExplorarClient({
   useEffect(() => {
     if (selectedCategory === "all") {
       setAllProducts(initialProducts);
-      setHasMore(initialProducts.length >= 60);
+      setHasMore(initialHasMore);
       setCurrentPage(1);
       return;
     }

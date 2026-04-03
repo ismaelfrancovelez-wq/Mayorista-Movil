@@ -87,7 +87,7 @@ async function getRetailerPanelData(): Promise<RetailerPanelData | null> {
   };
 }
 
-async function getInitialProducts(): Promise<Product[]> {
+async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boolean }> {
   try {
     const snap = await db
       .collection("products")
@@ -96,7 +96,7 @@ async function getInitialProducts(): Promise<Product[]> {
       .limit(PAGE_SIZE * 3)
       .get();
 
-    if (snap.empty) return [];
+    if (snap.empty) return { products: [], hasMore: false };
 
     const productIds = snap.docs.map((doc) => doc.id);
 
@@ -209,19 +209,19 @@ async function getInitialProducts(): Promise<Product[]> {
 
     products.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0));
 
-    return products;
+    return { products, hasMore: snap.docs.length === PAGE_SIZE * 3 };
 
   } catch (error) {
     console.error("Error cargando productos:", error);
-    return [];
+    return { products: [], hasMore: false };
   }
 }
 
 export default async function ExplorarPage() {
-  const [products, retailerPanel] = await Promise.all([
+  const [{ products, hasMore }, retailerPanel] = await Promise.all([
     getInitialProducts(),
     getRetailerPanelData(),
   ]);
 
-  return <ExplorarClient initialProducts={products} retailerPanel={retailerPanel} />;
+  return <ExplorarClient initialProducts={products} initialHasMore={hasMore} retailerPanel={retailerPanel} />;
 }
