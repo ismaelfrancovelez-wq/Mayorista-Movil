@@ -1,5 +1,5 @@
 // app/api/admin/activate-products/route.ts
-// POST: Setea active=true y createdAt en todos los productos que no los tengan.
+// POST: Setea active=true, createdAt y nameLower en todos los productos que no los tengan.
 
 import { NextResponse } from "next/server";
 import { requireAdmin } from "../../../../lib/auth/requireAdmin";
@@ -12,11 +12,11 @@ export async function POST() {
   try {
     await requireAdmin();
 
-    const snapshot = await db.collection("products").select("active", "createdAt").get();
+    const snapshot = await db.collection("products").select("active", "createdAt", "nameLower", "name").get();
 
     const toFix = snapshot.docs.filter((doc) => {
       const data = doc.data();
-      return data.active !== true || !data.createdAt;
+      return data.active !== true || !data.createdAt || !data.nameLower;
     });
 
     if (toFix.length === 0) {
@@ -33,6 +33,7 @@ export async function POST() {
         const update: Record<string, unknown> = {};
         if (data.active !== true) update.active = true;
         if (!data.createdAt) update.createdAt = FieldValue.serverTimestamp();
+        if (!data.nameLower && data.name) update.nameLower = String(data.name).toLowerCase().trim();
         batch.update(doc.ref, update);
       }
       await batch.commit();
