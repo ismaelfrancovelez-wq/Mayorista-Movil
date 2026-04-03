@@ -4,7 +4,7 @@ import { db } from "../../lib/firebase-admin";
 import { ProductCategory, SellerType } from "../../lib/types/product";
 import ExplorarClient from "./ExplorarClient";
 
-export const revalidate = 0;
+export const revalidate = 60;
 
 const PAGE_SIZE = 20;
 
@@ -92,8 +92,7 @@ async function getInitialProducts(): Promise<Product[]> {
     const snap = await db
       .collection("products")
       .where("active", "==", true)
-      .orderBy("createdAt", "desc")
-      .limit(PAGE_SIZE * 3)
+      .limit(500)
       .get();
 
     if (snap.empty) return [];

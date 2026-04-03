@@ -72,8 +72,9 @@ export default function ExplorarClient({
   const [filteredProducts, setFilteredProducts] = useState<Product[]>(initialProducts);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(initialProducts.length === 20);
+  const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [categoryLoading, setCategoryLoading] = useState(false);
 
   const [productIndex, setProductIndex] = useState<ProductIndex[]>([]);
   const [indexLoaded, setIndexLoaded] = useState(false);
@@ -187,10 +188,30 @@ export default function ExplorarClient({
     };
   }, [searchTerm, initialProducts, productIndex, indexLoaded]);
 
+  // Cuando cambia la categoría: si es "all" usa los productos iniciales; si es una categoría, llama al API
+  useEffect(() => {
+    if (selectedCategory === "all") {
+      setAllProducts(initialProducts);
+      setHasMore(false);
+      setCurrentPage(1);
+      return;
+    }
+
+    setCategoryLoading(true);
+    fetch(`/api/products/explore?category=${selectedCategory}&page=1`)
+      .then(r => r.json())
+      .then(data => {
+        setAllProducts(data.products || []);
+        setHasMore(data.hasMore === true);
+        setCurrentPage(1);
+      })
+      .catch(() => {})
+      .finally(() => setCategoryLoading(false));
+  }, [selectedCategory, initialProducts]);
+
   useEffect(() => {
     let result = [...allProducts];
 
-    if (selectedCategory !== "all") result = result.filter(p => p.category === selectedCategory);
     if (minPrice) result = result.filter(p => p.price >= Number(minPrice));
     if (maxPrice) result = result.filter(p => p.price <= Number(maxPrice));
     if (minOrder) result = result.filter(p => p.minimumOrder >= Number(minOrder));
@@ -207,14 +228,15 @@ export default function ExplorarClient({
     }
 
     setFilteredProducts(result);
-  }, [allProducts, selectedCategory, minPrice, maxPrice, minOrder, maxOrder, onlyFeatured, sortBy]);
+  }, [allProducts, minPrice, maxPrice, minOrder, maxOrder, onlyFeatured, sortBy]);
 
   async function loadMore() {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
       const nextPage = currentPage + 1;
-      const res = await fetch(`/api/products/explore?page=${nextPage}`);
+      const categoryParam = selectedCategory !== "all" ? `&category=${selectedCategory}` : "";
+      const res = await fetch(`/api/products/explore?page=${nextPage}${categoryParam}`);
       if (!res.ok) throw new Error("Error al cargar más productos");
       const data = await res.json();
       const newProducts: Product[] = data.products || [];
