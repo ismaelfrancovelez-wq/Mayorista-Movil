@@ -679,6 +679,7 @@ if (!saveRes.ok) {
       {showAddressModal && (
         <AddressShippingModal
           productName={productName}
+          productId={productId}
           price={price}
           unitLabel={unitLabel}
           qty={qty}
