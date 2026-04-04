@@ -74,23 +74,19 @@ export default function ProductPurchaseClient({
     prevFraccionadoRef.current = isFraccionado;
 
     if (isFraccionado) {
-      if (selectedShipping !== "platform" && selectedShipping !== "pickup") {
-        setSelectedShipping("platform");
+      setSelectedShipping("platform");
+      setShippingCost(0);
+      setShippingKm(null);
+    } else {
+      if (allowPickup) {
+        setSelectedShipping("pickup");
         setShippingCost(0);
         setShippingKm(null);
-      }
-    } else {
-      if (selectedShipping === "platform") {
-        if (allowPickup) {
-          setSelectedShipping("pickup");
-          setShippingCost(0);
-          setShippingKm(null);
-        } else if (allowFactoryShipping) {
-          setSelectedShipping("factory");
-        }
+      } else if (allowFactoryShipping) {
+        setSelectedShipping("factory");
       }
     }
-  }, [isFraccionado, selectedShipping, allowPickup, allowFactoryShipping]);
+  }, [isFraccionado, allowPickup, allowFactoryShipping]);
 
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingKm, setShippingKm] = useState<number | null>(null);
