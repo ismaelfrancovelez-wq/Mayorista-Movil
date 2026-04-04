@@ -769,8 +769,9 @@ if (!saveRes.ok) {
               }
             }
 
-
             setShowAddressModal(false);
+            // ✅ Pequeño delay para que React procese el setShippingCost antes de mostrar el mensaje
+            await new Promise((r) => setTimeout(r, 50));
             setReserved(true);
           }}
           onClose={() => setShowAddressModal(false)}
