@@ -658,6 +658,8 @@ if (!saveRes.ok) {
       {showAddressModal && (
         <AddressShippingModal
           productName={productName}
+          price={price}
+          unitLabel={unitLabel}
           qty={qty}
           onQtyChange={(newQty) => setQty(Math.max(1, newQty))}
           allowPickup={allowPickup}
