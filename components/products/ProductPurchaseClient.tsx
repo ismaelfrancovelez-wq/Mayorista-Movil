@@ -749,6 +749,27 @@ if (!saveRes.ok) {
               setCommissionRate(data.commissionRate);
             }
  
+ // ✅ FIX: recalcular envío después de guardar dirección
+            if (shipping === "platform" || shipping === "factory") {
+              try {
+                const shippingRes = await fetch("/api/shipping/fraccionado", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ productId }),
+                });
+                const shippingData = await shippingRes.json();
+                if (typeof shippingData.shippingCost === "number") {
+                  setShippingCost(shippingData.shippingCost);
+                }
+                if (typeof shippingData.km === "number") {
+                  setShippingKm(shippingData.km);
+                }
+              } catch (err) {
+                console.error("Error recalculando envío:", err);
+              }
+            }
+
+
             setShowAddressModal(false);
             setReserved(true);
           }}
