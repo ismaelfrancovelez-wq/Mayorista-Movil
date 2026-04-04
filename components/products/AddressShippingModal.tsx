@@ -38,11 +38,25 @@ export default function AddressShippingModal({
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
   const [localQty, setLocalQty] = useState(qty);
 
-  const factoryDisabled = !allowFactoryShipping || noShipping;
-  const pickupDisabled = !allowPickup;
+  // Qué opciones están disponibles según configuración del producto
+  const platformAvailable = true;
+  const factoryAvailable = allowFactoryShipping && !noShipping;
+  const pickupAvailable = allowPickup;
 
+  // La dirección no es necesaria para retiro en fábrica
   const needsAddress = selectedShipping === "platform" || selectedShipping === "factory";
   const canConfirm = !needsAddress || selectedPlace !== null;
+
+  // Texto descriptivo según modo seleccionado
+  const infoText = selectedShipping === "factory"
+    ? "Usamos tu dirección para calcular el costo del envío desde la fábrica hasta tu domicilio."
+    : "Usamos tu dirección para calcular el precio y comprobar si hay más compradores en tu zona con quienes puedas dividir el precio del envío.";
+
+  // Label del modo actual para mostrar debajo del nombre del producto
+  const shippingModeLabel =
+    selectedShipping === "platform" ? "Envío por plataforma" :
+    selectedShipping === "factory" ? "Envío por fábrica" :
+    "Retiro en fábrica";
 
   function handleQtyChange(val: number) {
     const safe = Math.max(1, val);
@@ -56,6 +70,34 @@ export default function AddressShippingModal({
       ? selectedPlace
       : { formattedAddress: "", lat: 0, lng: 0 };
     onConfirm(place, selectedShipping, localQty);
+  }
+
+  // Estilo chip activo vs inactivo
+  function chipStyle(active: boolean, disabled: boolean): React.CSSProperties {
+    if (disabled) return {
+      fontSize: "12px", fontWeight: 500,
+      padding: "5px 12px", borderRadius: "20px",
+      border: "0.5px solid var(--color-border-tertiary)",
+      background: "var(--color-background-secondary)",
+      color: "var(--color-text-tertiary)",
+      cursor: "not-allowed", opacity: 0.5,
+    };
+    if (active) return {
+      fontSize: "12px", fontWeight: 500,
+      padding: "5px 12px", borderRadius: "20px",
+      border: "none",
+      background: "#2563eb",
+      color: "white",
+      cursor: "pointer",
+    };
+    return {
+      fontSize: "12px", fontWeight: 500,
+      padding: "5px 12px", borderRadius: "20px",
+      border: "0.5px solid var(--color-border-secondary)",
+      background: "var(--color-background-primary)",
+      color: "var(--color-text-secondary)",
+      cursor: "pointer",
+    };
   }
 
   return (
@@ -77,7 +119,7 @@ export default function AddressShippingModal({
         boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
       }}>
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div style={{
           padding: "1.25rem 1.5rem 1rem",
           borderBottom: "0.5px solid var(--color-border-tertiary, #e5e7eb)",
@@ -100,8 +142,8 @@ export default function AddressShippingModal({
           </div>
           <button onClick={onClose} style={{
             background: "none", border: "none", cursor: "pointer",
-            color: "var(--color-text-secondary, #6b7280)", padding: "4px",
-            borderRadius: "8px", display: "flex",
+            color: "var(--color-text-secondary, #6b7280)",
+            padding: "4px", borderRadius: "8px", display: "flex",
           }}>
             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
@@ -109,13 +151,14 @@ export default function AddressShippingModal({
           </button>
         </div>
 
-        {/* Resumen producto */}
-        <div style={{ padding: "1rem 1.5rem 0" }}>
+        {/* ── Resumen producto + chips de modo ── */}
+        <div style={{ margin: "1rem 1.5rem 0" }}>
           <div style={{
             background: "var(--color-background-secondary, #f9fafb)",
             borderRadius: "10px", padding: "0.85rem 1rem",
-            display: "flex", alignItems: "center", gap: "12px",
+            display: "flex", alignItems: "center", gap: "10px",
           }}>
+            {/* Ícono */}
             <div style={{
               width: "38px", height: "38px", borderRadius: "8px",
               background: "var(--color-background-tertiary, #f3f4f6)",
@@ -125,19 +168,64 @@ export default function AddressShippingModal({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
               </svg>
             </div>
-            <p style={{
-              fontSize: "14px", fontWeight: 500,
-              color: "var(--color-text-primary, #111)",
-              margin: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>
-              {productName}
-            </p>
+
+            {/* Nombre + label del modo */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                fontSize: "13px", fontWeight: 500,
+                color: "var(--color-text-primary, #111)",
+                margin: "0 0 3px",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {productName}
+              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <svg width="11" height="11" fill="none" stroke="var(--color-text-secondary, #6b7280)" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l1 1h3m6-11h3l3 3v5h-1m-5-8v8"/>
+                </svg>
+                <p style={{ fontSize: "12px", color: "var(--color-text-secondary, #6b7280)", margin: 0 }}>
+                  {shippingModeLabel}
+                </p>
+              </div>
+            </div>
+
+            {/* Chips de selección de modo */}
+            <div style={{ display: "flex", gap: "6px", flexShrink: 0, flexWrap: "wrap" }}>
+              <button
+                onClick={() => platformAvailable && onShippingChange("platform")}
+                disabled={!platformAvailable}
+                style={chipStyle(selectedShipping === "platform", !platformAvailable)}
+              >
+                Plataforma
+              </button>
+
+              {factoryAvailable && (
+                <button
+                  onClick={() => onShippingChange("factory")}
+                  style={chipStyle(selectedShipping === "factory", false)}
+                >
+                  Fábrica
+                </button>
+              )}
+
+              {pickupAvailable && (
+                <button
+                  onClick={() => onShippingChange("pickup")}
+                  style={chipStyle(selectedShipping === "pickup", false)}
+                >
+                  Retiro
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Cantidad */}
+        {/* ── Cantidad ── */}
         <div style={{ padding: "1rem 1.5rem 0" }}>
-          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", margin: "0 0 8px" }}>Cantidad</p>
+          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", margin: "0 0 8px" }}>
+            Cantidad
+          </p>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <button
               onClick={() => handleQtyChange(localQty - 1)}
@@ -150,7 +238,9 @@ export default function AddressShippingModal({
               }}
             >−</button>
             <input
-              type="number" value={localQty} min={1}
+              type="number"
+              value={localQty}
+              min={1}
               onChange={(e) => handleQtyChange(Number(e.target.value))}
               style={{
                 width: "64px", textAlign: "center", fontSize: "14px",
@@ -172,62 +262,28 @@ export default function AddressShippingModal({
           </div>
         </div>
 
-        {/* Opciones de envío — bloques seleccionables */}
-        <div style={{ padding: "1rem 1.5rem 0" }}>
-          <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", margin: "0 0 8px" }}>Método de envío</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-
-            <ShippingBlock
-              selected={selectedShipping === "platform"}
-              disabled={false}
-              label="Envío por plataforma"
-              description="Podés dividir el costo con otros compradores de tu zona"
-              icon={
-                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-                </svg>
-              }
-              onClick={() => onShippingChange("platform")}
-            />
-
-            <ShippingBlock
-              selected={selectedShipping === "factory"}
-              disabled={factoryDisabled}
-              label="Envío por fábrica"
-              description={factoryDisabled ? "No disponible para este producto" : "El vendedor realiza el envío a tu domicilio"}
-              icon={
-                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l1 1h3m6-11h3l3 3v5h-1m-5-8v8"/>
-                </svg>
-              }
-              onClick={() => !factoryDisabled && onShippingChange("factory")}
-            />
-
-            <ShippingBlock
-              selected={selectedShipping === "pickup"}
-              disabled={pickupDisabled}
-              label="Retiro en fábrica"
-              description={pickupDisabled ? "No disponible para este producto" : "Retirás en la fábrica — sin costo de envío"}
-              icon={
-                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                </svg>
-              }
-              onClick={() => !pickupDisabled && onShippingChange("pickup")}
-            />
-
-          </div>
-        </div>
-
-        {/* Dirección — solo si el modo la necesita */}
+        {/* ── Texto informativo (cambia según modo) ── */}
         {needsAddress && (
           <div style={{ padding: "1rem 1.5rem 0" }}>
-            <p style={{ fontSize: "13px", color: "var(--color-text-secondary, #6b7280)", margin: "0 0 4px" }}>Dirección de entrega</p>
-            <p style={{ fontSize: "11px", color: "var(--color-text-tertiary, #9ca3af)", margin: "0 0 8px", lineHeight: 1.5 }}>
-              {selectedShipping === "platform"
-                ? "Usamos tu dirección para calcular el precio y comprobar si hay más compradores en tu zona con quienes puedas dividir el precio del envío."
-                : "Usamos tu dirección para calcular el costo del envío desde la fábrica hasta tu domicilio."}
+            <p style={{
+              fontSize: "13px",
+              color: "var(--color-text-secondary, #6b7280)",
+              margin: 0, lineHeight: 1.6,
+            }}>
+              {infoText}
+            </p>
+          </div>
+        )}
+
+        {/* ── Dirección (solo si el modo la necesita) ── */}
+        {needsAddress && (
+          <div style={{ padding: "1rem 1.5rem 0" }}>
+            <p style={{
+              fontSize: "13px",
+              color: "var(--color-text-secondary, #6b7280)",
+              margin: "0 0 8px",
+            }}>
+              Dirección de entrega
             </p>
             <GooglePlacesAutocomplete
               value={address}
@@ -241,20 +297,25 @@ export default function AddressShippingModal({
             />
             {selectedPlace && (
               <div style={{
-                marginTop: "8px", background: "#f0fdf4",
-                border: "0.5px solid #86efac", borderRadius: "8px",
-                padding: "8px 12px", display: "flex", alignItems: "center", gap: "8px",
+                marginTop: "8px",
+                background: "#f0fdf4",
+                border: "0.5px solid #86efac",
+                borderRadius: "8px",
+                padding: "8px 12px",
+                display: "flex", alignItems: "center", gap: "8px",
               }}>
                 <svg width="13" height="13" fill="none" stroke="#16a34a" strokeWidth="2.5" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
                 </svg>
-                <p style={{ fontSize: "12px", color: "#16a34a", margin: 0 }}>{selectedPlace.formattedAddress}</p>
+                <p style={{ fontSize: "12px", color: "#16a34a", margin: 0 }}>
+                  {selectedPlace.formattedAddress}
+                </p>
               </div>
             )}
           </div>
         )}
 
-        {/* Footer */}
+        {/* ── Footer ── */}
         <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: "8px" }}>
           <button
             onClick={handleConfirm}
@@ -277,7 +338,8 @@ export default function AddressShippingModal({
           <button
             onClick={onClose}
             style={{
-              width: "100%", padding: "11px", background: "none",
+              width: "100%", padding: "11px",
+              background: "none",
               border: "0.5px solid var(--color-border-secondary, #d1d5db)",
               borderRadius: "10px", fontSize: "13px",
               color: "var(--color-text-secondary, #6b7280)", cursor: "pointer",
@@ -289,59 +351,5 @@ export default function AddressShippingModal({
 
       </div>
     </div>
-  );
-}
-
-// ─── Bloque de opción de envío ───────────────────────────────────────────────
-
-function ShippingBlock({
-  selected, disabled, label, description, icon, onClick,
-}: {
-  selected: boolean;
-  disabled: boolean;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        width: "100%", padding: "12px 14px", borderRadius: "12px",
-        border: selected ? "2px solid #2563eb" : "0.5px solid var(--color-border-tertiary, #e5e7eb)",
-        background: selected ? "#eff6ff" : disabled ? "var(--color-background-secondary, #f9fafb)" : "var(--color-background-primary, #fff)",
-        cursor: disabled ? "not-allowed" : "pointer",
-        display: "flex", alignItems: "center", gap: "12px",
-        textAlign: "left", opacity: disabled ? 0.4 : 1,
-        transition: "border-color 0.15s, background 0.15s",
-      }}
-    >
-      <div style={{
-        width: "34px", height: "34px", borderRadius: "8px", flexShrink: 0,
-        background: selected ? "#dbeafe" : "var(--color-background-secondary, #f3f4f6)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        color: selected ? "#2563eb" : "var(--color-text-secondary, #6b7280)",
-      }}>
-        {icon}
-      </div>
-      <div style={{ flex: 1 }}>
-        <p style={{
-          fontSize: "13px", fontWeight: 500, margin: "0 0 2px",
-          color: disabled ? "var(--color-text-tertiary, #9ca3af)" : selected ? "#1d4ed8" : "var(--color-text-primary, #111)",
-        }}>
-          {label}
-        </p>
-        <p style={{ fontSize: "11px", margin: 0, lineHeight: 1.4, color: "var(--color-text-tertiary, #9ca3af)" }}>
-          {description}
-        </p>
-      </div>
-      <div style={{
-        width: "18px", height: "18px", borderRadius: "50%", flexShrink: 0,
-        border: selected ? "5px solid #2563eb" : "1.5px solid var(--color-border-secondary, #d1d5db)",
-        background: "white", transition: "border 0.15s",
-      }} />
-    </button>
   );
 }
