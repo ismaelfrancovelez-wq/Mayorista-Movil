@@ -56,7 +56,7 @@ export default function ProductPurchaseClient({
   const effectiveMF = minimumType === "amount" && price > 0
     ? Math.ceil((minimumValue ?? MF) / price)
     : MF;
-  const isFraccionado = qty < effectiveMF;
+ const isFraccionado = qty < effectiveMF;
 
   const [selectedShipping, setSelectedShipping] = useState<ShippingMode>(() => {
     if (noShipping) return "platform";
@@ -66,10 +66,35 @@ export default function ProductPurchaseClient({
   });
   const selectedShippingRef = useRef(selectedShipping);
   useEffect(() => { selectedShippingRef.current = selectedShipping; }, [selectedShipping]);
+
+  // ✅ FIX: resetear shipping cuando cambia entre fraccionado y directo
+  const prevFraccionadoRef = useRef(isFraccionado);
+  useEffect(() => {
+    if (prevFraccionadoRef.current === isFraccionado) return;
+    prevFraccionadoRef.current = isFraccionado;
+
+    if (isFraccionado) {
+      if (selectedShipping !== "platform" && selectedShipping !== "pickup") {
+        setSelectedShipping("platform");
+        setShippingCost(0);
+        setShippingKm(null);
+      }
+    } else {
+      if (selectedShipping === "platform") {
+        if (allowPickup) {
+          setSelectedShipping("pickup");
+          setShippingCost(0);
+          setShippingKm(null);
+        } else if (allowFactoryShipping) {
+          setSelectedShipping("factory");
+        }
+      }
+    }
+  }, [isFraccionado, selectedShipping, allowPickup, allowFactoryShipping]);
+
   const [shippingCost, setShippingCost] = useState(0);
   const [shippingKm, setShippingKm] = useState<number | null>(null);
   const [loadingShipping, setLoadingShipping] = useState(false);
-
   const [mpConnected, setMpConnected] = useState<boolean | null>(null);
   const [loadingMPStatus, setLoadingMPStatus] = useState(true);
 
