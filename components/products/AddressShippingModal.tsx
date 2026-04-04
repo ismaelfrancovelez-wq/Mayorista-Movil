@@ -5,6 +5,7 @@
 // ✅ Selector de cantidad + precio dinámico
 // ✅ Tabs Plataforma / Fábrica / Retiro (color si disponible, gris si no)
 // ✅ Autocompletado Google Places funcionando
+// ✅ Muestra precio de envío estimado después de seleccionar dirección
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { PlaceResult } from "../GooglePlacesAutocomplete";
@@ -25,6 +26,7 @@ type Props = {
   onConfirm: (address: PlaceResult, shipping: ShippingMode, qty: number) => void;
   onClose: () => void;
   saving: boolean;
+  productId: string;
 };
 
 type Suggestion = {
@@ -37,18 +39,15 @@ type Suggestion = {
 // ✅ Función para cargar el script de Google Maps (reutiliza si ya existe)
 function loadGoogleMapsScript(): Promise<void> {
   return new Promise((resolve, reject) => {
-    // Ya cargado
     if (window.google?.maps?.places) {
       resolve();
       return;
     }
 
-    // Ya existe un script en proceso de carga
     const existing = document.querySelector('script[src*="maps.googleapis.com"]');
     if (existing) {
       existing.addEventListener("load", () => resolve());
       existing.addEventListener("error", () => reject(new Error("Error cargando Maps")));
-      // Si ya terminó de cargar pero no disparó el evento
       if (window.google?.maps?.places) resolve();
       return;
     }
@@ -69,6 +68,10 @@ function loadGoogleMapsScript(): Promise<void> {
   });
 }
 
+function formatNumber(n: number): string {
+  return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
 export default function AddressShippingModal({
   productName,
   price,
@@ -83,6 +86,7 @@ export default function AddressShippingModal({
   onConfirm,
   onClose,
   saving,
+  productId,
 }: Props) {
   const [localQty, setLocalQty] = useState(qty);
   const [addressInput, setAddressInput] = useState("");
@@ -92,6 +96,11 @@ export default function AddressShippingModal({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mapsReady, setMapsReady] = useState(false);
   const [mapsError, setMapsError] = useState(false);
+
+  // ✅ NUEVO: estado de envío dentro del modal
+  const [estimatedShipping, setEstimatedShipping] = useState<number | null>(null);
+  const [loadingShipping, setLoadingShipping] = useState(false);
+  const [shippingKm, setShippingKm] = useState<number | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
@@ -116,7 +125,6 @@ export default function AddressShippingModal({
         await loadGoogleMapsScript();
         if (cancelled) return;
 
-        // Esperar a que dummyDivRef esté montado
         const waitForDiv = () =>
           new Promise<void>((resolve) => {
             if (dummyDivRef.current) { resolve(); return; }
@@ -141,6 +149,64 @@ export default function AddressShippingModal({
     init();
     return () => { cancelled = true; };
   }, []);
+
+  // ✅ NUEVO: calcular envío estimado cuando se selecciona una dirección
+  // Guarda la dirección temporalmente, calcula el envío y muestra el precio
+  useEffect(() => {
+    if (!selectedPlace || !needsAddress) return;
+    if (!selectedPlace.lat || !selectedPlace.lng) return;
+
+    let cancelled = false;
+
+    async function calculateShippingPreview() {
+      setLoadingShipping(true);
+      setEstimatedShipping(null);
+      setShippingKm(null);
+
+      try {
+        // Guardar dirección temporalmente para que el endpoint pueda calcular
+        const saveRes = await fetch("/api/retailers/address", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            formattedAddress: selectedPlace!.formattedAddress,
+            lat: selectedPlace!.lat,
+            lng: selectedPlace!.lng,
+          }),
+        });
+
+        if (!saveRes.ok) {
+          console.error("Error guardando dirección para preview");
+          setLoadingShipping(false);
+          return;
+        }
+
+        // Calcular envío
+        const shippingRes = await fetch("/api/shipping/fraccionado", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productId }),
+        });
+        const shippingData = await shippingRes.json();
+
+        if (!cancelled) {
+          if (typeof shippingData.shippingCost === "number") {
+            setEstimatedShipping(shippingData.shippingCost);
+          }
+          if (typeof shippingData.km === "number") {
+            setShippingKm(shippingData.km);
+          }
+        }
+      } catch (err) {
+        console.error("Error calculando envío preview:", err);
+      } finally {
+        if (!cancelled) setLoadingShipping(false);
+      }
+    }
+
+    calculateShippingPreview();
+    return () => { cancelled = true; };
+  }, [selectedPlace, needsAddress, productId]);
 
   const fetchSuggestions = useCallback((value: string) => {
     if (!autocompleteService.current || value.trim().length < 3) {
@@ -174,6 +240,8 @@ export default function AddressShippingModal({
   function handleAddressInput(value: string) {
     setAddressInput(value);
     setSelectedPlace(null);
+    setEstimatedShipping(null);
+    setShippingKm(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchSuggestions(value), 300);
   }
@@ -236,6 +304,7 @@ export default function AddressShippingModal({
 
   function getConfirmText(): string {
     if (saving) return "Reservando...";
+    if (loadingShipping) return "Calculando envío...";
     if (selectedShipping === "pickup") return "Confirmar — retiro en fábrica sin costo";
     return "Confirmar y reservar mi lugar";
   }
@@ -309,7 +378,6 @@ export default function AddressShippingModal({
           {/* ── Producto + Tabs de envío ── */}
           <div style={{ padding: "1rem 1.5rem 0" }}>
             <div style={{ background: "#f9fafb", borderRadius: "12px", padding: "0.85rem 1rem" }}>
-              {/* Fila: ícono + nombre + tabs */}
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 {/* Ícono producto */}
                 <div style={{ width: "38px", height: "38px", borderRadius: "8px", background: "#f3f4f6", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -334,14 +402,14 @@ export default function AddressShippingModal({
                 {/* Tabs */}
                 <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
                   <button
-                    onClick={() => platformAvailable && onShippingChange("platform")}
+                    onClick={() => { platformAvailable && onShippingChange("platform"); setEstimatedShipping(null); setShippingKm(null); }}
                     disabled={!platformAvailable}
                     style={tabStyle("platform", platformAvailable)}
                   >
                     Plataforma
                   </button>
                   <button
-                    onClick={() => factoryAvailable && onShippingChange("factory")}
+                    onClick={() => { factoryAvailable && onShippingChange("factory"); setEstimatedShipping(null); setShippingKm(null); }}
                     disabled={!factoryAvailable}
                     style={tabStyle("factory", factoryAvailable)}
                   >
@@ -349,7 +417,7 @@ export default function AddressShippingModal({
                   </button>
                   {pickupAvailable && (
                     <button
-                      onClick={() => onShippingChange("pickup")}
+                      onClick={() => { onShippingChange("pickup"); setEstimatedShipping(null); setShippingKm(null); }}
                       style={tabStyle("pickup", pickupAvailable)}
                     >
                       Retiro
@@ -489,6 +557,41 @@ export default function AddressShippingModal({
                   <p style={{ fontSize: "12px", color: "#16a34a", margin: 0 }}>{selectedPlace.formattedAddress}</p>
                 </div>
               )}
+
+              {/* ✅ NUEVO: Precio de envío estimado */}
+              {selectedPlace && (
+                <div style={{ marginTop: "12px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "10px", padding: "12px 14px" }}>
+                  {loadingShipping ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <svg style={{ animation: "spin 1s linear infinite", width: "14px", height: "14px" }} fill="none" viewBox="0 0 24 24">
+                        <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="#2563eb" strokeWidth="4" />
+                        <path style={{ opacity: 0.75 }} fill="#2563eb" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      <p style={{ fontSize: "13px", color: "#1d4ed8", margin: 0 }}>Calculando envío estimado...</p>
+                      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                    </div>
+                  ) : estimatedShipping !== null ? (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "14px" }}>🚚</span>
+                          <p style={{ fontSize: "13px", fontWeight: 500, color: "#1d4ed8", margin: 0 }}>
+                            Envío estimado
+                          </p>
+                        </div>
+                        <p style={{ fontSize: "15px", fontWeight: 600, color: "#1d4ed8", margin: 0 }}>
+                          ${formatNumber(estimatedShipping)}
+                        </p>
+                      </div>
+                      {shippingKm !== null && (
+                        <p style={{ fontSize: "11px", color: "#3b82f6", margin: "4px 0 0", paddingLeft: "26px" }}>
+                          {shippingKm} km — este precio puede bajar si se suman más compradores de tu zona
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
           ) : (
             /* Modo retiro */
@@ -506,17 +609,17 @@ export default function AddressShippingModal({
           <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: "8px" }}>
             <button
               onClick={handleConfirm}
-              disabled={!canConfirm || saving}
+              disabled={!canConfirm || saving || loadingShipping}
               style={{
                 width: "100%",
                 padding: "14px",
-                background: canConfirm && !saving ? "#2563eb" : "#93c5fd",
+                background: canConfirm && !saving && !loadingShipping ? "#2563eb" : "#93c5fd",
                 color: "white",
                 border: "none",
                 borderRadius: "10px",
                 fontSize: "14px",
                 fontWeight: 500,
-                cursor: canConfirm && !saving ? "pointer" : "not-allowed",
+                cursor: canConfirm && !saving && !loadingShipping ? "pointer" : "not-allowed",
                 transition: "background 0.15s",
               }}
             >
