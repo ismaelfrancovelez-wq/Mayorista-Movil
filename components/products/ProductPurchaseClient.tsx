@@ -713,6 +713,24 @@ if (!saveRes.ok) {
                 setSavingAddress(false);
                 return;
               }
+
+              // ✅ FIX: calcular envío DESPUÉS de guardar dirección pero ANTES de reservar
+              try {
+                const shippingRes = await fetch("/api/shipping/fraccionado", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ productId }),
+                });
+                const shippingData = await shippingRes.json();
+                if (typeof shippingData.shippingCost === "number") {
+                  setShippingCost(shippingData.shippingCost);
+                }
+                if (typeof shippingData.km === "number") {
+                  setShippingKm(shippingData.km);
+                }
+              } catch (err) {
+                console.error("Error calculando envío:", err);
+              }
             }
  
             // Actualizar qty si cambió
@@ -749,29 +767,7 @@ if (!saveRes.ok) {
               setCommissionRate(data.commissionRate);
             }
  
- // ✅ FIX: recalcular envío después de guardar dirección
-            if (shipping === "platform" || shipping === "factory") {
-              try {
-                const shippingRes = await fetch("/api/shipping/fraccionado", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ productId }),
-                });
-                const shippingData = await shippingRes.json();
-                if (typeof shippingData.shippingCost === "number") {
-                  setShippingCost(shippingData.shippingCost);
-                }
-                if (typeof shippingData.km === "number") {
-                  setShippingKm(shippingData.km);
-                }
-              } catch (err) {
-                console.error("Error recalculando envío:", err);
-              }
-            }
-
             setShowAddressModal(false);
-            // ✅ Pequeño delay para que React procese el setShippingCost antes de mostrar el mensaje
-            await new Promise((r) => setTimeout(r, 50));
             setReserved(true);
           }}
           onClose={() => setShowAddressModal(false)}
