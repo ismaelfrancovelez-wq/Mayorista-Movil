@@ -51,7 +51,7 @@ export type ProductCategory =
   | "construccion"
   | "salud_belleza"
   | "jugueteria"
-  | "libreria"
+  | "limpieza"
   | "deportes"
   | "automotor"
   | "mascotas"
@@ -68,7 +68,7 @@ export const CATEGORY_LABELS: Record<ProductCategory, string> = {
   construccion: "Construcción y Ferretería",
   salud_belleza: "Salud y Belleza",
   jugueteria: "Juguetería",
-  libreria: "Librería y Oficina",
+  limpieza: "Limpieza",
   deportes: "Deportes y Fitness",
   automotor: "Automotor",
   mascotas: "Mascotas",

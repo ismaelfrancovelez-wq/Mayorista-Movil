@@ -12,7 +12,7 @@ const VALID_CATEGORIES: Record<string, string> = {
   construccion: "Construcción y Ferretería",
   salud_belleza: "Salud y Belleza",
   jugueteria: "Juguetería",
-  libreria: "Librería y Oficina",
+  limpieza: "Limpieza",
   deportes: "Deportes y Fitness",
   automotor: "Automotor",
   mascotas: "Mascotas",

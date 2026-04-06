@@ -8,7 +8,7 @@ const PAGE_SIZE = 20;
 const VALID_CATEGORIES = new Set([
   "hogar", "electronica", "indumentaria", "calzado",
   "alimentos", "bebidas", "construccion", "salud_belleza",
-  "jugueteria", "libreria", "deportes", "automotor",
+  "jugueteria", "limpieza", "deportes", "automotor",
   "mascotas", "otros",
 ]);
 
