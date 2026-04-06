@@ -27,6 +27,7 @@ type Props = {
   onClose: () => void;
   saving: boolean;
   productId: string;
+  isFraccionado: boolean;
 };
 
 type Suggestion = {
@@ -87,6 +88,7 @@ export default function AddressShippingModal({
   onClose,
   saving,
   productId,
+  isFraccionado,
 }: Props) {
   const [localQty, setLocalQty] = useState(qty);
   const [addressInput, setAddressInput] = useState("");
@@ -97,7 +99,7 @@ export default function AddressShippingModal({
   const [mapsReady, setMapsReady] = useState(false);
   const [mapsError, setMapsError] = useState(false);
 
-  // ✅ NUEVO: estado de envío dentro del modal
+  // ✅ Estado de envío dentro del modal
   const [estimatedShipping, setEstimatedShipping] = useState<number | null>(null);
   const [loadingShipping, setLoadingShipping] = useState(false);
   const [shippingKm, setShippingKm] = useState<number | null>(null);
@@ -111,8 +113,8 @@ export default function AddressShippingModal({
   const canConfirm = !needsAddress || selectedPlace !== null;
   const totalPrice = price * localQty;
 
-  // Tabs disponibles
-  const platformAvailable = true;
+  // ✅ FIX: Tabs disponibles — plataforma solo si es fraccionado o noShipping
+  const platformAvailable = isFraccionado || noShipping;
   const factoryAvailable = allowFactoryShipping && !noShipping;
   const pickupAvailable = allowPickup;
 
@@ -150,8 +152,7 @@ export default function AddressShippingModal({
     return () => { cancelled = true; };
   }, []);
 
-  // ✅ NUEVO: calcular envío estimado cuando se selecciona una dirección
-  // Guarda la dirección temporalmente, calcula el envío y muestra el precio
+  // ✅ Calcular envío estimado cuando se selecciona una dirección
   useEffect(() => {
     if (!selectedPlace || !needsAddress) return;
     if (!selectedPlace.lat || !selectedPlace.lng) return;
@@ -558,7 +559,7 @@ export default function AddressShippingModal({
                 </div>
               )}
 
-              {/* ✅ NUEVO: Precio de envío estimado */}
+              {/* ✅ Precio de envío estimado */}
               {selectedPlace && (
                 <div style={{ marginTop: "12px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "10px", padding: "12px 14px" }}>
                   {loadingShipping ? (

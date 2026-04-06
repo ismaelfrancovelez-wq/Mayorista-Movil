@@ -44,7 +44,7 @@ export async function GET() {
       const accumulated = d.accumulatedQty || 0;
       const minimum = d.minimumOrder || 0;
       if (minimum <= 0) return false;
-      return accumulated / minimum >= 0.8;
+      return accumulated / minimum >= 0.7;
     });
 
     if (closingDocs.length === 0) {

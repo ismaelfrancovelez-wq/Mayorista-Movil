@@ -675,11 +675,11 @@ if (!saveRes.ok) {
         </div>
       )}
 
-      {/* Formulario de dirección inline (aparece cuando falta dirección) */}
       {showAddressModal && (
         <AddressShippingModal
           productName={productName}
           productId={productId}
+          isFraccionado={isFraccionado}
           price={price}
           unitLabel={unitLabel}
           qty={qty}
