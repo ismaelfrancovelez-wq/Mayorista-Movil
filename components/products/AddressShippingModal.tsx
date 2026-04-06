@@ -117,9 +117,20 @@ export default function AddressShippingModal({
 
   // ✅ FIX: Tabs disponibles — plataforma solo si es fraccionado o noShipping
   const localIsFraccionado = localQty < effectiveMF;
-  const platformAvailable = localIsFraccionado || noShipping;
+  const platformAvailable = localIsFraccionado;
   const factoryAvailable = allowFactoryShipping && !noShipping;
   const pickupAvailable = allowPickup;
+
+ // ✅ FIX: si el modo actual ya no está disponible, resetear
+  useEffect(() => {
+    if (selectedShipping === "platform" && !platformAvailable) {
+      if (pickupAvailable) {
+        onShippingChange("pickup");
+      } else if (factoryAvailable) {
+        onShippingChange("factory");
+      }
+    }
+  }, [localQty]);
 
   // ✅ Cargar Google Maps script + inicializar servicios
   useEffect(() => {
