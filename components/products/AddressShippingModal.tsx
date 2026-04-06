@@ -28,6 +28,7 @@ type Props = {
   saving: boolean;
   productId: string;
   isFraccionado: boolean;
+  effectiveMF: number;
 };
 
 type Suggestion = {
@@ -89,6 +90,7 @@ export default function AddressShippingModal({
   saving,
   productId,
   isFraccionado,
+  effectiveMF,
 }: Props) {
   const [localQty, setLocalQty] = useState(qty);
   const [addressInput, setAddressInput] = useState("");
@@ -114,7 +116,8 @@ export default function AddressShippingModal({
   const totalPrice = price * localQty;
 
   // ✅ FIX: Tabs disponibles — plataforma solo si es fraccionado o noShipping
-  const platformAvailable = isFraccionado || noShipping;
+  const localIsFraccionado = localQty < effectiveMF;
+  const platformAvailable = localIsFraccionado || noShipping;
   const factoryAvailable = allowFactoryShipping && !noShipping;
   const pickupAvailable = allowPickup;
 

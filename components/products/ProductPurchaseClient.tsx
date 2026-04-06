@@ -680,7 +680,9 @@ if (!saveRes.ok) {
           productName={productName}
           productId={productId}
           isFraccionado={isFraccionado}
+          effectiveMF={effectiveMF}
           price={price}
+
           unitLabel={unitLabel}
           qty={qty}
           onQtyChange={(newQty) => setQty(Math.max(1, newQty))}
