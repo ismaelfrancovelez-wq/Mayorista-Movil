@@ -266,7 +266,8 @@ export default function ProductPurchaseClient({
   }, [userId, loadingMPStatus, mpConnected]);
 
   const productSubtotal = price * qty;
-  const commission = isFraccionado ? Math.round(productSubtotal * (commissionRate / 100)) : 0;
+  const MP_FEE = 0.04;
+const commission = isFraccionado ? Math.round(productSubtotal * MP_FEE) : 0;
   const totalToCharge = useMemo(
     () => productSubtotal + commission + shippingCost,
     [productSubtotal, commission, shippingCost]

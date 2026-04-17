@@ -419,7 +419,7 @@ export default function ExplorarClient({
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Faltan <strong>{remainingUnits}</strong> u. para cerrar</p>
                       </div>
-                      <p className="text-xs font-bold text-gray-900 mt-auto">${lot.productPrice.toLocaleString("es-AR")}{lot.unitLabel ? ` / ${lot.unitLabel}` : " / u."}</p>
+                      <p className="text-xs font-bold text-gray-900 mt-auto">${Math.round(lot.productPrice * 1.04).toLocaleString("es-AR")}{lot.unitLabel ? ` / ${lot.unitLabel}` : " / u."}</p>
                     </div>
                   </Link>
                 );
@@ -636,7 +636,7 @@ export default function ExplorarClient({
                           <div className="mb-3">
                             <div className="flex items-baseline gap-2 flex-wrap">
                               <span className="text-xl font-bold text-gray-900">
-                                ${product.price.toLocaleString("es-AR")}
+  ${Math.round(product.price * 1.04).toLocaleString("es-AR")}
                                 {product.unitLabel && (
                                   <span className="text-gray-400 font-normal text-sm"> / {product.unitLabel}</span>
                                 )}
@@ -653,7 +653,7 @@ export default function ExplorarClient({
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {product.variants.map((v, i) => (
                                   <span key={i} className="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-0.5 rounded-md">
-                                    ${v.price.toLocaleString("es-AR")}{v.unitLabel ? ` / ${v.unitLabel}` : ""}
+                                   ${Math.round(v.price * 1.04).toLocaleString("es-AR")}
                                   </span>
                                 ))}
                               </div>

@@ -339,7 +339,7 @@ function LegacyVariantSelector({
                 >
                   {label}
                   <span className={`ml-1.5 text-xs ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
-                    ${v.price.toLocaleString("es-AR")}
+                   ${Math.round(v.price * 1.04).toLocaleString("es-AR")}
                   </span>
                 </button>
                 <div className="flex flex-col items-center gap-0.5">
