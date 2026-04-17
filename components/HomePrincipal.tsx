@@ -488,8 +488,7 @@ export default function HomePrincipal({
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex-1 text-center md:text-left">
                 <h2 className="text-3xl md:text-4xl font-black text-white mb-3 leading-tight">ENCONTRA Y COMPRA TODO A PRECIO DE FABRICA</h2>
-                <p className="text-xl md:text-2xl text-white/90 font-semibold mb-2">Incluso sin llegar al mínimos, solo lo que necesites.</p>
-                <p className="text-white/80 text-lg max-w-2xl">Unite a otros compradores y revendedores para acceder a precios de fabrica comprando solo las unidades que necesitás.</p>
+                <p className="text-white/80 text-lg max-w-2xl">Unite a otros compradores y revendedor para llegar al minimo de fabrica. Accediendo a precios de fabrica y comprando pocas cantidades, o lo que necesites.</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link href="/como-funciona" className="px-8 py-4 bg-white text-blue-700 font-black rounded-xl hover:bg-yellow-300 hover:text-blue-900 transition-all transform hover:scale-105 shadow-2xl text-center">¿Cómo funciona? →</Link>
@@ -709,13 +708,13 @@ export default function HomePrincipal({
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">2</span></div>
-              <h4 className="text-xl font-bold text-gray-900 mb-2">Reserva tu producto</h4>
-              <p className="text-gray-600">Cada fabrica/distribuidor o mayorista tiene un minimo para sus productos. Podras realizar compras menores a estos minimos. En compras de cantidades menores al minimo, podras hacer la reserva de tu producto sin necesidad de pagar al instante. Cuando completas tu reserva, te unes a la barra de progreso junto a otros compradores para llegar al minimo establecido. </p>
+              <h4 className="text-xl font-bold text-gray-900 mb-2">Reserva con compra fraccionada</h4>
+              <p className="text-gray-600">Cada fabrica/distribuidor o mayorista tiene un minimo para sus productos. Podras realizar compras menores a estos minimos. En compras de cantidades menores al minimo (compras fraccionadas), podras hacer la reserva de tu producto sin necesidad de pagar al instante. Cuando completas tu reserva, te unes a la barra de progreso junto a otros compradores para llegar al minimo de fabrica. </p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">3</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Baja de reserva</h4>
-              <p className="text-gray-600">Mientras el lote no se halla completado podras darte de baja sin ningun tipo de problema. Una ves completado el minimo deberas realizar el pago sin exepcion, ya que la reserva constituye un compromiso de pago entre todos los compradores. </p>
+              <p className="text-gray-600">Mientras el lote no se halla completado podras darte de baja sin ningun tipo de problema. Una ves completado el minimo deberas realizar el pago sin exepcion, ya que la reserva constituye un compromiso de espera y pago entre todos los compradores. </p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">4</span></div>
@@ -824,12 +823,12 @@ export default function HomePrincipal({
             <div className="text-center">
               <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">💰</div>
               <h4 className="font-bold text-lg mb-2">Precios mayoristas</h4>
-              <p className="text-gray-300 text-sm">Accedes a precios mayoristas directos de fabrica comprando pocas cantidades.</p>
+              <p className="text-gray-300 text-sm">Accedes a precios de fabrica, distribuidores y mayoristas comprando pocas cantidades.</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🚚</div>
               <h4 className="font-bold text-lg mb-2">Fábricas más Importantes</h4>
-              <p className="text-gray-300 text-sm">Tendrás acceso a productos de las fábricas más importantes y reconocidas del mercado.</p>
+              <p className="text-gray-300 text-sm">Tendrás acceso a productos de las fábricas más importantes y reconocidas del mercado. Tambien tendras acceso a distribuidores y mayoristas oficiales de fabricas.</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">✅</div>
@@ -839,7 +838,7 @@ export default function HomePrincipal({
             <div className="text-center">
               <div className="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🔒</div>
               <h4 className="font-bold text-lg mb-2">Mercado Pago</h4>
-              <p className="text-gray-300 text-sm">Integración directa de Mercado Pago para pagos y reembolsos completamente seguros.</p>
+              <p className="text-gray-300 text-sm">Integración directa de Mercado Pago para pagos completamente seguros.</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🚚</div>
