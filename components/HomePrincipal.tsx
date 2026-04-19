@@ -488,7 +488,7 @@ export default function HomePrincipal({
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex-1 text-center md:text-left">
                 <h2 className="text-3xl md:text-4xl font-black text-white mb-3 leading-tight">ENCONTRA TODO A PRECIO DE FABRICA</h2>
-                <p className="text-white/80 text-lg max-w-2xl"></p>
+                <p className="text-white/80 text-lg max-w-2xl">Para comprar todo a precio de fabrica uniendote con otros compradores y revendedores, realizando pequeños pedidos, de hasta 1 unidad hasta llegar al minimo de fabrica y recibir tu producto.</p>
               </div>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link href="/como-funciona" className="px-8 py-4 bg-white text-blue-700 font-black rounded-xl hover:bg-yellow-300 hover:text-blue-900 transition-all transform hover:scale-105 shadow-2xl text-center">¿Cómo funciona? →</Link>
