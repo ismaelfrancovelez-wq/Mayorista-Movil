@@ -82,6 +82,7 @@ export async function POST(req: Request) {
                     unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
                     unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
                     price: Number(f.price),
+                    colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
                   }))
                   .filter((f: any) => f.unitLabel && f.price > 0)
               : [],
@@ -101,7 +102,7 @@ export async function POST(req: Request) {
       stockValue = parsedStock;
     }
 
-    // ✅ NUEVO: precio minorista de referencia
+    // ✅ precio minorista de referencia
     // Si viene null o vacío → se borra (el fabricante lo eliminó)
     // Si viene un número > 0 → se guarda como "manual"
     // Si no viene en el body (undefined) → no se toca lo que ya había
@@ -137,7 +138,7 @@ export async function POST(req: Request) {
       minimums: cleanMinimums,
       variants: [],
       stock: stockValue,
-      ...retailPriceUpdate, // ✅ se agrega solo si vino en el body
+      ...retailPriceUpdate,
       updatedAt: FieldValue.serverTimestamp(),
     });
 

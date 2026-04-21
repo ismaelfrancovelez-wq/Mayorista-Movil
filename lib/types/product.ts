@@ -96,6 +96,7 @@ export interface PurchaseFormat {
   unitLabel: string;    // "Por unidad", "Pack 6", "Caja 12"
   unitsPerPack: number; // 1, 6, 12 — para calcular precio/unidad
   price: number;        // precio por este formato
+  colors?: string[];    // ✅ colores disponibles para esta presentación, ej: ["Negro", "Blanco", "Titanio"]
 }
 
 export interface ProductMinimum {

@@ -4,6 +4,7 @@
 //   - El badge "Sin stock" lo muestra el frontend en ExplorarClient
 //   - ✅ NUEVO: se guarda "nameLower" para poder hacer búsquedas por nombre
 //   - ✅ NUEVO: se guarda "retailReferencePrice" y "retailReferencePriceSource"
+//   - ✅ NUEVO: se guardan "colors" por presentación
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
                     unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
                     unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
                     price: Number(f.price),
+                    colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
                   }))
                   .filter((f: any) => f.unitLabel && f.price > 0)
               : [],

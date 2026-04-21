@@ -18,6 +18,7 @@ interface FormatForm {
   unitLabel: string;      // auto-filled by preset, or manual if custom
   unitsPerPack: number | "";
   price: number | "";
+  colors: string[];       // ✅ colores disponibles para esta presentación
 }
 
 const FORMAT_PRESETS = [
@@ -72,14 +73,14 @@ export default function EditarProductoPage() {
   const [mlMessage, setMlMessage] = useState<string | null>(null);
 
   const [minimums, setMinimums] = useState<MinimumForm[]>([
-    { type: "quantity", value: "", formats: [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "" }] },
+    { type: "quantity", value: "", formats: [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "", colors: [] }] },
   ]);
 
   // ── Handlers de mínimos ───────────────────────────────────────────────────
   const addMinimum = () => {
     setMinimums(prev => [...prev, {
       type: "quantity", value: "",
-      formats: [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "" }],
+      formats: [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "", colors: [] }],
     }]);
   };
 
@@ -100,7 +101,7 @@ export default function EditarProductoPage() {
 
   const addFormat = (mIdx: number) => {
     setMinimums(prev => prev.map((m, i) =>
-      i === mIdx ? { ...m, formats: [...m.formats, { presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "" }] } : m
+      i === mIdx ? { ...m, formats: [...m.formats, { presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "", colors: [] }] } : m
     ));
   };
 
@@ -120,6 +121,36 @@ export default function EditarProductoPage() {
         return { ...f, [field]: value === "" ? "" : Number(value) };
       });
       return { ...m, formats: newFormats };
+    }));
+  };
+
+  // ✅ Handlers de colores
+  const addColor = (mIdx: number, fIdx: number, color: string) => {
+    const trimmed = color.trim();
+    if (!trimmed) return;
+    setMinimums(prev => prev.map((m, i) => {
+      if (i !== mIdx) return m;
+      return {
+        ...m,
+        formats: m.formats.map((f, fi) => {
+          if (fi !== fIdx) return f;
+          if (f.colors.includes(trimmed)) return f;
+          return { ...f, colors: [...f.colors, trimmed] };
+        }),
+      };
+    }));
+  };
+
+  const removeColor = (mIdx: number, fIdx: number, color: string) => {
+    setMinimums(prev => prev.map((m, i) => {
+      if (i !== mIdx) return m;
+      return {
+        ...m,
+        formats: m.formats.map((f, fi) => {
+          if (fi !== fIdx) return f;
+          return { ...f, colors: f.colors.filter(c => c !== color) };
+        }),
+      };
     }));
   };
 
@@ -205,11 +236,14 @@ export default function EditarProductoPage() {
             value: m.value || "",
             formats: Array.isArray(m.formats)
               ? m.formats.map((f: any) => ({
+                  presetId: inferPresetId(f.unitLabel || "", f.unitsPerPack || 1),
+                  packQty: "",
                   unitLabel: f.unitLabel || "",
                   unitsPerPack: f.unitsPerPack || 1,
                   price: f.price || "",
+                  colors: Array.isArray(f.colors) ? f.colors : [],
                 }))
-              : [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "" }],
+              : [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "", colors: [] }],
           })));
         } else {
           // Migración desde estructura antigua: base + variants → minimums
@@ -222,6 +256,7 @@ export default function EditarProductoPage() {
               unitLabel: product.unitLabel || "Por unidad",
               unitsPerPack: 1,
               price: product.price || "",
+              colors: [],
             }],
           };
           const extraMins: MinimumForm[] = Array.isArray(product.variants)
@@ -234,6 +269,7 @@ export default function EditarProductoPage() {
                   unitLabel: v.unitLabel || "",
                   unitsPerPack: 1,
                   price: v.price || "",
+                  colors: [],
                 }],
               }))
             : [];
@@ -402,6 +438,7 @@ export default function EditarProductoPage() {
           unitLabel: f.unitLabel.trim().substring(0, 30),
           unitsPerPack: Number(f.unitsPerPack),
           price: Number(f.price),
+          colors: f.colors || [],
         })),
       }));
 
@@ -584,10 +621,12 @@ export default function EditarProductoPage() {
                     </p>
                     <div className="space-y-2">
                       {m.formats.map((f, fIdx) => (
-                        <div key={fIdx} className="bg-white border border-gray-100 rounded-lg p-3">
+                        <div key={fIdx} className="bg-white border border-gray-100 rounded-lg p-3 space-y-3">
+
+                          {/* Nombre, Uds./pack, Precio */}
                           <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-end">
                             <div>
-                              <label className="block text-xs text-gray-500 mb-1">Nombre</label>
+                              <label className="block text-xs text-gray-500 mb-1">Presentación</label>
                               <input
                                 placeholder='"Por unidad" o "Pack 6"'
                                 className="w-full border rounded px-2 py-1.5 text-sm"
@@ -629,11 +668,56 @@ export default function EditarProductoPage() {
                               </svg>
                             </button>
                           </div>
+
                           {f.unitLabel && f.price !== "" && f.unitsPerPack !== "" && Number(f.unitsPerPack) > 1 && (
-                            <p className="text-xs text-blue-600 mt-1.5">
+                            <p className="text-xs text-blue-600">
                               Precio/ud: <strong>${Math.round(Number(f.price) / Number(f.unitsPerPack)).toLocaleString("es-AR")}</strong>
                             </p>
                           )}
+
+                          {/* ✅ Colores disponibles */}
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Colores disponibles</label>
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {f.colors.map(color => (
+                                <span key={color} className="flex items-center gap-1 bg-gray-100 border border-gray-200 text-gray-700 text-xs px-2 py-1 rounded-full">
+                                  {color}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeColor(mIdx, fIdx, color)}
+                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex gap-2">
+                              <input
+                                placeholder="Ej: Negro, Titanio..."
+                                className="flex-1 border rounded px-2 py-1.5 text-sm"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    addColor(mIdx, fIdx, (e.target as HTMLInputElement).value);
+                                    (e.target as HTMLInputElement).value = "";
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  const input = (e.currentTarget.previousSibling as HTMLInputElement);
+                                  addColor(mIdx, fIdx, input.value);
+                                  input.value = "";
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors"
+                              >
+                                + Agregar
+                              </button>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">Presioná Enter o el botón para agregar cada color</p>
+                          </div>
                         </div>
                       ))}
                     </div>
