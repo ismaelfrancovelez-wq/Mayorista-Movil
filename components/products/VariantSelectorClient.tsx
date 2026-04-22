@@ -10,6 +10,7 @@ interface PurchaseFormat {
   unitLabel: string;
   unitsPerPack: number;
   price: number;
+  colors?: string[];
 }
 
 interface ProductMinimum {
@@ -78,6 +79,7 @@ function NewMinimumSelector({
 }: { minimums: ProductMinimum[] } & Omit<Props, "minimums" | "allVariants">) {
   const [selectedMinIdx, setSelectedMinIdx] = useState(0);
   const [selectedFmtIdx, setSelectedFmtIdx] = useState(0);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
 
   const selectedMin = minimums[selectedMinIdx] ?? minimums[0];
   const selectedFmt = selectedMin.formats[selectedFmtIdx] ?? selectedMin.formats[0];
@@ -86,6 +88,14 @@ function NewMinimumSelector({
   const minimumValue = selectedMin.value;
   const minimumType = selectedMin.type;
   const unitLabel = selectedFmt.unitLabel;
+  const colors = selectedFmt.colors ?? [];
+
+  // Resetear color cuando cambia la presentación
+  const handleSelectFormat = (mi: number, fi: number) => {
+    setSelectedMinIdx(mi);
+    setSelectedFmtIdx(fi);
+    setSelectedColor(null);
+  };
 
   const fastestMinIndices = new Set<number>();
   if (minimums.length >= 2) {
@@ -152,7 +162,7 @@ function NewMinimumSelector({
                     return (
                       <div key={fi} className="flex flex-col items-center gap-1">
                         <button
-                          onClick={() => { setSelectedMinIdx(mi); setSelectedFmtIdx(fi); }}
+                          onClick={() => handleSelectFormat(mi, fi)}
                           className={`
                             px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150
                             ${isSelectedFmt
@@ -183,6 +193,36 @@ function NewMinimumSelector({
         </div>
       </div>
 
+      {/* ✅ SELECTOR DE COLORES */}
+      {colors.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-2">
+            Color
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {colors.map((color) => {
+              const isSelected = selectedColor === color;
+              return (
+                <button
+                  key={color}
+                  onClick={() => setSelectedColor(isSelected ? null : color)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150 ${
+                    isSelected
+                      ? "bg-gray-900 text-white border-gray-900 shadow-sm"
+                      : "bg-white text-gray-700 border-gray-200 hover:border-gray-400 hover:text-gray-900"
+                  }`}
+                >
+                  {color}
+                </button>
+              );
+            })}
+          </div>
+          {!selectedColor && (
+            <p className="text-xs text-gray-400 mt-1.5">Seleccioná un color para tu pedido</p>
+          )}
+        </div>
+      )}
+
       {/* PRECIO DE LA SELECCIÓN */}
       <div className="mb-3">
         <p className="text-3xl font-light text-gray-900 leading-none">
@@ -192,6 +232,11 @@ function NewMinimumSelector({
         {selectedFmt.unitsPerPack > 1 && (
           <p className="text-xs text-gray-400 mt-1">
             ${Math.round(price / selectedFmt.unitsPerPack).toLocaleString("es-AR")} por unidad
+          </p>
+        )}
+        {selectedColor && (
+          <p className="text-xs text-gray-500 mt-1">
+            Color seleccionado: <strong>{selectedColor}</strong>
           </p>
         )}
       </div>
