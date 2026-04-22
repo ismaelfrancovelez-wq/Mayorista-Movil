@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     "unknown";
 
   try {
-    await limiter.check(10, ip);
+    await limiter.check(100, ip);
   } catch {
     return NextResponse.json(
       { error: "Demasiados intentos. Por favor, espera un minuto." },
