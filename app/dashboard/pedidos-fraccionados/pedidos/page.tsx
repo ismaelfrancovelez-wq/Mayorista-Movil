@@ -561,20 +561,20 @@ export default async function PedidosPage() {
 
                   {/* ── BARRA DE PROGRESO (solo mientras acumula) ── */}
                   {order.status === "accumulating" && order.lotProgress && (
-                    <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <div className="flex justify-between text-sm mb-2">
-                        <span className="font-medium text-purple-900">Progreso del lote</span>
-                        <span className="text-purple-700">
+                        <span className="font-medium text-blue-900">Progreso del lote</span>
+                        <span className="text-blue-700">
                           {order.lotProgress.currentQty} / {order.lotProgress.targetQty} unidades
                         </span>
                       </div>
-                      <div className="w-full bg-purple-200 rounded-full h-3 mb-2">
+                      <div className="w-full bg-blue-200 rounded-full h-3 mb-2">
                         <div
-                          className="bg-purple-600 h-3 rounded-full transition-all"
+                          className="bg-blue-600 h-3 rounded-full transition-all"
                           style={{ width: `${Math.min(order.lotProgress.percentage, 100)}%` }}
                         />
                       </div>
-                      <div className="flex justify-between text-xs text-purple-700">
+                      <div className="flex justify-between text-xs text-blue-700">
                         <span>{Math.round(order.lotProgress.percentage)}% completado</span>
                         <span>Faltan {order.lotProgress.remaining} unidades</span>
                       </div>
