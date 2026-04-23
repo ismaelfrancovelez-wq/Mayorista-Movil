@@ -466,17 +466,17 @@ export default async function PedidosPage() {
                 ? "Compra fraccionada"
                 : "Compra directa";
               const badgeColor = isReservaActiva
-                ? "bg-orange-100 text-orange-800"
+                ? "bg-gray-100 text-gray-600 border border-gray-300"
                 : isFraccionado
-                ? "bg-purple-100 text-purple-800"
-                : "bg-blue-100 text-blue-800";
+                ? "bg-gray-100 text-gray-600 border border-gray-300"
+                : "bg-gray-100 text-gray-600 border border-gray-300";
 
               // ── Badge de ESTADO ──────────────────────────────────────────
               let estadoLabel = "Completado";
               let estadoColor = "bg-green-100 text-green-800";
               if (order.status === "accumulating") {
                 estadoLabel = "En proceso";
-                estadoColor = "bg-yellow-100 text-yellow-800";
+                estadoColor = "bg-gray-100 text-gray-600 border border-gray-300";
               } else if (order.status === "lot_closed") {
                 const isPickupLot = order.lotType === "fractional_pickup" || order.lotType === "fraccionado_retiro";
                 estadoLabel = isPickupLot ? "Lote completo — pendiente de pago" : "A la espera de pagos";
