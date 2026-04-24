@@ -490,7 +490,15 @@ export default async function PedidosPage() {
                 order.status === "lot_closed";
 
               return (
-                <div key={order.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
+                <div
+  key={order.id}
+  className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow cursor-pointer"
+  onClick={(e) => {
+    // No navegar si clickearon un botón o link interno
+    if ((e.target as HTMLElement).closest('button, a')) return;
+    window.location.href = `/explorar/${order.productId}`;
+  }}
+>
 
                   {/* Header: nombre + badges + botón ocultar */}
                   <div className="flex justify-between items-start mb-4">
