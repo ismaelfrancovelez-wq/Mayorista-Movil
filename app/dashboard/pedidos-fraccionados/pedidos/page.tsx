@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { formatCurrency } from "../../../../lib/utils";
 import CancelReservationButton from "../../../../components/CancelReservationButton";
 import HideOrderButton from "../../../../components/HideOrderButton";
+import OrderCard from "../../../../components/OrderCard";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
@@ -490,15 +491,7 @@ export default async function PedidosPage() {
                 order.status === "lot_closed";
 
               return (
-                <div
-  key={order.id}
-  className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow cursor-pointer"
-  onClick={(e) => {
-    // No navegar si clickearon un botón o link interno
-    if ((e.target as HTMLElement).closest('button, a')) return;
-    window.location.href = `/explorar/${order.productId}`;
-  }}
->
+                <OrderCard key={order.id} productId={order.productId}>
 
                   {/* Header: nombre + badges + botón ocultar */}
                   <div className="flex justify-between items-start mb-4">
@@ -741,7 +734,7 @@ export default async function PedidosPage() {
                       </p>
                     )}
                   </div>
-                </div>
+                </OrderCard>
               );
             })}
           </div>
