@@ -336,41 +336,53 @@ export default async function ProductDetailPage({
                     </div>
                   </div>
 
-                  {progressData && (progressData.withShipping.MF > 0 || progressData.withoutShipping.MF > 0) && (
-                    <div className="bg-blue-50 rounded-lg p-3 mb-3">
-                      <h3 className="font-semibold text-xs mb-2 text-blue-900">📦 Progreso del lote</h3>
+                  {minimumOrder > 0 && (
+  <div className="bg-blue-50 rounded-lg p-3 mb-3">
+    <h3 className="font-semibold text-xs mb-2 text-blue-900">📦 Progreso del lote</h3>
 
-                      {progressData.withShipping.MF > 0 && (
-                        <div className="mb-2">
-                          <div className="flex justify-between text-xs text-gray-600 mb-1">
-                            <span>🚚 Con envío</span>
-                            <span>{progressData.withShipping.accumulatedQty} / {progressData.withShipping.MF} uds.</span>
-                          </div>
-                          <div className="w-full bg-blue-100 rounded-full h-2">
-                            <div
-                              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${progressData.withShipping.percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
+    {(allowFactoryShipping || (progressData?.withShipping?.MF ?? 0) > 0) && (
+      <div className="mb-2">
+        <div className="flex justify-between text-xs text-gray-600 mb-1">
+          <span>🚚 Con envío</span>
+          <span>
+            {progressData?.withShipping?.accumulatedQty ?? 0} /{" "}
+            {progressData?.withShipping?.MF > 0 ? progressData.withShipping.MF : minimumOrder} uds.
+          </span>
+        </div>
+        <div className="w-full bg-blue-100 rounded-full h-2">
+          <div
+            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${progressData?.withShipping?.percentage ?? 0}%` }}
+          />
+        </div>
+        {(progressData?.withShipping?.accumulatedQty ?? 0) === 0 && (
+          <p className="text-xs text-gray-400 mt-1">Sé el primero en sumarte al lote</p>
+        )}
+      </div>
+    )}
 
-                      {progressData.withoutShipping.MF > 0 && (
-                        <div>
-                          <div className="flex justify-between text-xs text-gray-600 mb-1">
-                            <span>🏪 Retiro</span>
-                            <span>{progressData.withoutShipping.accumulatedQty} / {progressData.withoutShipping.MF} uds.</span>
-                          </div>
-                          <div className="w-full bg-blue-100 rounded-full h-2">
-                            <div
-                              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${progressData.withoutShipping.percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+    {(allowPickup || (progressData?.withoutShipping?.MF ?? 0) > 0) && (
+      <div>
+        <div className="flex justify-between text-xs text-gray-600 mb-1">
+          <span>🏪 Retiro en fábrica</span>
+          <span>
+            {progressData?.withoutShipping?.accumulatedQty ?? 0} /{" "}
+            {progressData?.withoutShipping?.MF > 0 ? progressData.withoutShipping.MF : minimumOrder} uds.
+          </span>
+        </div>
+        <div className="w-full bg-blue-100 rounded-full h-2">
+          <div
+            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${progressData?.withoutShipping?.percentage ?? 0}%` }}
+          />
+        </div>
+        {(progressData?.withoutShipping?.accumulatedQty ?? 0) === 0 && (
+          <p className="text-xs text-gray-400 mt-1">Sé el primero en sumarte al lote</p>
+        )}
+      </div>
+    )}
+  </div>
+)}
 
                   <ProductPurchaseClient
                     price={product.price}
