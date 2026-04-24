@@ -2,6 +2,7 @@
 
 // components/products/VariantSelectorClient.tsx
 
+import LotProgressBar from "./LotProgressBar";
 import { useState } from "react";
 import ProductPurchaseClient from "./ProductPurchaseClient";
 
@@ -30,7 +31,6 @@ interface LegacyVariant {
 interface Props {
   minimums?: ProductMinimum[];   // nueva estructura
   allVariants: LegacyVariant[];  // estructura legacy (fallback)
-  progressData: any;
   productId: string;
   productName: string;
   factoryId: string;
@@ -67,7 +67,6 @@ function formatMinimumLabel(type: "quantity" | "amount", value: number): string 
 // ─────────────────────────────────────────────────────────────────────────────
 function NewMinimumSelector({
   minimums,
-  progressData,
   productId,
   productName,
   factoryId,
@@ -271,20 +270,13 @@ function NewMinimumSelector({
       </div>
 
       {/* PROGRESO FRACCIONADO */}
-      {progressData && progressData.accumulatedQty > 0 && (
-        <div className="bg-blue-50 rounded-lg p-3 mb-3">
-          <h3 className="font-semibold text-xs mb-1.5 text-blue-900">📦 Progreso Fraccionado</h3>
-          <p className="text-xs text-gray-600 mb-2">
-            {progressData.accumulatedQty} / {effectiveMF} unidades acumuladas
-          </p>
-          <div className="w-full bg-blue-100 rounded-full h-2">
-            <div
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${Math.min((progressData.accumulatedQty / effectiveMF) * 100, 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
+      <LotProgressBar
+  productId={productId}
+  minimumIndex={selectedMinIdx}
+  formatIndex={selectedFmtIdx}
+  allowPickup={allowPickup}
+  allowFactoryShipping={allowFactoryShipping}
+/>
 
       {/* ✅ FIX: sin {userId && (...)} — siempre se renderiza, userId controla solo el botón */}
       <ProductPurchaseClient
@@ -313,7 +305,6 @@ function NewMinimumSelector({
 // ─────────────────────────────────────────────────────────────────────────────
 function LegacyVariantSelector({
   allVariants,
-  progressData,
   productId,
   productName,
   factoryId,
@@ -426,21 +417,13 @@ function LegacyVariantSelector({
         </div>
       </div>
 
-      {progressData && progressData.accumulatedQty > 0 && (
-        <div className="bg-blue-50 rounded-lg p-3 mb-3">
-          <h3 className="font-semibold text-xs mb-1.5 text-blue-900">📦 Progreso Fraccionado</h3>
-          <p className="text-xs text-gray-600 mb-2">
-            {progressData.accumulatedQty} / {minimumOrder} unidades acumuladas
-            {unitLabel ? ` (${unitLabel} c/u)` : ""}
-          </p>
-          <div className="w-full bg-blue-100 rounded-full h-2">
-            <div
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${Math.min((progressData.accumulatedQty / minimumOrder) * 100, 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
+      <LotProgressBar
+  productId={productId}
+  minimumIndex={selectedIndex}
+  formatIndex={0}
+  allowPickup={allowPickup}
+  allowFactoryShipping={allowFactoryShipping}
+/>
 
       {/* ✅ FIX: sin {userId && (...)} — siempre se renderiza, userId controla solo el botón */}
       <ProductPurchaseClient

@@ -271,7 +271,6 @@ export default async function ProductDetailPage({
                 <VariantSelectorClient
                   minimums={minimums}
                   allVariants={allVariants}
-                  progressData={progressData}
                   productId={product.id}
                   productName={cleanName}
                   factoryId={product.factoryId}
