@@ -7,6 +7,7 @@
 //   A. Búsqueda del header pasa el término a /explorar?search=X
 //   B. Secciones vacías (Productos Destacados y Fábricas Destacadas) se ocultan si no hay datos
 //   C. Nombres de productos limpian SKUs internos [CODIGO] en el render
+// ✅ NUEVO: explainer aparece primero, dura 8s, resto 5s, botón de pausa
 
 'use client';
 
@@ -110,14 +111,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   otros: 'bg-gray-500',
 };
 
-// ✅ FIX C: helper para limpiar SKUs internos del nombre visible al usuario
-// Ej: "Cesto con Sensor 6L [KB-EB006L]" → "Cesto con Sensor 6L"
 function cleanProductName(name: string): string {
   return name.replace(/\s*\[[^\]]+\]\s*/g, '').trim();
 }
 
-// ✅ SSR: props pre-cargadas desde app/page.tsx (servidor)
-// Evita fetches en cliente para stats, productos y categorías
 type HomePrincipalProps = {
   initialStats?: PublicStats | null;
   initialProducts?: Product[];
@@ -133,17 +130,16 @@ export default function HomePrincipal({
 }: HomePrincipalProps) {
   const router = useRouter();
   const [currentBanner, setCurrentBanner] = useState(0);
+  const [isPaused, setIsPaused] = useState(false); // ✅ NUEVO
   const [scrollY, setScrollY] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ✅ SSR: inicializar con props del servidor — si llegan con datos no hay flash
   const [featuredProducts, setFeaturedProducts] = useState<FeaturedProduct[]>(initialFeaturedProducts);
   const [featuredFactories, setFeaturedFactories] = useState<FeaturedFactory[]>(initialFeaturedFactories);
   const [allProducts, setAllProducts] = useState<Product[]>(initialProducts);
   const [productLots, setProductLots] = useState<Record<string, LotData>>({});
 
-  // Si llegan datos del servidor, los estados de loading arrancan en false
   const [loadingFeaturedProducts, setLoadingFeaturedProducts] = useState(initialFeaturedProducts.length === 0);
   const [loadingFeaturedFactories, setLoadingFeaturedFactories] = useState(initialFeaturedFactories.length === 0);
   const [loadingAllProducts, setLoadingAllProducts] = useState(initialProducts.length === 0);
@@ -151,8 +147,6 @@ export default function HomePrincipal({
   const [stats, setStats] = useState<PublicStats | null>(initialStats);
   const [loadingStats, setLoadingStats] = useState(initialStats === null);
 
-  // ✅ NUEVO: testimonios — reemplazá con reales cuando los tengas
-  // Para actualizar: cambiá name, role, text e initial de cada objeto
   const testimonials = [
     {
       initial: 'L',
@@ -174,13 +168,10 @@ export default function HomePrincipal({
     },
   ];
 
-  // ✅ FIX A: ref para capturar el valor del input de búsqueda
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadAllData() {
-      // ✅ SSR: solo fetcheamos lo que NO llegó como prop desde el servidor
-      // auth siempre se fetchea en cliente (depende del cookie del usuario)
       const fetchList: Promise<any>[] = [fetch('/api/auth/me')];
       const needsFeaturedProducts  = initialFeaturedProducts.length === 0;
       const needsFeaturedFactories = initialFeaturedFactories.length === 0;
@@ -195,7 +186,6 @@ export default function HomePrincipal({
       const results = await Promise.allSettled(fetchList);
       let idx = 0;
 
-      // Auth — siempre el primero
       try {
         const authRes = results[idx++];
         if (authRes.status === 'fulfilled' && authRes.value.ok) {
@@ -272,7 +262,6 @@ export default function HomePrincipal({
     async function loadProductLots() {
       if (featuredProducts.length === 0) return;
 
-      // ✅ OPTIMIZACIÓN: Promise.all en vez de for loop secuencial
       const results = await Promise.all(
         featuredProducts.map(async (product) => {
           try {
@@ -301,6 +290,7 @@ export default function HomePrincipal({
     }
   }, [featuredProducts, loadingFeaturedProducts]);
 
+  // ✅ NUEVO: explainer (índice 0) dura 8s, el resto 5s. Se pausa con isPaused.
   const banners: Array<{
     title: string;
     subtitle: string;
@@ -309,6 +299,14 @@ export default function HomePrincipal({
     cta: string;
     type?: 'explainer';
   }> = [
+    {
+      title: '¿Cómo funciona?',
+      subtitle: 'Comprá en grupo, pagá solo tu parte.',
+      bgColor: 'from-violet-700 via-violet-800 to-purple-900',
+      image: '',
+      cta: 'Ver cómo funciona',
+      type: 'explainer'
+    },
     {
       title: '¡Pedidos desde 1 unidad!',
       subtitle: 'Comprá a precio de fábrica sin invertir grandes volúmenes.',
@@ -337,14 +335,6 @@ export default function HomePrincipal({
       image: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1200',
       cta: 'Ver Lotes'
     },
-    {
-      title: '¿Cómo funciona?',
-      subtitle: 'Comprá en grupo, pagá solo tu parte.',
-      bgColor: 'from-violet-700 via-violet-800 to-purple-900',
-      image: '',
-      cta: 'Ver cómo funciona',
-      type: 'explainer'
-    }
   ];
 
   const categories = Object.keys(CATEGORY_LABELS).map(key => ({
@@ -355,16 +345,18 @@ export default function HomePrincipal({
     count: allProducts.filter(p => p.category === key).length
   })).filter(cat => cat.count > 0);
 
+  // ✅ NUEVO: explainer (índice 0) dura 8s, resto 5s, se pausa con isPaused
   useEffect(() => {
+    if (isPaused) return;
+    const duration = currentBanner === 0 ? 8000 : 5000;
     const interval = setInterval(() => {
       setCurrentBanner((prev) => (prev + 1) % banners.length);
-    }, 5000);
+    }, duration);
     return () => clearInterval(interval);
-  }, [banners.length]);
+  }, [banners.length, currentBanner, isPaused]);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
-    // ✅ OPTIMIZACIÓN: passive: true mejora performance del scroll
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -420,7 +412,6 @@ export default function HomePrincipal({
               </Link>
 
               <div className="flex-1 max-w-2xl">
-                {/* ✅ FIX A: onSubmit ahora pasa el término de búsqueda a /explorar?search=X */}
                 <form onSubmit={(e) => {
                   e.preventDefault();
                   const term = searchInputRef.current?.value?.trim();
@@ -499,9 +490,7 @@ export default function HomePrincipal({
         </div>
       </section>
 
-      {/* ✅ NUEVO: TRUST BAR — contadores reales de la plataforma
-          Se oculta mientras carga. Si stats son 0 en todos, no se muestra.
-          Cuando tengas más datos reales, los números suben solos. */}
+      {/* TRUST BAR */}
       {!loadingStats && stats && (stats.lotsCompleted > 0 || stats.totalUsers > 0 || stats.verifiedFactories > 0) && (
         <section className="bg-white border-b border-gray-100 py-6">
           <div className="max-w-7xl mx-auto px-4">
@@ -538,7 +527,6 @@ export default function HomePrincipal({
             {banner.image && <img src={banner.image} alt={banner.title} className="w-full h-full object-cover mix-blend-overlay" />}
 
             {banner.type === 'explainer' ? (
-              /* Slide especial: explicación de pedidos fraccionados */
               <div className="absolute inset-0 flex items-center">
                 <div className="max-w-7xl mx-auto px-6 w-full">
                   <h2 className="text-3xl md:text-4xl font-black text-white mb-2 text-center">{banner.title}</h2>
@@ -569,7 +557,6 @@ export default function HomePrincipal({
                 </div>
               </div>
             ) : (
-              /* Slide estándar */
               <div className="absolute inset-0 flex items-center">
                 <div className="max-w-7xl mx-auto px-4 w-full">
                   <div className="max-w-2xl">
@@ -584,12 +571,26 @@ export default function HomePrincipal({
             )}
           </div>
         ))}
+
+        {/* DOTS */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-3 z-20">
           {banners.map((banner, index) => (
             <button key={index} onClick={() => setCurrentBanner(index)} className={`transition-all ${currentBanner === index ? 'bg-white w-8 h-3 rounded-full' : 'bg-white/50 hover:bg-white/75 w-3 h-3 rounded-full'}`} aria-label={`Ir a banner ${index + 1}: ${banner.title}`} title={banner.title} />
           ))}
         </div>
+
+        {/* NAVEGACIÓN */}
         <button onClick={() => setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length)} className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full p-3 transition-all z-20" aria-label="Banner anterior">←</button>
+
+        {/* ✅ NUEVO: botón pausa centrado arriba de los dots */}
+        <button
+          onClick={() => setIsPaused((prev) => !prev)}
+          className="absolute left-1/2 -translate-x-1/2 bottom-16 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full px-4 py-1.5 transition-all z-20 text-xs font-medium flex items-center gap-1.5"
+          aria-label={isPaused ? 'Reanudar' : 'Pausar'}
+        >
+          {isPaused ? '▶ Reanudar' : '⏸ Pausar'}
+        </button>
+
         <button onClick={() => setCurrentBanner((prev) => (prev + 1) % banners.length)} className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white rounded-full p-3 transition-all z-20" aria-label="Banner siguiente">→</button>
       </section>
 
@@ -626,7 +627,7 @@ export default function HomePrincipal({
         </div>
       </section>
 
-      {/* ✅ FIX B: PRODUCTOS DESTACADOS — solo se renderiza si hay datos o está cargando */}
+      {/* PRODUCTOS DESTACADOS */}
       {(loadingFeaturedProducts || featuredProducts.length > 0) && (
         <section className="max-w-7xl mx-auto px-4 mb-12">
           <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-2xl">
@@ -657,7 +658,6 @@ export default function HomePrincipal({
                   const progress = lotData?.progress || 0;
                   const accumulated = lotData?.accumulatedQty || 0;
                   const minimum = lotData?.MF || product.itemData.minimumOrder;
-                  // ✅ FIX C: limpiar SKU en el nombre mostrado
                   const displayName = cleanProductName(product.itemData.name);
                   return (
                     <Link key={product.id} href={`/explorar/${product.itemData.id}`}>
@@ -719,8 +719,7 @@ export default function HomePrincipal({
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">4</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Pago</h4>
-              <p className="text-gray-600">Una ves que el lote se completa, se te notificara dentro de la plataforma y por medio de WhatsApp, junto con un link de pago por correo electronico, para recordarte completar
-                 el pago.</p>
+              <p className="text-gray-600">Una ves que el lote se completa, se te notificara dentro de la plataforma y por medio de WhatsApp, junto con un link de pago por correo electronico, para recordarte completar el pago.</p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">5</span></div>
@@ -734,7 +733,7 @@ export default function HomePrincipal({
         </div>
       </section>
 
-      {/* ✅ FIX B: FÁBRICAS DESTACADAS — solo se renderiza si hay datos o está cargando */}
+      {/* FÁBRICAS DESTACADAS */}
       {(loadingFeaturedFactories || featuredFactories.length > 0) && (
         <section className="max-w-7xl mx-auto px-4 mb-12">
           <div className="flex items-center justify-between mb-6">
@@ -783,9 +782,7 @@ export default function HomePrincipal({
         </section>
       )}
 
-      {/* ✅ NUEVO: TESTIMONIOS
-          Para reemplazar con reales: editá el array "testimonials" arriba del return.
-          Cada objeto tiene: initial, name, role, text. */}
+      {/* TESTIMONIOS */}
       <section className="max-w-7xl mx-auto px-4 mb-12">
         <div className="text-center mb-8">
           <h3 className="text-3xl font-black text-gray-900 mb-2">Lo que dicen nuestros revendedores</h3>
@@ -794,13 +791,10 @@ export default function HomePrincipal({
         <div className="grid md:grid-cols-3 gap-6">
           {testimonials.map((t, i) => (
             <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col gap-4">
-              {/* Estrellas */}
               <div className="flex gap-1 text-yellow-400 text-sm">
                 {'★★★★★'.split('').map((s, j) => <span key={j}>{s}</span>)}
               </div>
-              {/* Texto */}
               <p className="text-gray-700 text-sm leading-relaxed flex-1">"{t.text}"</p>
-              {/* Autor */}
               <div className="flex items-center gap-3 pt-2 border-t border-gray-50">
                 <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
                   {t.initial}
