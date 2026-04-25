@@ -39,7 +39,8 @@ export default function LotProgressBar({
   const showShipping = allowFactoryShipping || data.withShipping.MF > 0;
   const showPickup = allowPickup || data.withoutShipping.MF > 0;
 
-  if (!showShipping && !showPickup) return null;
+  const hasAnyActivity = data.withShipping.accumulatedQty > 0 || data.withoutShipping.accumulatedQty > 0;
+if (!hasAnyActivity) return null;
 
   return (
     <div className="bg-blue-50 rounded-lg p-3 mb-3">

@@ -301,7 +301,7 @@ export default function HomePrincipal({
   }> = [
     {
       title: '¿Cómo funciona?',
-      subtitle: 'Comprá en grupo, pagá solo tu parte.',
+      subtitle: 'Comprá en grupo, pagá menos.',
       bgColor: 'from-violet-700 via-violet-800 to-purple-900',
       image: '',
       cta: 'Ver cómo funciona',
