@@ -533,10 +533,10 @@ export default function HomePrincipal({
                   <p className="text-white/80 text-center mb-6 md:mb-8 text-base md:text-lg">{banner.subtitle}</p>
                   <div className="grid grid-cols-4 gap-3 md:gap-6 mb-6">
                     {[
-                      { emoji: '🛒', step: '1', label: 'Elegí tu producto' },
-                      { emoji: '📋', step: '2', label: 'Reservá tu lugar' },
-                      { emoji: '⏳', step: '3', label: 'El lote se llena' },
-                      { emoji: '💰', step: '4', label: 'Pagás y recibís' },
+                      { emoji: '🛒', step: '1', label: 'Elegí tu producto, y selecciona compra directa o fraccionada' },
+                      { emoji: '📋', step: '2', label: 'Hace tu compra directa al instante, y recibi, o reservá para pagar luego' },
+                      { emoji: '⏳', step: '3', label: 'En compras fraccionadas* esperas a que se llegue al minimo de fabrica entre todos' },
+                      { emoji: '💰', step: '4', label: 'Cunado se llega al minimo pagás y recibís' },
                     ].map((item, i) => (
                       <div key={i} className="flex flex-col items-center text-center gap-2">
                         <div className="w-12 h-12 md:w-16 md:h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-2xl md:text-3xl border border-white/30">
