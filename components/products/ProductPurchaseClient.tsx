@@ -266,11 +266,11 @@ export default function ProductPurchaseClient({
   }, [userId, loadingMPStatus, mpConnected]);
 
   const productSubtotal = price * qty;
-  const MP_FEE = 0.04;
-const commission = isFraccionado ? Math.round(productSubtotal * MP_FEE) : 0;
+  // ✅ La comisión ya está incluida en el precio guardado en Firestore (4% aplicado al crear/editar)
+  const commission = 0;
   const totalToCharge = useMemo(
-    () => productSubtotal + commission + shippingCost,
-    [productSubtotal, commission, shippingCost]
+    () => productSubtotal + shippingCost,
+    [productSubtotal, shippingCost]
   );
 
   const shippingNeedsAddress = selectedShipping === "factory" || selectedShipping === "platform";

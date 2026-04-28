@@ -1,4 +1,5 @@
 // app/api/products/edit/route.ts
+// ✅ NUEVO: el precio se guarda con 4% de comisión ya aplicado
 
 import { NextResponse } from "next/server";
 import { requireSellerRole } from "../../../../lib/auth/requireRole";
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
                   .map((f: any) => ({
                     unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
                     unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
-                    price: Number(f.price),
+                    price: Math.round(Number(f.price) * 1.04), // ✅ 4% aplicado
                     colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
                   }))
                   .filter((f: any) => f.unitLabel && f.price > 0)
@@ -126,7 +127,7 @@ export async function POST(req: Request) {
       name: body.name.trim().substring(0, 100),
       nameLower: body.name.trim().substring(0, 100).toLowerCase(),
       description: body.description.trim().substring(0, 1000),
-      price: body.price,
+      price: Math.round(body.price * 1.04), // ✅ 4% aplicado
       minimumOrder: body.minimumOrder,
       netProfitPerUnit: body.netProfitPerUnit,
       category: body.category || "otros",

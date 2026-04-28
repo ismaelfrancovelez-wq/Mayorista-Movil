@@ -533,10 +533,10 @@ export default function HomePrincipal({
                   <p className="text-white/80 text-center mb-6 md:mb-8 text-base md:text-lg">{banner.subtitle}</p>
                   <div className="grid grid-cols-4 gap-3 md:gap-6 mb-6">
                     {[
-                      { emoji: '🛒', step: '1', label: 'Elegí tu producto, y selecciona compra directa o fraccionada' },
-                      { emoji: '📋', step: '2', label: 'Hace tu compra directa al instante, y recibi, o reservá para pagar luego' },
-                      { emoji: '⏳', step: '3', label: 'En compras fraccionadas* esperas a que se llegue al minimo de fabrica entre todos' },
-                      { emoji: '💰', step: '4', label: 'Cuando se llega al minimo pagás y recibís' },
+                      { emoji: '🛒', step: '1', label: 'Elegí tu producto, y selecciona compra directa o fraccionada.' },
+                      { emoji: '📋', step: '2', label: 'Hace tu compra directa al instante, y recibi, o reservá para pagar luego.' },
+                      { emoji: '⏳', step: '3', label: 'En compras fraccionadas* esperas a que se llegue al minimo de fabrica entre todos.' },
+                      { emoji: '💰', step: '4', label: 'Cuando se llega al minimo, pagás y recibís.' },
                     ].map((item, i) => (
                       <div key={i} className="flex flex-col items-center text-center gap-2">
                         <div className="w-12 h-12 md:w-16 md:h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-2xl md:text-3xl border border-white/30">
@@ -709,7 +709,7 @@ export default function HomePrincipal({
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">2</span></div>
               <h4 className="text-xl font-bold text-gray-900 mb-2">Reserva con compra fraccionada</h4>
-              <p className="text-gray-600">Cada fabrica/distribuidor o mayorista tiene un minimo para sus productos. Podras realizar compras menores a estos minimos. En compras de cantidades menores al minimo (compras fraccionadas), podras hacer la reserva de tu producto sin necesidad de pagar al instante. Cuando completas tu reserva, te unes a la barra de progreso junto a otros compradores para llegar al minimo de fabrica. </p>
+              <p className="text-gray-600">Cada fabrica/distribuidor o mayorista tiene un minimo para sus productos. En compras fraccionadas podras realizar compras menores a estos minimos. En compras de cantidades menores al minimo, podras hacer la reserva de tu producto sin necesidad de pagar al instante. Cuando completas tu reserva, te unes a la barra de progreso junto a otros compradores para llegar al minimo de fabrica. </p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-4xl mx-auto mb-4 transform hover:scale-110 transition-all shadow-xl"><span className="font-black text-white drop-shadow-md tracking-tight">3</span></div>

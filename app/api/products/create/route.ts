@@ -5,6 +5,7 @@
 //   - ✅ NUEVO: se guarda "nameLower" para poder hacer búsquedas por nombre
 //   - ✅ NUEVO: se guarda "retailReferencePrice" y "retailReferencePriceSource"
 //   - ✅ NUEVO: se guardan "colors" por presentación
+//   - ✅ NUEVO: el precio se guarda con 4% de comisión ya aplicado
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
                   .map((f: any) => ({
                     unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
                     unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
-                    price: Number(f.price),
+                    price: Math.round(Number(f.price) * 1.04), // ✅ 4% aplicado
                     colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
                   }))
                   .filter((f: any) => f.unitLabel && f.price > 0)
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
       nameLower: body.name.toLowerCase().trim(),
       description: body.description.trim(),
       unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim() ? body.unitLabel.trim().substring(0, 30) : null,
-      price: body.price,
+      price: Math.round(body.price * 1.04), // ✅ 4% aplicado
       minimumOrder: body.minimumOrder,
       netProfitPerUnit: body.netProfitPerUnit,
       category: body.category || "otros",
