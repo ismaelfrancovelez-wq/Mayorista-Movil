@@ -1,6 +1,10 @@
 "use client";
 
 // components/products/VariantSelectorClient.tsx
+// ✅ BLOQUE 5b: usa displayPrice (precio con 4% MP) cuando está disponible.
+// El componente recibe formats con campos {price, displayPrice, ...} y muestra
+// displayPrice al comprador. Si por alguna razón no hay displayPrice, usa price
+// como fallback (compatibilidad).
 
 import LotProgressBar from "./LotProgressBar";
 import { useState } from "react";
@@ -11,6 +15,7 @@ interface PurchaseFormat {
   unitLabel: string;
   unitsPerPack: number;
   price: number;
+  displayPrice?: number; // ✅ BLOQUE 5b
   colors?: string[];
 }
 
@@ -39,6 +44,11 @@ interface Props {
   hasFactoryAddress: boolean;
   noShipping: boolean;
   userId?: string;
+}
+
+// ✅ BLOQUE 5b: helper para obtener el precio publicado de un format
+function getFormatPrice(f: { price: number; displayPrice?: number }): number {
+  return typeof f.displayPrice === "number" && f.displayPrice > 0 ? f.displayPrice : f.price;
 }
 
 function extractUnits(unitLabel: string): number {
@@ -83,7 +93,8 @@ function NewMinimumSelector({
   const selectedMin = minimums[selectedMinIdx] ?? minimums[0];
   const selectedFmt = selectedMin.formats[selectedFmtIdx] ?? selectedMin.formats[0];
 
-  const price = selectedFmt.price;
+  // ✅ BLOQUE 5b: precio publicado (con 4% MP)
+  const price = getFormatPrice(selectedFmt);
   const minimumValue = selectedMin.value;
   const minimumType = selectedMin.type;
   const unitLabel = selectedFmt.unitLabel;
@@ -106,8 +117,12 @@ function NewMinimumSelector({
       .forEach(({ i }) => fastestMinIndices.add(i));
   }
 
+  // ✅ BLOQUE 5b: comparación "mejor precio/ud" usa displayPrice
   const allFormats = minimums.flatMap((m, mi) =>
-    m.formats.map((f, fi) => ({ mi, fi, pricePerUnit: f.price / f.unitsPerPack, unitsPerPack: f.unitsPerPack }))
+    m.formats.map((f, fi) => {
+      const dp = getFormatPrice(f);
+      return { mi, fi, pricePerUnit: dp / f.unitsPerPack, unitsPerPack: f.unitsPerPack };
+    })
   );
   const hasAnyPack = allFormats.some(f => f.unitsPerPack > 1);
   const eligibleFormats = hasAnyPack ? allFormats.filter(f => f.unitsPerPack > 1) : allFormats;
@@ -157,6 +172,8 @@ function NewMinimumSelector({
                   {m.formats.map((f, fi) => {
                     const isSelectedFmt = selectedMinIdx === mi && selectedFmtIdx === fi;
                     const isCheapest = cheapestFmt?.mi === mi && cheapestFmt?.fi === fi;
+                    // ✅ BLOQUE 5b: mostrar el precio publicado en el chip
+                    const fmtPrice = getFormatPrice(f);
 
                     return (
                       <div key={fi} className="flex flex-col items-center gap-1">
@@ -174,7 +191,7 @@ function NewMinimumSelector({
                         >
                           {f.unitLabel}
                           <span className={`ml-1.5 text-xs ${isSelectedFmt ? "text-blue-100" : "text-gray-400"}`}>
-                            ${f.price.toLocaleString("es-AR")}
+                            ${fmtPrice.toLocaleString("es-AR")}
                           </span>
                         </button>
                         {isCheapest && (
@@ -279,6 +296,7 @@ function NewMinimumSelector({
 />
 
       {/* ✅ FIX: sin {userId && (...)} — siempre se renderiza, userId controla solo el botón */}
+      {/* ✅ BLOQUE 5b: pasa el price publicado (con 4%) a ProductPurchaseClient */}
       <ProductPurchaseClient
         price={price}
         MF={effectiveMF}
@@ -318,6 +336,8 @@ function LegacyVariantSelector({
 
   const selected = allVariants[selectedIndex];
   const unitLabel = selected.unitLabel || null;
+  // ✅ BLOQUE 5b: en modo legacy, el componente padre (page.tsx) ya nos pasó
+  // displayPrice como `price` en el array allVariants, así que usamos directo.
   const price = selected.price;
   const minimumOrder = selected.minimumOrder;
 
@@ -375,7 +395,8 @@ function LegacyVariantSelector({
                 >
                   {label}
                   <span className={`ml-1.5 text-xs ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
-                   ${Math.round(v.price * 1.04).toLocaleString("es-AR")}
+                   {/* ✅ BLOQUE 5b: el price ya viene con 4% del page.tsx — sacar el *1.04 hardcoded */}
+                   ${v.price.toLocaleString("es-AR")}
                   </span>
                 </button>
                 <div className="flex flex-col items-center gap-0.5">
