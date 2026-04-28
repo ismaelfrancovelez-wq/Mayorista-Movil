@@ -6,13 +6,13 @@ import ExplorarClient from "./ExplorarClient";
 
 export const revalidate = 60;
 
-// ✅ FIX: PAGE_SIZE debe coincidir exactamente con el de explore/route.ts
 const PAGE_SIZE = 20;
 
 type Product = {
   id: string;
   name: string;
   price: number;
+  displayPrice?: number; // ✅ BLOQUE 4d: precio con 4% MP incluido
   minimumOrder: number;
   category: ProductCategory;
   featured: boolean;
@@ -24,10 +24,10 @@ type Product = {
   isIntermediary?: boolean;
   unitLabel?: string;
   sellerType?: SellerType;
-  variants?: { unitLabel: string; price: number; minimumOrder: number }[];
+  variants?: { unitLabel: string; price: number; displayPrice?: number; minimumOrder: number }[]; // ✅ BLOQUE 4d
   stock?: number | null;
   accumulatedQty?: number;
-  retailReferencePrice?: number | null; // ✅ AGREGADO
+  retailReferencePrice?: number | null;
 };
 
 type RetailerPanelData = {
@@ -88,7 +88,6 @@ async function getRetailerPanelData(): Promise<RetailerPanelData | null> {
 
 async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boolean }> {
   try {
-    // ✅ FIX: pedir PAGE_SIZE+1 para detectar si hay más, no PAGE_SIZE*3
     const snap = await db
       .collection("products")
       .where("active", "==", true)
@@ -98,9 +97,7 @@ async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boo
 
     if (snap.empty) return { products: [], hasMore: false };
 
-    // ✅ FIX: hasMore = si trajo más de PAGE_SIZE docs
     const hasMore = snap.docs.length > PAGE_SIZE;
-    // ✅ FIX: solo procesar los primeros PAGE_SIZE docs
     const docs = hasMore ? snap.docs.slice(0, PAGE_SIZE) : snap.docs;
 
     const productIds = docs.map((doc) => doc.id);
@@ -191,6 +188,7 @@ async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boo
         id: doc.id,
         name: data.name || "Producto",
         price: data.price || 0,
+        displayPrice: typeof data.displayPrice === "number" ? data.displayPrice : undefined, // ✅ BLOQUE 4d
         minimumOrder: data.minimumOrder || 0,
         category: (data.category || "otros") as ProductCategory,
         featured: data.featured || false,
@@ -209,12 +207,10 @@ async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boo
         variants: Array.isArray(data.variants) ? data.variants : [],
         stock: data.stock !== undefined ? data.stock : null,
         accumulatedQty: accumulatedMap.get(doc.id) || 0,
-        // ✅ AGREGADO
         retailReferencePrice: data.retailReferencePrice ?? null,
       };
     });
 
-    // Ordenar por actividad (lotes en curso primero)
     products.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0));
 
     return { products, hasMore };
