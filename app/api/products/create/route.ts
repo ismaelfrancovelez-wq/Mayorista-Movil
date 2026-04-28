@@ -1,11 +1,14 @@
 // app/api/products/create/route.ts
-// ✅ MODIFICADO:
-//   - stock=0 ya NO desactiva el producto (active siempre es true)
-//   - El badge "Sin stock" lo muestra el frontend en ExplorarClient
-//   - ✅ NUEVO: se guarda "nameLower" para poder hacer búsquedas por nombre
-//   - ✅ NUEVO: se guarda "retailReferencePrice" y "retailReferencePriceSource"
-//   - ✅ NUEVO: se guardan "colors" por presentación
-//   - ✅ NUEVO: el precio se guarda con 4% de comisión ya aplicado
+// ✅ NUEVO MODELO DE PRECIOS:
+//   - price = precio base (sin comisión, lo que escribe el vendedor)
+//   - displayPrice = price × 1.04 (lo que ven los compradores y se cobra)
+//   - Lo mismo para minimums[].formats[]: price (base) + displayPrice (con 4%)
+//
+// Otros comportamientos (sin cambios):
+//   - stock=0 NO desactiva el producto (active siempre es true)
+//   - "nameLower" para búsquedas por nombre
+//   - "retailReferencePrice" + "retailReferencePriceSource" (precio minorista)
+//   - "colors" por presentación
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -14,6 +17,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { validateShippingConfig } from "../../../../lib/shipping/validateShippingConfig";
 import rateLimit from "../../../../lib/rate-limit";
 
+const COMMISSION_RATE = 1.04;
 const limiter = rateLimit({ interval: 60 * 1000, uniqueTokenPerInterval: 500 });
 
 export async function POST(req: Request) {
@@ -70,7 +74,6 @@ export async function POST(req: Request) {
       stockValue = parsedStock;
     }
 
-    // ✅ NUEVO: validar precio minorista si viene en el body
     let retailReferencePriceValue: number | null = null;
     if (body.retailReferencePrice !== null && body.retailReferencePrice !== undefined && body.retailReferencePrice !== "") {
       const parsed = Number(body.retailReferencePrice);
@@ -83,7 +86,7 @@ export async function POST(req: Request) {
     if (!body.shipping) return NextResponse.json({ error: "Falta configuración de envío" }, { status: 400 });
     validateShippingConfig(body.shipping);
 
-    // Limpiar y validar minimums
+    // Limpiar y validar minimums — guardar BASE + DISPLAY para cada format
     const cleanMinimums = Array.isArray(body.minimums)
       ? body.minimums
           .map((m: any) => ({
@@ -91,17 +94,23 @@ export async function POST(req: Request) {
             value: Number(m.value),
             formats: Array.isArray(m.formats)
               ? m.formats
-                  .map((f: any) => ({
-                    unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
-                    unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
-                    price: Math.round(Number(f.price) * 1.04), // ✅ 4% aplicado
-                    colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
-                  }))
+                  .map((f: any) => {
+                    const basePrice = Math.round(Number(f.price));
+                    return {
+                      unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
+                      unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
+                      price: basePrice, // ✅ base
+                      displayPrice: Math.round(basePrice * COMMISSION_RATE), // ✅ con 4%
+                      colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
+                    };
+                  })
                   .filter((f: any) => f.unitLabel && f.price > 0)
               : [],
           }))
           .filter((m: any) => m.value > 0 && m.formats.length > 0)
       : [];
+
+    const basePrice = Math.round(body.price);
 
     const productRef = await db.collection("products").add({
       factoryId,
@@ -110,7 +119,8 @@ export async function POST(req: Request) {
       nameLower: body.name.toLowerCase().trim(),
       description: body.description.trim(),
       unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim() ? body.unitLabel.trim().substring(0, 30) : null,
-      price: Math.round(body.price * 1.04), // ✅ 4% aplicado
+      price: basePrice, // ✅ base
+      displayPrice: Math.round(basePrice * COMMISSION_RATE), // ✅ con 4%
       minimumOrder: body.minimumOrder,
       netProfitPerUnit: body.netProfitPerUnit,
       category: body.category || "otros",
