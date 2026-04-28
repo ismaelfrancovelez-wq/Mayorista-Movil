@@ -15,6 +15,7 @@ export type ClosingSoonLot = {
   productId: string;
   productName: string;
   productPrice: number;
+  productDisplayPrice?: number; // ✅ BLOQUE 4: precio publicado (con 4% MP)
   minimumOrder: number;
   accumulatedQty: number;
   progress: number; // 0 a 1
@@ -60,6 +61,7 @@ export async function GET() {
     const productMap: Record<string, {
       name: string;
       price: number;
+      displayPrice: number; // ✅ BLOQUE 4
       minimumOrder: number;
       imageUrls?: string[];
       factoryId?: string;
@@ -79,6 +81,7 @@ export async function GET() {
         productMap[doc.id] = {
           name: d.name || "Producto",
           price: d.price || 0,
+          displayPrice: d.displayPrice || 0, // ✅ BLOQUE 4: precio con 4% MP
           minimumOrder: d.minimumOrder || 0,
           imageUrls: Array.isArray(d.imageUrls) ? d.imageUrls : undefined,
           factoryId: d.factoryId || undefined,
@@ -141,6 +144,7 @@ export async function GET() {
           productId,
           productName: product.name,
           productPrice: product.price,
+          productDisplayPrice: product.displayPrice || undefined, // ✅ BLOQUE 4
           minimumOrder: minimum,
           accumulatedQty: accumulated,
           progress: Math.min(progress, 1),

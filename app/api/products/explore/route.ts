@@ -182,6 +182,7 @@ export async function GET(req: Request) {
         id: doc.id,
         name: data.name,
         price: data.price,
+        displayPrice: data.displayPrice ?? null, // ✅ BLOQUE 4: precio con 4% MP
         minimumOrder: data.minimumOrder,
         category: normalizedCategory,
         factoryId,
