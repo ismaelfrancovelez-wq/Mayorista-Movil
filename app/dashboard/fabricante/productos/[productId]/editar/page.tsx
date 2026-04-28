@@ -13,12 +13,12 @@ function sanitizeText(text: string, maxLength: number = 100): string {
 }
 
 interface FormatForm {
-  presetId: string;       // which preset button is selected, or "custom"
-  packQty: number | "";   // only used when presetId === "pack"
-  unitLabel: string;      // auto-filled by preset, or manual if custom
+  presetId: string;
+  packQty: number | "";
+  unitLabel: string;
   unitsPerPack: number | "";
   price: number | "";
-  colors: string[];       // ✅ colores disponibles para esta presentación
+  colors: string[];
 }
 
 const FORMAT_PRESETS = [
@@ -76,7 +76,6 @@ export default function EditarProductoPage() {
     { type: "quantity", value: "", formats: [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "", colors: [] }] },
   ]);
 
-  // ── Handlers de mínimos ───────────────────────────────────────────────────
   const addMinimum = () => {
     setMinimums(prev => [...prev, {
       type: "quantity", value: "",
@@ -124,7 +123,6 @@ export default function EditarProductoPage() {
     }));
   };
 
-  // ✅ Handlers de colores
   const addColor = (mIdx: number, fIdx: number, color: string) => {
     const trimmed = color.trim();
     if (!trimmed) return;
@@ -228,9 +226,10 @@ export default function EditarProductoPage() {
           setRetailReferencePrice(product.retailReferencePrice);
         }
 
-        // Cargar minimums: si el producto ya tiene la nueva estructura, usarla.
-        // Si no, convertir desde la estructura antigua (price + minimumOrder + variants).
         if (Array.isArray(product.minimums) && product.minimums.length > 0) {
+          // ✅ BLOQUE 8: lee f.price (BASE, sin 4%) — NUNCA f.displayPrice.
+          // Si por error leyera displayPrice, al guardar el endpoint le aplicaría
+          // otro 4% y los precios se inflarían en cada edición.
           setMinimums(product.minimums.map((m: any) => ({
             type: m.type === "amount" ? "amount" : "quantity",
             value: m.value || "",
@@ -240,13 +239,13 @@ export default function EditarProductoPage() {
                   packQty: "",
                   unitLabel: f.unitLabel || "",
                   unitsPerPack: f.unitsPerPack || 1,
-                  price: f.price || "",
+                  price: f.price || "", // ✅ BLOQUE 8: precio BASE
                   colors: Array.isArray(f.colors) ? f.colors : [],
                 }))
               : [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "", colors: [] }],
           })));
         } else {
-          // Migración desde estructura antigua: base + variants → minimums
+          // ✅ BLOQUE 8: misma regla acá — usa product.price (BASE), no displayPrice
           const base: MinimumForm = {
             type: "quantity",
             value: product.minimumOrder || "",
@@ -255,7 +254,7 @@ export default function EditarProductoPage() {
               packQty: "",
               unitLabel: product.unitLabel || "Por unidad",
               unitsPerPack: 1,
-              price: product.price || "",
+              price: product.price || "", // ✅ BLOQUE 8: precio BASE
               colors: [],
             }],
           };
@@ -268,7 +267,7 @@ export default function EditarProductoPage() {
                   packQty: "",
                   unitLabel: v.unitLabel || "",
                   unitsPerPack: 1,
-                  price: v.price || "",
+                  price: v.price || "", // ✅ BLOQUE 8: precio BASE
                   colors: [],
                 }],
               }))
@@ -431,13 +430,16 @@ export default function EditarProductoPage() {
 
       const finalImageUrls = [...existingImageUrls, ...newImageUrls];
 
+      // ✅ BLOQUE 8: mandamos los precios BASE al endpoint.
+      // El endpoint (/api/products/edit) le aplica el 4% y guarda price + displayPrice.
+      // Si por error mandáramos displayPrice acá, el endpoint volvería a aplicar 4%.
       const cleanMinimums = minimums.map(m => ({
         type: m.type,
         value: Number(m.value),
         formats: m.formats.map(f => ({
           unitLabel: f.unitLabel.trim().substring(0, 30),
           unitsPerPack: Number(f.unitsPerPack),
-          price: Number(f.price),
+          price: Number(f.price), // ✅ BLOQUE 8: precio BASE
           colors: f.colors || [],
         })),
       }));
@@ -453,7 +455,7 @@ export default function EditarProductoPage() {
           productId,
           name: sanitizedName,
           description: sanitizedDescription,
-          price: firstFormat?.price ?? 0,
+          price: firstFormat?.price ?? 0, // ✅ BLOQUE 8: precio BASE
           minimumOrder: firstMinimum?.type === "quantity" ? firstMinimum.value : 1,
           unitLabel: firstFormat?.unitLabel ?? "",
           netProfitPerUnit: Number(netProfitPerUnit),
@@ -489,6 +491,8 @@ export default function EditarProductoPage() {
   }
 
   const firstFormatPrice = Number(minimums[0]?.formats[0]?.price ?? 0);
+  // ✅ BLOQUE 8: precio publicado (con 4% MP) calculado a partir del base
+  const firstFormatDisplayPrice = Math.round(firstFormatPrice * 1.04);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -620,7 +624,11 @@ export default function EditarProductoPage() {
                       Presentaciones disponibles para este mínimo
                     </p>
                     <div className="space-y-2">
-                      {m.formats.map((f, fIdx) => (
+                      {m.formats.map((f, fIdx) => {
+                        // ✅ BLOQUE 8: muestra precio publicado debajo del input
+                        const fPriceNum = Number(f.price) || 0;
+                        const fDisplayPrice = Math.round(fPriceNum * 1.04);
+                        return (
                         <div key={fIdx} className="bg-white border border-gray-100 rounded-lg p-3 space-y-3">
 
                           {/* Nombre, Uds./pack, Precio */}
@@ -647,7 +655,7 @@ export default function EditarProductoPage() {
                               />
                             </div>
                             <div>
-                              <label className="block text-xs text-gray-500 mb-1">Precio</label>
+                              <label className="block text-xs text-gray-500 mb-1">Tu precio (sin comisión)</label>
                               <input
                                 type="number"
                                 placeholder="5000"
@@ -669,13 +677,23 @@ export default function EditarProductoPage() {
                             </button>
                           </div>
 
-                          {f.unitLabel && f.price !== "" && f.unitsPerPack !== "" && Number(f.unitsPerPack) > 1 && (
-                            <p className="text-xs text-blue-600">
-                              Precio/ud: <strong>${Math.round(Number(f.price) / Number(f.unitsPerPack)).toLocaleString("es-AR")}</strong>
-                            </p>
+                          {/* ✅ BLOQUE 8: precio publicado (lo que ve el comprador) */}
+                          {fPriceNum > 0 && (
+                            <div className="text-xs space-y-0.5">
+                              <p className="text-gray-700">
+                                💰 Precio publicado al comprador:{" "}
+                                <strong className="text-blue-700">${fDisplayPrice.toLocaleString("es-AR")}</strong>
+                                <span className="text-gray-400"> (incluye 4% MP)</span>
+                              </p>
+                              {f.unitsPerPack !== "" && Number(f.unitsPerPack) > 1 && (
+                                <p className="text-blue-600">
+                                  Precio/ud para vos: <strong>${Math.round(fPriceNum / Number(f.unitsPerPack)).toLocaleString("es-AR")}</strong>
+                                </p>
+                              )}
+                            </div>
                           )}
 
-                          {/* ✅ Colores disponibles */}
+                          {/* Colores disponibles */}
                           <div>
                             <label className="block text-xs text-gray-500 mb-1">Colores disponibles</label>
                             <div className="flex flex-wrap gap-1.5 mb-2">
@@ -719,7 +737,8 @@ export default function EditarProductoPage() {
                             <p className="text-xs text-gray-400 mt-1">Presioná Enter o el botón para agregar cada color</p>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     <button
                       type="button"
@@ -749,8 +768,8 @@ export default function EditarProductoPage() {
 
             {firstFormatPrice > 0 && (
               <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                💳 El comprador pagará un <strong>4% adicional</strong> por comisión de Mercado Pago.
-                <span> Ej: $<strong>{firstFormatPrice.toLocaleString("es-AR")}</strong> → el comprador paga $<strong>{Math.round(firstFormatPrice * 1.04).toLocaleString("es-AR")}</strong>.</span>
+                💳 Vos cargás precios <strong>sin comisión</strong>. La plataforma le suma <strong>4%</strong> al comprador (comisión Mercado Pago) y te transfiere el monto neto.
+                <span> Ej: cargás $<strong>{firstFormatPrice.toLocaleString("es-AR")}</strong> → el comprador paga $<strong>{firstFormatDisplayPrice.toLocaleString("es-AR")}</strong>.</span>
               </div>
             )}
           </div>
@@ -778,10 +797,11 @@ export default function EditarProductoPage() {
               </button>
             </div>
             {mlMessage && <p className="text-xs mt-2 text-gray-600">{mlMessage}</p>}
-            {retailReferencePrice !== "" && firstFormatPrice > 0 && Number(retailReferencePrice) > firstFormatPrice && (
+            {/* ✅ BLOQUE 8: comparar contra displayPrice (lo que ve el comprador), no contra el base */}
+            {retailReferencePrice !== "" && firstFormatDisplayPrice > 0 && Number(retailReferencePrice) > firstFormatDisplayPrice && (
               <p className="text-xs mt-2 text-green-600 font-medium">
                 💡 Tus compradores van a ver que ahorran un{" "}
-                {Math.round(((Number(retailReferencePrice) - firstFormatPrice) / Number(retailReferencePrice)) * 100)}%
+                {Math.round(((Number(retailReferencePrice) - firstFormatDisplayPrice) / Number(retailReferencePrice)) * 100)}%
                 respecto al precio minorista.
               </p>
             )}
