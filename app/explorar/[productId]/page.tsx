@@ -3,6 +3,7 @@
 // ✅ FIX: agregado generateMetadata para SEO por producto
 // ✅ FIX: ProductPurchaseClient siempre visible — auth-gate solo en el botón
 // ✅ NUEVO: muestra precio minorista de referencia con badge de ahorro
+// ✅ BLOQUE 5: usa displayPrice (precio con 4% MP) para mostrar y cobrar al comprador
 
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
@@ -15,6 +16,12 @@ import Link from "next/link";
 import VariantSelectorClient from "../../../components/products/VariantSelectorClient";
 
 export const revalidate = 30;
+
+// ✅ BLOQUE 5: helper que devuelve el precio publicado (con 4% MP) si existe,
+// si no, fallback al price base.
+function getDisplayPrice(p: { price: number; displayPrice?: number | null }): number {
+  return typeof p.displayPrice === "number" && p.displayPrice > 0 ? p.displayPrice : p.price;
+}
 
 async function getProduct(
   productId: string
@@ -40,7 +47,9 @@ export async function generateMetadata({
   }
 
   const name = (product.name || "Producto").replace(/\s*\[[^\]]+\]\s*/g, "").trim();
-  const price = product.price?.toLocaleString("es-AR") ?? "";
+  // ✅ BLOQUE 5: SEO también muestra el precio publicado
+  const displayPrice = getDisplayPrice(product as any);
+  const price = displayPrice?.toLocaleString("es-AR") ?? "";
   const minimumOrder = product.minimumOrder ?? 0;
   const category = (product as any).category ?? "";
 
@@ -154,6 +163,9 @@ export default async function ProductDetailPage({
 
   const minimumOrder = Number(product.minimumOrder) || 0;
 
+  // ✅ BLOQUE 5: precio publicado (con 4% MP) — el que ve y paga el comprador
+  const displayPrice = getDisplayPrice(product as any);
+
   const images: string[] =
     Array.isArray((product as any).imageUrls) && (product as any).imageUrls.length > 0
       ? (product as any).imageUrls
@@ -173,17 +185,22 @@ export default async function ProductDetailPage({
     sellerInfo?.address?.lat
   );
 
-  const variants: { unitLabel: string; price: number; minimumOrder: number }[] =
+  const variants: { unitLabel: string; price: number; displayPrice?: number; minimumOrder: number }[] =
     Array.isArray((product as any).variants) ? (product as any).variants : [];
 
+  // ✅ BLOQUE 5: allVariants pasa el displayPrice (con 4%) en lugar de price base
   const allVariants = [
     {
       unitLabel: unitLabel || "",
-      price: product.price,
+      price: displayPrice,
       minimumOrder: minimumOrder,
       isBase: true,
     },
-    ...variants.map(v => ({ ...v, isBase: false })),
+    ...variants.map(v => ({
+      ...v,
+      price: typeof v.displayPrice === "number" && v.displayPrice > 0 ? v.displayPrice : v.price,
+      isBase: false,
+    })),
   ];
 
   const minimums: any[] | undefined = Array.isArray((product as any).minimums) && (product as any).minimums.length > 0
@@ -192,11 +209,11 @@ export default async function ProductDetailPage({
 
   const hasVariants = variants.length > 0 || !!minimums;
 
-  // ✅ NUEVO: precio minorista de referencia
+  // ✅ BLOQUE 5: precio minorista compara contra displayPrice (con 4%)
   const retailReferencePrice: number | null = (product as any).retailReferencePrice ?? null;
-  const hasRetailPrice = retailReferencePrice !== null && retailReferencePrice > product.price;
+  const hasRetailPrice = retailReferencePrice !== null && retailReferencePrice > displayPrice;
   const savingsPercent = hasRetailPrice
-    ? Math.round(((retailReferencePrice! - product.price) / retailReferencePrice!) * 100)
+    ? Math.round(((retailReferencePrice! - displayPrice) / retailReferencePrice!) * 100)
     : 0;
 
   const sellerBadgeColors: Record<string, string> = {
@@ -284,8 +301,9 @@ export default async function ProductDetailPage({
                 <>
                   {/* ✅ BLOQUE DE PRECIO CON COMPARACIÓN MINORISTA */}
                   <div className="mb-3">
+                    {/* ✅ BLOQUE 5: muestra displayPrice (con 4% MP incluido) */}
                     <p className="text-3xl font-light text-gray-900 leading-none">
-                      ${product.price.toLocaleString("es-AR")}
+                      ${displayPrice.toLocaleString("es-AR")}
                       {unitLabel && (
                         <span className="text-base font-normal text-gray-500 ml-1">
                           / {unitLabel}
@@ -326,11 +344,12 @@ export default async function ProductDetailPage({
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3">
                       <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Precio mínimo total</p>
+                      {/* ✅ BLOQUE 5: total con displayPrice (con 4%) */}
                       <p className="text-xl font-semibold text-gray-900">
-                        ${(product.price * minimumOrder).toLocaleString("es-AR")}
+                        ${(displayPrice * minimumOrder).toLocaleString("es-AR")}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {minimumOrder} × ${product.price.toLocaleString("es-AR")}
+                        {minimumOrder} × ${displayPrice.toLocaleString("es-AR")}
                       </p>
                     </div>
                   </div>
@@ -383,8 +402,10 @@ export default async function ProductDetailPage({
   </div>
 )}
 
+                  {/* ✅ BLOQUE 5: pasa displayPrice como precio para que ProductPurchaseClient
+                      calcule el total y cobre con 4% incluido */}
                   <ProductPurchaseClient
-                    price={product.price}
+                    price={displayPrice}
                     MF={minimumOrder}
                     productId={product.id}
                     productName={cleanName}
