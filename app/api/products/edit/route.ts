@@ -1,5 +1,12 @@
 // app/api/products/edit/route.ts
-// ✅ NUEVO: el precio se guarda con 4% de comisión ya aplicado
+// ✅ NUEVO MODELO DE PRECIOS:
+//   - price = precio base (sin comisión, lo que escribe el vendedor en el form)
+//   - displayPrice = price × 1.04 (lo que ven los compradores y se cobra)
+//   - Mismo patrón para minimums[].formats[]: price (base) + displayPrice (con 4%)
+//
+// IDEMPOTENTE: el form siempre manda el price base. Editar el nombre/descripción
+// 100 veces no infla el precio porque el endpoint solo recalcula displayPrice
+// a partir del price recibido.
 
 import { NextResponse } from "next/server";
 import { requireSellerRole } from "../../../../lib/auth/requireRole";
@@ -8,6 +15,7 @@ import { db } from "../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import rateLimit from "../../../../lib/rate-limit";
 
+const COMMISSION_RATE = 1.04;
 const limiter = rateLimit({
   interval: 60 * 1000,
   uniqueTokenPerInterval: 500,
@@ -72,6 +80,7 @@ export async function POST(req: Request) {
 
     validateShippingConfig(body.shipping);
 
+    // Limpiar y validar minimums — guardar BASE + DISPLAY para cada format
     const cleanMinimums = Array.isArray(body.minimums)
       ? body.minimums
           .map((m: any) => ({
@@ -79,12 +88,16 @@ export async function POST(req: Request) {
             value: Number(m.value),
             formats: Array.isArray(m.formats)
               ? m.formats
-                  .map((f: any) => ({
-                    unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
-                    unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
-                    price: Math.round(Number(f.price) * 1.04), // ✅ 4% aplicado
-                    colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
-                  }))
+                  .map((f: any) => {
+                    const basePrice = Math.round(Number(f.price));
+                    return {
+                      unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
+                      unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
+                      price: basePrice, // ✅ base
+                      displayPrice: Math.round(basePrice * COMMISSION_RATE), // ✅ con 4%
+                      colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
+                    };
+                  })
                   .filter((f: any) => f.unitLabel && f.price > 0)
               : [],
           }))
@@ -103,8 +116,8 @@ export async function POST(req: Request) {
       stockValue = parsedStock;
     }
 
-    // ✅ precio minorista de referencia
-    // Si viene null o vacío → se borra (el fabricante lo eliminó)
+    // Precio minorista de referencia
+    // Si viene null o vacío → se borra
     // Si viene un número > 0 → se guarda como "manual"
     // Si no viene en el body (undefined) → no se toca lo que ya había
     let retailPriceUpdate: Record<string, any> = {};
@@ -123,11 +136,14 @@ export async function POST(req: Request) {
       }
     }
 
+    const basePrice = Math.round(body.price);
+
     await productRef.update({
       name: body.name.trim().substring(0, 100),
       nameLower: body.name.trim().substring(0, 100).toLowerCase(),
       description: body.description.trim().substring(0, 1000),
-      price: Math.round(body.price * 1.04), // ✅ 4% aplicado
+      price: basePrice, // ✅ base
+      displayPrice: Math.round(basePrice * COMMISSION_RATE), // ✅ con 4%
       minimumOrder: body.minimumOrder,
       netProfitPerUnit: body.netProfitPerUnit,
       category: body.category || "otros",
