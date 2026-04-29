@@ -5,6 +5,7 @@
 // Todos los niveles pueden VER la página.
 // Nadie puede reservar directamente desde acá — se redirige al
 // producto individual donde el reserve-route aplica las reglas de nivel.
+// ✅ BLOQUE 4f: usa displayPrice (precio con 4% MP) para mostrar al comprador
 
 import Link from "next/link";
 import { db } from "../../../lib/firebase-admin";
@@ -16,6 +17,7 @@ type ClosingSoonLot = {
   productId: string;
   productName: string;
   productPrice: number;
+  productDisplayPrice?: number; // ✅ BLOQUE 4f
   minimumOrder: number;
   accumulatedQty: number;
   percentage: number;
@@ -50,7 +52,7 @@ async function getClosingSoonLots(): Promise<ClosingSoonLot[]> {
     ] as string[];
 
     const productMap: Record<string, {
-      name: string; price: number; minimumOrder: number;
+      name: string; price: number; displayPrice: number; minimumOrder: number; // ✅ BLOQUE 4f
       imageUrls?: string[]; factoryId?: string;
     }> = {};
 
@@ -62,6 +64,7 @@ async function getClosingSoonLots(): Promise<ClosingSoonLot[]> {
         productMap[doc.id] = {
           name: d.name || "Producto",
           price: d.price || 0,
+          displayPrice: d.displayPrice || 0, // ✅ BLOQUE 4f: precio con 4% MP
           minimumOrder: d.minimumOrder || 0,
           imageUrls: Array.isArray(d.imageUrls) ? d.imageUrls : undefined,
           factoryId: d.factoryId || undefined,
@@ -104,6 +107,7 @@ async function getClosingSoonLots(): Promise<ClosingSoonLot[]> {
           productId: d.productId,
           productName: product.name,
           productPrice: product.price,
+          productDisplayPrice: product.displayPrice || undefined, // ✅ BLOQUE 4f
           minimumOrder: minimum,
           accumulatedQty: accumulated,
           percentage: Math.min(Math.round(progress * 100), 100),
@@ -213,6 +217,11 @@ function LotCard({ lot }: { lot: ClosingSoonLot }) {
 
   const remainingUnits = lot.minimumOrder - lot.accumulatedQty;
 
+  // ✅ BLOQUE 4f: precio que ve el comprador (con 4% MP). Fallback a price si no hay displayPrice.
+  const priceToShow = typeof lot.productDisplayPrice === "number" && lot.productDisplayPrice > 0
+    ? lot.productDisplayPrice
+    : lot.productPrice;
+
   return (
     <div className={`bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col border-2 ${urgencyColor.border}`}>
 
@@ -293,10 +302,10 @@ function LotCard({ lot }: { lot: ClosingSoonLot }) {
           </p>
         </div>
 
-        {/* Precio */}
+        {/* ✅ BLOQUE 4f: precio publicado al comprador (con 4% MP) */}
         <p className="text-sm text-gray-700 mb-4">
           <span className="font-medium">Precio:</span>{" "}
-          <span className="font-bold text-gray-900">${lot.productPrice.toLocaleString("es-AR")}</span>
+          <span className="font-bold text-gray-900">${priceToShow.toLocaleString("es-AR")}</span>
           {" "}/ u.
         </p>
 

@@ -29,7 +29,7 @@ export async function GET(req: Request) {
       .limit(10)
       .get();
 
-    const items: any[] = []; // 🔧 CORRECCIÓN: tipo explícito del array
+    const items: any[] = [];
 
     for (const doc of snap.docs) {
       const data = doc.data();
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
         continue;
       }
 
-      let itemData: any = null; // 🔧 CORRECCIÓN: tipo explícito
+      let itemData: any = null;
 
       if (type === "product") {
         const productSnap = await db.collection("products").doc(data.itemId).get();
@@ -54,6 +54,7 @@ export async function GET(req: Request) {
             id: productSnap.id,
             name: p.name,
             price: p.price,
+            displayPrice: p.displayPrice ?? null, // ✅ BLOQUE 4e: precio con 4% MP
             minimumOrder: p.minimumOrder,
             category: p.category,
           };

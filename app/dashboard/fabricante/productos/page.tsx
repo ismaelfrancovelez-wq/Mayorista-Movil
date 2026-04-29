@@ -9,6 +9,7 @@ type Product = {
   id: string;
   name: string;
   price: number;
+  displayPrice?: number | null; // ✅ BLOQUE 7: precio publicado al comprador (con 4% MP)
   minimumOrder: number;
   category: string;
   featured: boolean;
@@ -69,7 +70,7 @@ export default function ProductosFabricantePage() {
     }
   }
 
-  // ✅ Filtro por nombre
+  // Filtro por nombre
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -98,7 +99,7 @@ export default function ProductosFabricantePage() {
         </Link>
       </div>
 
-      {/* ✅ BUSCADOR */}
+      {/* BUSCADOR */}
       {products.length > 0 && (
         <div className="relative mb-6">
           <svg
@@ -157,81 +158,103 @@ export default function ProductosFabricantePage() {
       )}
 
       <div className="grid md:grid-cols-3 gap-6">
-        {filtered.map((p) => (
-          <div
-            key={p.id}
-            className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden"
-          >
-            {/* IMAGEN DEL PRODUCTO */}
-            <div className="relative h-48 bg-gray-200">
-              {p.imageUrls && p.imageUrls.length > 0 ? (
-                <img
-                  src={p.imageUrls[0]}
-                  alt={p.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                  <svg
-                    className="w-16 h-16 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
+        {filtered.map((p) => {
+          // ✅ BLOQUE 7: precio publicado (con 4% MP) — calculado desde Firestore o derivado
+          const displayPrice = typeof p.displayPrice === "number" && p.displayPrice > 0
+            ? p.displayPrice
+            : Math.round(p.price * 1.04);
+
+          return (
+            <div
+              key={p.id}
+              className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden"
+            >
+              {/* IMAGEN DEL PRODUCTO */}
+              <div className="relative h-48 bg-gray-200">
+                {p.imageUrls && p.imageUrls.length > 0 ? (
+                  <img
+                    src={p.imageUrls[0]}
+                    alt={p.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                    <svg
+                      className="w-16 h-16 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+                )}
+
+                {/* Badge destacado */}
+                {p.featured && (
+                  <span className="absolute top-4 right-4 inline-block text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-medium">
+                    ⭐ Destacado
+                  </span>
+                )}
+              </div>
+
+              {/* CONTENIDO DEL CARD */}
+              <div className="p-6">
+                <h3 className="font-semibold text-lg mb-3">{p.name}</h3>
+
+                <div className="space-y-2 mb-4">
+                  {/* ✅ BLOQUE 7: dos precios para que el vendedor entienda qué cobra él vs qué paga el comprador */}
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-500 uppercase tracking-wide">Tu precio</span>
+                      <span className="text-sm font-semibold text-gray-900">
+                        ${p.price.toLocaleString('es-AR')}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500 uppercase tracking-wide">
+                        Publicado <span className="text-gray-400 normal-case">(con 4% MP)</span>
+                      </span>
+                      <span className="text-sm font-bold text-blue-700">
+                        ${displayPrice.toLocaleString('es-AR')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Mínimo:</span> {p.minimumOrder} unidades
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Categoría:</span> {p.category}
+                  </p>
                 </div>
-              )}
 
-              {/* Badge destacado */}
-              {p.featured && (
-                <span className="absolute top-4 right-4 inline-block text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-medium">
-                  ⭐ Destacado
-                </span>
-              )}
-            </div>
+                {/* BOTONES: Editar + Eliminar */}
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href={`/dashboard/fabricante/productos/${p.id}/editar`}
+                    className="w-full border-2 border-blue-500 text-blue-600 py-2 rounded-lg hover:bg-blue-50 transition font-medium text-center"
+                  >
+                    ✏️ Editar producto
+                  </Link>
 
-            {/* CONTENIDO DEL CARD */}
-            <div className="p-6">
-              <h3 className="font-semibold text-lg mb-3">{p.name}</h3>
-
-              <div className="space-y-2 mb-4">
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Precio:</span> ${p.price.toLocaleString('es-AR')}
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Mínimo:</span> {p.minimumOrder} unidades
-                </p>
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Categoría:</span> {p.category}
-                </p>
-              </div>
-
-              {/* BOTONES: Editar + Eliminar */}
-              <div className="flex flex-col gap-2">
-                <Link
-                  href={`/dashboard/fabricante/productos/${p.id}/editar`}
-                  className="w-full border-2 border-blue-500 text-blue-600 py-2 rounded-lg hover:bg-blue-50 transition font-medium text-center"
-                >
-                  ✏️ Editar producto
-                </Link>
-
-                <button
-                  onClick={() => handleDelete(p.id, p.name)}
-                  disabled={deletingId === p.id}
-                  className="w-full border-2 border-red-500 text-red-600 py-2 rounded-lg hover:bg-red-50 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {deletingId === p.id ? "Eliminando..." : "🗑️ Eliminar producto"}
-                </button>
+                  <button
+                    onClick={() => handleDelete(p.id, p.name)}
+                    disabled={deletingId === p.id}
+                    className="w-full border-2 border-red-500 text-red-600 py-2 rounded-lg hover:bg-red-50 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deletingId === p.id ? "Eliminando..." : "🗑️ Eliminar producto"}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

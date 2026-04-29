@@ -22,6 +22,7 @@ type FeaturedProduct = {
     id: string;
     name: string;
     price: number;
+    displayPrice?: number | null; // ✅ BLOQUE 4e: precio con 4% MP
     minimumOrder: number;
     category: string;
   };
@@ -679,10 +680,18 @@ export default function HomePrincipal({
                             </div>
                             <p className="text-xs text-gray-500 mt-1">{accumulated} de {minimum} unidades</p>
                           </div>
-                          <div className="flex items-baseline gap-2 mb-3">
-                            <span className="text-2xl font-black text-gray-900">${product.itemData.price.toLocaleString()}</span>
-                            <span className="text-xs text-gray-500">por unidad</span>
-                          </div>
+                          {(() => {
+  // ✅ BLOQUE 4e: mostrar displayPrice (con 4% MP) si existe, fallback a price
+  const priceToShow = typeof product.itemData.displayPrice === "number" && product.itemData.displayPrice > 0
+    ? product.itemData.displayPrice
+    : product.itemData.price;
+  return (
+    <div className="flex items-baseline gap-2 mb-3">
+      <span className="text-2xl font-black text-gray-900">${priceToShow.toLocaleString()}</span>
+      <span className="text-xs text-gray-500">por unidad</span>
+    </div>
+  );
+})()}
                           <button className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all transform hover:scale-105 shadow-lg">Ver detalles</button>
                         </div>
                       </div>

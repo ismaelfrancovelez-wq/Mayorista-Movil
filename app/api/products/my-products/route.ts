@@ -41,6 +41,7 @@ export async function GET() {
         name: data.name,
         description: data.description || "",
         price: data.price,
+        displayPrice: data.displayPrice ?? null, // ✅ BLOQUE 7b: precio publicado al comprador (con 4% MP)
         minimumOrder: data.minimumOrder,
         netProfitPerUnit: data.netProfitPerUnit || 0,
         category: data.category || "otros",
@@ -54,7 +55,6 @@ export async function GET() {
         featuredUntil: data.featuredUntil?.toDate()?.toISOString() || null,
         createdAt: data.createdAt?.toDate()?.toISOString() || null,
         stock: data.stock !== undefined ? data.stock : null,
-        // ✅ AGREGADO: sin esto el form de edición siempre lo carga vacío
         retailReferencePrice: data.retailReferencePrice ?? null,
         retailReferencePriceSource: data.retailReferencePriceSource ?? null,
       };
