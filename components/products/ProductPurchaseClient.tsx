@@ -649,30 +649,36 @@ export default function ProductPurchaseClient({
         </p>
 
         {/* Comisión: depende de si es compra directa o reserva fraccionada */}
+        {/* Comisión: en fraccionada se muestra como estimada con asterisco */}
         {isFraccionado ? (
-          /* RESERVA FRACCIONADA: comisión se aplica al final */
-          <p className="text-gray-600">
-            Comisión:{" "}
-            <a href="#aviso-fraccionado" className="text-blue-600 hover:underline font-medium">
-              se aplica al precio final*
+          <p>
+            Comisión MP (4%) estimada
+            <a href="#aviso-fraccionado" className="text-blue-600 hover:underline ml-1 font-medium">
+              *
             </a>
+            : $ {formatNumber(commission)}
+            {isPickupMode && <span className="text-gray-400 text-xs"> (sobre producto)</span>}
           </p>
         ) : (
-          /* COMPRA DIRECTA: comisión ya calculada y aplicada */
           <p>
             Comisión MP (4%): $ {formatNumber(commission)}
             {isPickupMode && <span className="text-gray-400 text-xs"> (sobre producto)</span>}
           </p>
         )}
 
-        {/* Total: en fraccionada es estimado sin comisión */}
+        {/* Total: en fraccionada con asterisco; en directa total exacto */}
         {isFraccionado ? (
           <>
             <p className="font-semibold mt-2 text-base">
-              Subtotal estimado*: $ {formatNumber(productSubtotal + shippingCost)}
+              Total estimado
+              <a href="#aviso-fraccionado" className="text-blue-600 hover:underline ml-1">
+                *
+              </a>
+              : $ {formatNumber(totalToCharge)}
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              * El total final se calcula cuando el lote cierra y se confirma el envío.
+              * El precio final puede ser menor si se divide el envío entre compradores de tu zona.
+              La comisión MP se recalcula sobre el total real.
             </p>
           </>
         ) : (
@@ -688,9 +694,9 @@ export default function ProductPurchaseClient({
           <div className="text-sm text-blue-800">
             <strong>💡 El envío podría ser menor.</strong> Buscamos otros
             compradores en tu zona para dividir el costo. Si se suman, pagás
-            menos de <strong>${formatNumber(shippingCost)}</strong>.
-            La comisión se aplica al final al total a pagar, que depende de si
-            se divide el envío o no.{" "}
+            menos de <strong>${formatNumber(shippingCost)}</strong> de envío.
+            La comisión MP (4%) se recalcula sobre el total real al cerrar el lote
+            — si baja el envío, baja también la comisión.{" "}
             <button
               onClick={() => setShowSimulator(!showSimulator)}
               className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
