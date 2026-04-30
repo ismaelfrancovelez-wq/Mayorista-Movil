@@ -6,11 +6,16 @@ import { ProductCategory, CATEGORY_LABELS, SellerType, SELLER_TYPE_LABELS, SELLE
 import UserRoleHeader from "../../components/UserRoleHeader";
 import OnboardingChecklist from "../../components/OnboardingChecklist";
 
+// ✅ BLOQUE C: comisión MP del 4% calculada en runtime sobre price BASE.
+const MP_COMMISSION_RATE = 1.04;
+function getDisplayPrice(price: number): number {
+  return Math.round(price * MP_COMMISSION_RATE);
+}
+
 type Product = {
   id: string;
   name: string;
   price: number;
-  displayPrice?: number; // ✅ BLOQUE 4: precio con 4% MP incluido
   minimumOrder: number;
   category: ProductCategory;
   featured: boolean;
@@ -22,7 +27,7 @@ type Product = {
   isIntermediary?: boolean;
   unitLabel?: string;
   sellerType?: SellerType;
-  variants?: { unitLabel: string; price: number; displayPrice?: number; minimumOrder: number }[]; // ✅ BLOQUE 4
+  variants?: { unitLabel: string; price: number; minimumOrder: number }[];
   stock?: number | null;
   accumulatedQty?: number;
   retailReferencePrice?: number | null;
@@ -35,7 +40,6 @@ type ClosingSoonLot = {
   productId: string;
   productName: string;
   productPrice: number;
-  productDisplayPrice?: number; // ✅ BLOQUE 4
   minimumOrder: number;
   accumulatedQty: number;
   percentage: number;
@@ -62,13 +66,6 @@ type RetailerPanelData = {
   completedLots: number;
   scoreValue: number;
 };
-
-// ✅ BLOQUE 4: helper que devuelve el precio a mostrar al comprador.
-// Si el producto ya tiene displayPrice (formato nuevo), lo usa.
-// Si no, fallback a price (para compatibilidad mientras se migra).
-function getDisplayPrice(p: { price: number; displayPrice?: number | null }): number {
-  return typeof p.displayPrice === "number" && p.displayPrice > 0 ? p.displayPrice : p.price;
-}
 
 export default function ExplorarClient({
   initialProducts,
@@ -219,20 +216,20 @@ export default function ExplorarClient({
       .finally(() => setCategoryLoading(false));
   }, [selectedCategory, initialProducts]);
 
-  // ✅ BLOQUE 4: filtros y sort usan displayPrice (el que ve el comprador)
+  // ✅ BLOQUE C: filtros y sort usan precio publicado (con 4% MP) calculado en runtime
   useEffect(() => {
     let result = [...allProducts];
 
-    if (minPrice) result = result.filter(p => getDisplayPrice(p) >= Number(minPrice));
-    if (maxPrice) result = result.filter(p => getDisplayPrice(p) <= Number(maxPrice));
+    if (minPrice) result = result.filter(p => getDisplayPrice(p.price) >= Number(minPrice));
+    if (maxPrice) result = result.filter(p => getDisplayPrice(p.price) <= Number(maxPrice));
     if (minOrder) result = result.filter(p => p.minimumOrder >= Number(minOrder));
     if (maxOrder) result = result.filter(p => p.minimumOrder <= Number(maxOrder));
     if (onlyFeatured) result = result.filter(p => p.featured);
 
     switch (sortBy) {
       case "activity": result.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0)); break;
-      case "price_asc": result.sort((a, b) => getDisplayPrice(a) - getDisplayPrice(b)); break;
-      case "price_desc": result.sort((a, b) => getDisplayPrice(b) - getDisplayPrice(a)); break;
+      case "price_asc": result.sort((a, b) => getDisplayPrice(a.price) - getDisplayPrice(b.price)); break;
+      case "price_desc": result.sort((a, b) => getDisplayPrice(b.price) - getDisplayPrice(a.price)); break;
       case "min_asc": result.sort((a, b) => a.minimumOrder - b.minimumOrder); break;
       case "min_desc": result.sort((a, b) => b.minimumOrder - a.minimumOrder); break;
       case "name": break;
@@ -405,10 +402,8 @@ export default function ExplorarClient({
                 const urgencyColor = lot.percentage >= 95 ? "bg-red-500" : lot.percentage >= 90 ? "bg-orange-500" : "bg-amber-500";
                 const badgeColor = lot.percentage >= 95 ? "bg-red-100 text-red-800" : lot.percentage >= 90 ? "bg-orange-100 text-orange-800" : "bg-amber-100 text-amber-800";
                 const remainingUnits = lot.minimumOrder - lot.accumulatedQty;
-                // ✅ BLOQUE 4: usar displayPrice si está disponible
-                const lotPriceToShow = typeof lot.productDisplayPrice === "number" && lot.productDisplayPrice > 0
-                  ? lot.productDisplayPrice
-                  : lot.productPrice;
+                // ✅ BLOQUE C: precio publicado calculado en runtime (price * 1.04)
+                const priceToShow = getDisplayPrice(lot.productPrice);
                 return (
                   <Link key={lot.lotId} href={`/explorar/${lot.productId}`} className="min-w-[260px] max-w-[260px] flex-shrink-0 snap-start bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col border border-gray-100 hover:border-blue-200">
                     <div className="relative h-36 bg-white overflow-hidden border-b border-gray-100">
@@ -432,8 +427,11 @@ export default function ExplorarClient({
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Faltan <strong>{remainingUnits}</strong> u. para cerrar</p>
                       </div>
-                      {/* ✅ BLOQUE 4: precio publicado (con 4%) */}
-                      <p className="text-xs font-bold text-gray-900 mt-auto">${lotPriceToShow.toLocaleString("es-AR")}{lot.unitLabel ? ` / ${lot.unitLabel}` : " / u."}</p>
+                      {/* ✅ BLOQUE C: precio publicado (con 4% MP) */}
+                      <p className="text-xs font-bold text-gray-900 mt-auto">
+                        ${priceToShow.toLocaleString("es-AR")}{lot.unitLabel ? ` / ${lot.unitLabel}` : " / u."}
+                        <span className="text-gray-400 font-normal"> · incluye 4% MP</span>
+                      </p>
                     </div>
                   </Link>
                 );
@@ -559,8 +557,8 @@ export default function ExplorarClient({
                     const sellerBadge = getSellerBadge(product.sellerType);
                     const outOfStock = isOutOfStock(product);
 
-                    // ✅ BLOQUE 4: precio que ve el comprador (con 4% MP incluido)
-                    const priceToShow = getDisplayPrice(product);
+                    // ✅ BLOQUE C: precio publicado al comprador (con 4% MP) calculado en runtime
+                    const priceToShow = getDisplayPrice(product.price);
 
                     // Calcular ahorro contra precio minorista
                     const hasRetailPrice =
@@ -652,7 +650,7 @@ export default function ExplorarClient({
                           {/* BLOQUE DE PRECIO */}
                           <div className="mb-3">
                             <div className="flex items-baseline gap-2 flex-wrap">
-                              {/* ✅ BLOQUE 4: precio publicado (con 4% MP incluido) */}
+                              {/* ✅ BLOQUE C: precio publicado (con 4% MP) calculado en runtime */}
                               <span className="text-xl font-bold text-gray-900">
                                 ${priceToShow.toLocaleString("es-AR")}
                                 {product.unitLabel && (
@@ -665,18 +663,17 @@ export default function ExplorarClient({
                                 </span>
                               )}
                             </div>
+                            {/* ✅ BLOQUE C: aviso de comisión */}
+                            <p className="text-xs text-gray-400 mt-0.5">incluye 4% comisión MP</p>
 
-                            {/* Variantes como chips — ✅ BLOQUE 4: usar displayPrice si está */}
+                            {/* Variantes como chips — ✅ BLOQUE C: usar precio publicado en runtime */}
                             {product.variants && product.variants.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-2">
-                                {product.variants.map((v, i) => {
-                                  const vPrice = typeof v.displayPrice === "number" && v.displayPrice > 0 ? v.displayPrice : v.price;
-                                  return (
-                                    <span key={i} className="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-0.5 rounded-md">
-                                      ${vPrice.toLocaleString("es-AR")}
-                                    </span>
-                                  );
-                                })}
+                                {product.variants.map((v, i) => (
+                                  <span key={i} className="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-0.5 rounded-md">
+                                    ${getDisplayPrice(v.price).toLocaleString("es-AR")}
+                                  </span>
+                                ))}
                               </div>
                             )}
 

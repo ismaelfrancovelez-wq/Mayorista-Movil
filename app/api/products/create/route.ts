@@ -1,14 +1,11 @@
 // app/api/products/create/route.ts
-// ✅ NUEVO MODELO DE PRECIOS:
-//   - price = precio base (sin comisión, lo que escribe el vendedor)
-//   - displayPrice = price × 1.04 (lo que ven los compradores y se cobra)
-//   - Lo mismo para minimums[].formats[]: price (base) + displayPrice (con 4%)
+// ✅ BLOQUE A: el precio se guarda BASE (sin comisión).
+// La comisión MP del 4% se aplica en runtime sobre (producto + envío) al cobrar.
 //
-// Otros comportamientos (sin cambios):
-//   - stock=0 NO desactiva el producto (active siempre es true)
-//   - "nameLower" para búsquedas por nombre
-//   - "retailReferencePrice" + "retailReferencePriceSource" (precio minorista)
-//   - "colors" por presentación
+// - "nameLower" para búsquedas por nombre
+// - "retailReferencePrice" + "retailReferencePriceSource" (precio minorista)
+// - "colors" por presentación
+// - stock=0 NO desactiva el producto (active siempre es true)
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -17,7 +14,6 @@ import { FieldValue } from "firebase-admin/firestore";
 import { validateShippingConfig } from "../../../../lib/shipping/validateShippingConfig";
 import rateLimit from "../../../../lib/rate-limit";
 
-const COMMISSION_RATE = 1.04;
 const limiter = rateLimit({ interval: 60 * 1000, uniqueTokenPerInterval: 500 });
 
 export async function POST(req: Request) {
@@ -86,7 +82,7 @@ export async function POST(req: Request) {
     if (!body.shipping) return NextResponse.json({ error: "Falta configuración de envío" }, { status: 400 });
     validateShippingConfig(body.shipping);
 
-    // Limpiar y validar minimums — guardar BASE + DISPLAY para cada format
+    // ✅ BLOQUE A: minimums se guarda con price BASE (sin 4%). Sin displayPrice.
     const cleanMinimums = Array.isArray(body.minimums)
       ? body.minimums
           .map((m: any) => ({
@@ -94,23 +90,17 @@ export async function POST(req: Request) {
             value: Number(m.value),
             formats: Array.isArray(m.formats)
               ? m.formats
-                  .map((f: any) => {
-                    const basePrice = Math.round(Number(f.price));
-                    return {
-                      unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
-                      unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
-                      price: basePrice, // ✅ base
-                      displayPrice: Math.round(basePrice * COMMISSION_RATE), // ✅ con 4%
-                      colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
-                    };
-                  })
+                  .map((f: any) => ({
+                    unitLabel: String(f.unitLabel || "").trim().substring(0, 30),
+                    unitsPerPack: Math.max(1, Number(f.unitsPerPack) || 1),
+                    price: Math.round(Number(f.price)), // ✅ BLOQUE A: BASE
+                    colors: Array.isArray(f.colors) ? f.colors.map((c: any) => String(c).trim()).filter(Boolean) : [],
+                  }))
                   .filter((f: any) => f.unitLabel && f.price > 0)
               : [],
           }))
           .filter((m: any) => m.value > 0 && m.formats.length > 0)
       : [];
-
-    const basePrice = Math.round(body.price);
 
     const productRef = await db.collection("products").add({
       factoryId,
@@ -119,8 +109,7 @@ export async function POST(req: Request) {
       nameLower: body.name.toLowerCase().trim(),
       description: body.description.trim(),
       unitLabel: typeof body.unitLabel === "string" && body.unitLabel.trim() ? body.unitLabel.trim().substring(0, 30) : null,
-      price: basePrice, // ✅ base
-      displayPrice: Math.round(basePrice * COMMISSION_RATE), // ✅ con 4%
+      price: Math.round(body.price), // ✅ BLOQUE A: BASE
       minimumOrder: body.minimumOrder,
       netProfitPerUnit: body.netProfitPerUnit,
       category: body.category || "otros",

@@ -1,3 +1,7 @@
+// app/api/products/explore/route.ts
+// ✅ BLOQUE B: devuelve solo price BASE. La comisión MP se calcula en runtime
+// en el frontend (price * 1.04 al mostrar al comprador).
+
 import { NextResponse } from "next/server";
 import { getAdminServices } from "../../../../lib/firebase-admin";
 
@@ -18,7 +22,6 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    // ✅ FIX: el offset usa PAGE_SIZE real, no PAGE_SIZE*3
     const offset = (page - 1) * PAGE_SIZE;
 
     const search = searchParams.get("search")?.trim().toLowerCase() || "";
@@ -56,7 +59,6 @@ export async function GET(req: Request) {
       snap = await query.limit(100).get();
 
     } else if (category) {
-      // ✅ FIX: pedir PAGE_SIZE+1 para saber si hay más, no PAGE_SIZE*3
       snap = await adminDb
         .collection("products")
         .where("active", "==", true)
@@ -67,7 +69,6 @@ export async function GET(req: Request) {
         .get();
 
     } else {
-      // ✅ FIX: pedir PAGE_SIZE+1 para saber si hay más, no PAGE_SIZE*3
       snap = await adminDb
         .collection("products")
         .where("active", "==", true)
@@ -78,11 +79,7 @@ export async function GET(req: Request) {
     }
 
     const isNormalMode = !search && ids.length === 0;
-
-    // ✅ FIX: hasMore se calcula correctamente — si trajo PAGE_SIZE+1 hay más
     const hasMore = isNormalMode && snap.docs.length > PAGE_SIZE;
-
-    // Cortar al tamaño real de página
     const docs = hasMore ? snap.docs.slice(0, PAGE_SIZE) : snap.docs;
 
     const productIds = docs.map((doc) => doc.id);
@@ -181,8 +178,7 @@ export async function GET(req: Request) {
       return {
         id: doc.id,
         name: data.name,
-        price: data.price,
-        displayPrice: data.displayPrice ?? null, // ✅ BLOQUE 4: precio con 4% MP
+        price: data.price, // ✅ BLOQUE B: solo BASE
         minimumOrder: data.minimumOrder,
         category: normalizedCategory,
         factoryId,

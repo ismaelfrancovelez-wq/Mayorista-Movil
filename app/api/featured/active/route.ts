@@ -1,3 +1,6 @@
+// app/api/featured/active/route.ts
+// ✅ BLOQUE B: devuelve solo price BASE. La comisión MP se calcula en runtime.
+
 import { NextResponse } from "next/server";
 import { db } from "../../../../lib/firebase-admin";
 import { FeaturedType } from "../../../../lib/types/featured";
@@ -53,8 +56,7 @@ export async function GET(req: Request) {
           itemData = {
             id: productSnap.id,
             name: p.name,
-            price: p.price,
-            displayPrice: p.displayPrice ?? null, // ✅ BLOQUE 4e: precio con 4% MP
+            price: p.price, // ✅ BLOQUE B: solo BASE
             minimumOrder: p.minimumOrder,
             category: p.category,
           };

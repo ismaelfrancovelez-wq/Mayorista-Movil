@@ -1,21 +1,20 @@
 "use client";
 
 // components/products/VariantSelectorClient.tsx
-// ✅ BLOQUE 5b: usa displayPrice (precio con 4% MP) cuando está disponible.
-// El componente recibe formats con campos {price, displayPrice, ...} y muestra
-// displayPrice al comprador. Si por alguna razón no hay displayPrice, usa price
-// como fallback (compatibilidad).
+// ✅ BLOQUE C v2: trabaja con price BASE.
+// - El padre (page.tsx) pasa precios BASE en `allVariants` y `minimums`.
+// - Para mostrar al comprador, calculamos display = base × 1.04 en runtime.
+// - A ProductPurchaseClient le pasamos price BASE.
 
 import LotProgressBar from "./LotProgressBar";
 import { useState } from "react";
 import ProductPurchaseClient from "./ProductPurchaseClient";
 
-// ── Tipos nuevos ──────────────────────────────────────────────────────────────
+// ── Tipos ──────────────────────────────────────────────────────────────
 interface PurchaseFormat {
   unitLabel: string;
   unitsPerPack: number;
   price: number;
-  displayPrice?: number; // ✅ BLOQUE 5b
   colors?: string[];
 }
 
@@ -25,7 +24,6 @@ interface ProductMinimum {
   formats: PurchaseFormat[];
 }
 
-// ── Tipo legacy (backward compat) ────────────────────────────────────────────
 interface LegacyVariant {
   unitLabel: string;
   price: number;
@@ -34,8 +32,8 @@ interface LegacyVariant {
 }
 
 interface Props {
-  minimums?: ProductMinimum[];   // nueva estructura
-  allVariants: LegacyVariant[];  // estructura legacy (fallback)
+  minimums?: ProductMinimum[];
+  allVariants: LegacyVariant[];
   productId: string;
   productName: string;
   factoryId: string;
@@ -46,9 +44,10 @@ interface Props {
   userId?: string;
 }
 
-// ✅ BLOQUE 5b: helper para obtener el precio publicado de un format
-function getFormatPrice(f: { price: number; displayPrice?: number }): number {
-  return typeof f.displayPrice === "number" && f.displayPrice > 0 ? f.displayPrice : f.price;
+// ✅ BLOQUE C v2: comisión MP del 4% — solo para mostrar al usuario
+const MP_COMMISSION_RATE = 1.04;
+function getDisplayPrice(price: number): number {
+  return Math.round(price * MP_COMMISSION_RATE);
 }
 
 function extractUnits(unitLabel: string): number {
@@ -93,14 +92,14 @@ function NewMinimumSelector({
   const selectedMin = minimums[selectedMinIdx] ?? minimums[0];
   const selectedFmt = selectedMin.formats[selectedFmtIdx] ?? selectedMin.formats[0];
 
-  // ✅ BLOQUE 5b: precio publicado (con 4% MP)
-  const price = getFormatPrice(selectedFmt);
+  // ✅ BLOQUE C v2: BASE viene de Firestore. Display se calcula para mostrar.
+  const priceBase = selectedFmt.price;
+  const priceDisplay = getDisplayPrice(priceBase);
   const minimumValue = selectedMin.value;
   const minimumType = selectedMin.type;
   const unitLabel = selectedFmt.unitLabel;
   const colors = selectedFmt.colors ?? [];
 
-  // Resetear color cuando cambia la presentación
   const handleSelectFormat = (mi: number, fi: number) => {
     setSelectedMinIdx(mi);
     setSelectedFmtIdx(fi);
@@ -117,10 +116,10 @@ function NewMinimumSelector({
       .forEach(({ i }) => fastestMinIndices.add(i));
   }
 
-  // ✅ BLOQUE 5b: comparación "mejor precio/ud" usa displayPrice
+  // ✅ BLOQUE C v2: comparar "mejor precio/ud" usa display price
   const allFormats = minimums.flatMap((m, mi) =>
     m.formats.map((f, fi) => {
-      const dp = getFormatPrice(f);
+      const dp = getDisplayPrice(f.price);
       return { mi, fi, pricePerUnit: dp / f.unitsPerPack, unitsPerPack: f.unitsPerPack };
     })
   );
@@ -133,7 +132,7 @@ function NewMinimumSelector({
   }
 
   const effectiveMF = minimumType === "amount"
-    ? (price > 0 ? Math.ceil(minimumValue / price) : 1)
+    ? (priceDisplay > 0 ? Math.ceil(minimumValue / priceDisplay) : 1)
     : minimumValue;
 
   return (
@@ -172,8 +171,8 @@ function NewMinimumSelector({
                   {m.formats.map((f, fi) => {
                     const isSelectedFmt = selectedMinIdx === mi && selectedFmtIdx === fi;
                     const isCheapest = cheapestFmt?.mi === mi && cheapestFmt?.fi === fi;
-                    // ✅ BLOQUE 5b: mostrar el precio publicado en el chip
-                    const fmtPrice = getFormatPrice(f);
+                    // ✅ BLOQUE C v2: chip muestra display price (con 4% MP)
+                    const fmtDisplayPrice = getDisplayPrice(f.price);
 
                     return (
                       <div key={fi} className="flex flex-col items-center gap-1">
@@ -191,7 +190,7 @@ function NewMinimumSelector({
                         >
                           {f.unitLabel}
                           <span className={`ml-1.5 text-xs ${isSelectedFmt ? "text-blue-100" : "text-gray-400"}`}>
-                            ${fmtPrice.toLocaleString("es-AR")}
+                            ${fmtDisplayPrice.toLocaleString("es-AR")}
                           </span>
                         </button>
                         {isCheapest && (
@@ -209,7 +208,7 @@ function NewMinimumSelector({
         </div>
       </div>
 
-      {/* ✅ SELECTOR DE COLORES */}
+      {/* SELECTOR DE COLORES */}
       {colors.length > 0 && (
         <div className="mb-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-2">
@@ -241,13 +240,15 @@ function NewMinimumSelector({
 
       {/* PRECIO DE LA SELECCIÓN */}
       <div className="mb-3">
+        {/* ✅ BLOQUE C v2: muestra display (con 4% MP) */}
         <p className="text-3xl font-light text-gray-900 leading-none">
-          ${price.toLocaleString("es-AR")}
+          ${priceDisplay.toLocaleString("es-AR")}
           <span className="text-base font-normal text-gray-500 ml-1">/ {unitLabel}</span>
         </p>
+        <p className="text-xs text-gray-400 mt-1">incluye 4% comisión MP</p>
         {selectedFmt.unitsPerPack > 1 && (
           <p className="text-xs text-gray-400 mt-1">
-            ${Math.round(price / selectedFmt.unitsPerPack).toLocaleString("es-AR")} por unidad
+            ${Math.round(priceDisplay / selectedFmt.unitsPerPack).toLocaleString("es-AR")} por unidad
           </p>
         )}
         {selectedColor && (
@@ -277,28 +278,28 @@ function NewMinimumSelector({
         </div>
         <div className="bg-gray-50 rounded-lg p-3">
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Precio mínimo total</p>
+          {/* ✅ BLOQUE C v2: total mínimo con display (con 4%) */}
           <p className="text-xl font-semibold text-gray-900">
-            ${(price * effectiveMF).toLocaleString("es-AR")}
+            ${(priceDisplay * effectiveMF).toLocaleString("es-AR")}
           </p>
           <p className="text-xs text-gray-500 mt-0.5">
-            {effectiveMF} × ${price.toLocaleString("es-AR")}
+            {effectiveMF} × ${priceDisplay.toLocaleString("es-AR")}
           </p>
         </div>
       </div>
 
       {/* PROGRESO FRACCIONADO */}
       <LotProgressBar
-  productId={productId}
-  minimumIndex={selectedMinIdx}
-  formatIndex={selectedFmtIdx}
-  allowPickup={allowPickup}
-  allowFactoryShipping={allowFactoryShipping}
-/>
+        productId={productId}
+        minimumIndex={selectedMinIdx}
+        formatIndex={selectedFmtIdx}
+        allowPickup={allowPickup}
+        allowFactoryShipping={allowFactoryShipping}
+      />
 
-      {/* ✅ FIX: sin {userId && (...)} — siempre se renderiza, userId controla solo el botón */}
-      {/* ✅ BLOQUE 5b: pasa el price publicado (con 4%) a ProductPurchaseClient */}
+      {/* ✅ BLOQUE C v2: pasa price BASE a ProductPurchaseClient */}
       <ProductPurchaseClient
-        price={price}
+        price={priceBase}
         MF={effectiveMF}
         minimumType={minimumType}
         minimumValue={minimumValue}
@@ -336,9 +337,9 @@ function LegacyVariantSelector({
 
   const selected = allVariants[selectedIndex];
   const unitLabel = selected.unitLabel || null;
-  // ✅ BLOQUE 5b: en modo legacy, el componente padre (page.tsx) ya nos pasó
-  // displayPrice como `price` en el array allVariants, así que usamos directo.
-  const price = selected.price;
+  // ✅ BLOQUE C v2: el padre nos pasa price BASE. Display se calcula para mostrar.
+  const priceBase = selected.price;
+  const priceDisplay = getDisplayPrice(priceBase);
   const minimumOrder = selected.minimumOrder;
 
   const fastestLotIndices = new Set<number>();
@@ -376,6 +377,8 @@ function LegacyVariantSelector({
             const label = v.unitLabel || "Base";
             const isFastest = fastestLotIndices.has(i);
             const isCheapest = i === cheapestPerUnitIndex;
+            // ✅ BLOQUE C v2: chip muestra display price (con 4% MP)
+            const variantDisplayPrice = getDisplayPrice(v.price);
 
             return (
               <div key={i} className="flex flex-col items-center gap-1">
@@ -395,8 +398,7 @@ function LegacyVariantSelector({
                 >
                   {label}
                   <span className={`ml-1.5 text-xs ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
-                   {/* ✅ BLOQUE 5b: el price ya viene con 4% del page.tsx — sacar el *1.04 hardcoded */}
-                   ${v.price.toLocaleString("es-AR")}
+                   ${variantDisplayPrice.toLocaleString("es-AR")}
                   </span>
                 </button>
                 <div className="flex flex-col items-center gap-0.5">
@@ -418,11 +420,14 @@ function LegacyVariantSelector({
       </div>
 
       <div className="mb-3">
+        {/* ✅ BLOQUE C v2: muestra display (con 4% MP) */}
         <p className="text-3xl font-light text-gray-900 leading-none">
-          ${price.toLocaleString("es-AR")}
+          ${priceDisplay.toLocaleString("es-AR")}
           {unitLabel && <span className="text-base font-normal text-gray-500 ml-1">/ {unitLabel}</span>}
         </p>
-        {unitLabel && <p className="text-xs text-gray-400 mt-1">precio por {unitLabel}</p>}
+        <p className="text-xs text-gray-400 mt-1">
+          {unitLabel ? `precio por ${unitLabel} · ` : ""}incluye 4% comisión MP
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 mb-3">
@@ -433,22 +438,23 @@ function LegacyVariantSelector({
         </div>
         <div className="bg-gray-50 rounded-lg p-3">
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Precio mínimo total</p>
-          <p className="text-xl font-semibold text-gray-900">${(price * minimumOrder).toLocaleString("es-AR")}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{minimumOrder} × ${price.toLocaleString("es-AR")}</p>
+          {/* ✅ BLOQUE C v2: total mínimo con display */}
+          <p className="text-xl font-semibold text-gray-900">${(priceDisplay * minimumOrder).toLocaleString("es-AR")}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{minimumOrder} × ${priceDisplay.toLocaleString("es-AR")}</p>
         </div>
       </div>
 
       <LotProgressBar
-  productId={productId}
-  minimumIndex={selectedIndex}
-  formatIndex={0}
-  allowPickup={allowPickup}
-  allowFactoryShipping={allowFactoryShipping}
-/>
+        productId={productId}
+        minimumIndex={selectedIndex}
+        formatIndex={0}
+        allowPickup={allowPickup}
+        allowFactoryShipping={allowFactoryShipping}
+      />
 
-      {/* ✅ FIX: sin {userId && (...)} — siempre se renderiza, userId controla solo el botón */}
+      {/* ✅ BLOQUE C v2: pasa price BASE */}
       <ProductPurchaseClient
-        price={price}
+        price={priceBase}
         MF={minimumOrder}
         productId={productId}
         productName={productName}

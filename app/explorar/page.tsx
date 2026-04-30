@@ -1,4 +1,7 @@
 // app/explorar/page.tsx
+// ✅ BLOQUE C: pasa solo price BASE a ExplorarClient. El componente
+// calcula el precio publicado en runtime (price * 1.04).
+
 import { cookies } from "next/headers";
 import { db } from "../../lib/firebase-admin";
 import { ProductCategory, SellerType } from "../../lib/types/product";
@@ -12,7 +15,6 @@ type Product = {
   id: string;
   name: string;
   price: number;
-  displayPrice?: number; // ✅ BLOQUE 4d: precio con 4% MP incluido
   minimumOrder: number;
   category: ProductCategory;
   featured: boolean;
@@ -24,7 +26,7 @@ type Product = {
   isIntermediary?: boolean;
   unitLabel?: string;
   sellerType?: SellerType;
-  variants?: { unitLabel: string; price: number; displayPrice?: number; minimumOrder: number }[]; // ✅ BLOQUE 4d
+  variants?: { unitLabel: string; price: number; minimumOrder: number }[];
   stock?: number | null;
   accumulatedQty?: number;
   retailReferencePrice?: number | null;
@@ -187,8 +189,7 @@ async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boo
       return {
         id: doc.id,
         name: data.name || "Producto",
-        price: data.price || 0,
-        displayPrice: typeof data.displayPrice === "number" ? data.displayPrice : undefined, // ✅ BLOQUE 4d
+        price: data.price || 0, // ✅ BLOQUE C: solo BASE
         minimumOrder: data.minimumOrder || 0,
         category: (data.category || "otros") as ProductCategory,
         featured: data.featured || false,

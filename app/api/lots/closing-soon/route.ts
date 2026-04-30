@@ -3,6 +3,8 @@
 // GET — Devuelve lotes que están al 80% o más de su mínimo,
 // junto con los datos del producto y fabricante asociados.
 // Usada por /explorar (sección) y /explorar/cerrando (página dedicada).
+//
+// ✅ BLOQUE B: devuelve solo productPrice BASE. La comisión MP se calcula en runtime.
 
 import { NextResponse } from "next/server";
 import { db } from "../../../../lib/firebase-admin";
@@ -15,7 +17,6 @@ export type ClosingSoonLot = {
   productId: string;
   productName: string;
   productPrice: number;
-  productDisplayPrice?: number; // ✅ BLOQUE 4: precio publicado (con 4% MP)
   minimumOrder: number;
   accumulatedQty: number;
   progress: number; // 0 a 1
@@ -29,7 +30,6 @@ export type ClosingSoonLot = {
 
 export async function GET() {
   try {
-    // Traer lotes acumulando — sin orderBy para evitar índice compuesto
     const snap = await db
       .collection("lots")
       .where("status", "==", "accumulating")
@@ -39,7 +39,6 @@ export async function GET() {
       return NextResponse.json({ lots: [] });
     }
 
-    // Filtrar los que están al 80%+ en memoria
     const closingDocs = snap.docs.filter((doc) => {
       const d = doc.data();
       const accumulated = d.accumulatedQty || 0;
@@ -52,16 +51,13 @@ export async function GET() {
       return NextResponse.json({ lots: [] });
     }
 
-    // Recopilar productIds únicos
     const productIds = [
       ...new Set(closingDocs.map((d) => d.data().productId).filter(Boolean)),
     ] as string[];
 
-    // Fetch productos en batch (máx 10 por query 'in')
     const productMap: Record<string, {
       name: string;
       price: number;
-      displayPrice: number; // ✅ BLOQUE 4
       minimumOrder: number;
       imageUrls?: string[];
       factoryId?: string;
@@ -80,8 +76,7 @@ export async function GET() {
         const d = doc.data();
         productMap[doc.id] = {
           name: d.name || "Producto",
-          price: d.price || 0,
-          displayPrice: d.displayPrice || 0, // ✅ BLOQUE 4: precio con 4% MP
+          price: d.price || 0, // ✅ BLOQUE B: solo BASE
           minimumOrder: d.minimumOrder || 0,
           imageUrls: Array.isArray(d.imageUrls) ? d.imageUrls : undefined,
           factoryId: d.factoryId || undefined,
@@ -89,7 +84,6 @@ export async function GET() {
       });
     }
 
-    // Recopilar factoryIds únicos
     const factoryIds = [
       ...new Set(
         Object.values(productMap)
@@ -123,7 +117,6 @@ export async function GET() {
       });
     }
 
-    // Construir respuesta
     const lots: ClosingSoonLot[] = closingDocs
       .map((doc) => {
         const d = doc.data();
@@ -143,8 +136,7 @@ export async function GET() {
           lotId: doc.id,
           productId,
           productName: product.name,
-          productPrice: product.price,
-          productDisplayPrice: product.displayPrice || undefined, // ✅ BLOQUE 4
+          productPrice: product.price, // ✅ BLOQUE B: solo BASE
           minimumOrder: minimum,
           accumulatedQty: accumulated,
           progress: Math.min(progress, 1),
@@ -158,7 +150,6 @@ export async function GET() {
       })
       .filter(Boolean) as ClosingSoonLot[];
 
-    // Ordenar por porcentaje descendente (los más cercanos al cierre primero)
     lots.sort((a, b) => b.percentage - a.percentage);
 
     return NextResponse.json({ lots });

@@ -2,22 +2,24 @@
 //
 // Página dedicada: /explorar/cerrando
 // Muestra todos los lotes que están al 80% o más de su mínimo.
-// Todos los niveles pueden VER la página.
-// Nadie puede reservar directamente desde acá — se redirige al
-// producto individual donde el reserve-route aplica las reglas de nivel.
-// ✅ BLOQUE 4f: usa displayPrice (precio con 4% MP) para mostrar al comprador
+// ✅ BLOQUE C: usa solo price BASE de Firestore. Comisión MP del 4% en runtime.
 
 import Link from "next/link";
 import { db } from "../../../lib/firebase-admin";
 
 export const revalidate = 10;
 
+// ✅ BLOQUE C: comisión MP del 4% calculada en runtime
+const MP_COMMISSION_RATE = 1.04;
+function getDisplayPrice(price: number): number {
+  return Math.round(price * MP_COMMISSION_RATE);
+}
+
 type ClosingSoonLot = {
   lotId: string;
   productId: string;
   productName: string;
   productPrice: number;
-  productDisplayPrice?: number; // ✅ BLOQUE 4f
   minimumOrder: number;
   accumulatedQty: number;
   percentage: number;
@@ -52,7 +54,7 @@ async function getClosingSoonLots(): Promise<ClosingSoonLot[]> {
     ] as string[];
 
     const productMap: Record<string, {
-      name: string; price: number; displayPrice: number; minimumOrder: number; // ✅ BLOQUE 4f
+      name: string; price: number; minimumOrder: number;
       imageUrls?: string[]; factoryId?: string;
     }> = {};
 
@@ -63,8 +65,7 @@ async function getClosingSoonLots(): Promise<ClosingSoonLot[]> {
         const d = doc.data();
         productMap[doc.id] = {
           name: d.name || "Producto",
-          price: d.price || 0,
-          displayPrice: d.displayPrice || 0, // ✅ BLOQUE 4f: precio con 4% MP
+          price: d.price || 0, // ✅ BLOQUE C: solo BASE
           minimumOrder: d.minimumOrder || 0,
           imageUrls: Array.isArray(d.imageUrls) ? d.imageUrls : undefined,
           factoryId: d.factoryId || undefined,
@@ -106,8 +107,7 @@ async function getClosingSoonLots(): Promise<ClosingSoonLot[]> {
           lotId: doc.id,
           productId: d.productId,
           productName: product.name,
-          productPrice: product.price,
-          productDisplayPrice: product.displayPrice || undefined, // ✅ BLOQUE 4f
+          productPrice: product.price, // BASE
           minimumOrder: minimum,
           accumulatedQty: accumulated,
           percentage: Math.min(Math.round(progress * 100), 100),
@@ -217,10 +217,8 @@ function LotCard({ lot }: { lot: ClosingSoonLot }) {
 
   const remainingUnits = lot.minimumOrder - lot.accumulatedQty;
 
-  // ✅ BLOQUE 4f: precio que ve el comprador (con 4% MP). Fallback a price si no hay displayPrice.
-  const priceToShow = typeof lot.productDisplayPrice === "number" && lot.productDisplayPrice > 0
-    ? lot.productDisplayPrice
-    : lot.productPrice;
+  // ✅ BLOQUE C: precio publicado (con 4% MP) calculado en runtime
+  const priceToShow = getDisplayPrice(lot.productPrice);
 
   return (
     <div className={`bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col border-2 ${urgencyColor.border}`}>
@@ -302,11 +300,12 @@ function LotCard({ lot }: { lot: ClosingSoonLot }) {
           </p>
         </div>
 
-        {/* ✅ BLOQUE 4f: precio publicado al comprador (con 4% MP) */}
+        {/* ✅ BLOQUE C: precio publicado (con 4% MP) */}
         <p className="text-sm text-gray-700 mb-4">
           <span className="font-medium">Precio:</span>{" "}
           <span className="font-bold text-gray-900">${priceToShow.toLocaleString("es-AR")}</span>
           {" "}/ u.
+          <span className="block text-xs text-gray-400 mt-0.5">incluye 4% comisión MP</span>
         </p>
 
         {/* Botón — va al producto, el nivel se valida en reserve-route */}

@@ -1,4 +1,5 @@
 // app/api/products/my-products/route.ts
+// ✅ BLOQUE A: devuelve solo price BASE. La comisión MP se calcula en runtime.
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -40,8 +41,7 @@ export async function GET() {
         id: doc.id,
         name: data.name,
         description: data.description || "",
-        price: data.price,
-        displayPrice: data.displayPrice ?? null, // ✅ BLOQUE 7b: precio publicado al comprador (con 4% MP)
+        price: data.price, // ✅ BLOQUE A: solo BASE
         minimumOrder: data.minimumOrder,
         netProfitPerUnit: data.netProfitPerUnit || 0,
         category: data.category || "otros",
