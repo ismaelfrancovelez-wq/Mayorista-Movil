@@ -1,12 +1,20 @@
 "use client";
 
+// ✅ BLOQUE D: trabaja con price BASE.
+// - Recibe `price` BASE del padre (sin 4%).
+// - Calcula desglose: Subtotal + Envío + Comisión 4% + Total.
+//   * Compra DIRECTA: comisión = (subtotal + envío) × 0.04, todo ya aplicado.
+//   * Compra FRACCIONADA: muestra subtotal + envío estimado + nota "comisión se aplica al final".
+// - Al cobrar (compra directa): `unitPrice = (subtotal + envío) × 1.04`.
+// - Excepción retiro en fábrica: 4% solo sobre producto (envío = 0).
+
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import ShippingSimulatorSection from "../ShippingSimulatorSection";
 import GooglePlacesAutocomplete, { PlaceResult } from "../GooglePlacesAutocomplete";
 import AddressShippingModal from "./AddressShippingModal";
 
 type Props = {
-  price: number;
+  price: number; // ✅ BLOQUE D: BASE (sin 4%)
   MF: number;
   minimumType?: "quantity" | "amount";
   minimumValue?: number;
@@ -26,15 +34,17 @@ type Props = {
 
 type ShippingMode = "pickup" | "factory" | "platform";
 
-// Clave en sessionStorage para la reserva pendiente
 const AUTO_RESERVE_KEY = (productId: string) => `autoReserve_${productId}`;
+
+// ✅ BLOQUE D: tasa de comisión MP (4%)
+const MP_COMMISSION_RATE = 0.04;
 
 function formatNumber(n: number): string {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 export default function ProductPurchaseClient({
-  price,
+  price, // BASE
   MF,
   minimumType = "quantity",
   minimumValue,
@@ -52,11 +62,10 @@ export default function ProductPurchaseClient({
   userId,
 }: Props) {
   const [qty, setQty] = useState(1);
-  // Para mínimo por monto: isFraccionado cuando precio×qty < monto mínimo
   const effectiveMF = minimumType === "amount" && price > 0
     ? Math.ceil((minimumValue ?? MF) / price)
     : MF;
- const isFraccionado = qty < effectiveMF;
+  const isFraccionado = qty < effectiveMF;
 
   const [selectedShipping, setSelectedShipping] = useState<ShippingMode>(() => {
     if (noShipping) return "platform";
@@ -67,7 +76,7 @@ export default function ProductPurchaseClient({
   const selectedShippingRef = useRef(selectedShipping);
   useEffect(() => { selectedShippingRef.current = selectedShipping; }, [selectedShipping]);
 
-  // ✅ FIX: resetear shipping cuando cambia entre fraccionado y directo
+  // ✅ resetear shipping cuando cambia entre fraccionado y directo
   const prevFraccionadoRef = useRef(isFraccionado);
   useEffect(() => {
     if (prevFraccionadoRef.current === isFraccionado) return;
@@ -106,7 +115,6 @@ export default function ProductPurchaseClient({
 
   const [showSimulator, setShowSimulator] = useState(false);
 
-  // ✅ NUEVO: indica que la reserva se está ejecutando automáticamente post-login
   const [autoReserving, setAutoReserving] = useState(false);
 
   const usesReserveFlow = isFraccionado && (selectedShipping === "platform" || selectedShipping === "pickup");
@@ -193,9 +201,7 @@ export default function ProductPurchaseClient({
     calculateDirectShipping();
   }, [qty, MF, productId, isFraccionado, calculatePlatformShipping]);
 
-  // ✅ NUEVO: auto-reserva post-login
-  // Cuando el usuario vuelve al producto después de loguearse, detecta la flag
-  // en sessionStorage y ejecuta la reserva automáticamente
+  // Auto-reserva post-login
   useEffect(() => {
     if (!userId || loadingMPStatus || mpConnected === null) return;
 
@@ -211,17 +217,14 @@ export default function ProductPurchaseClient({
       return;
     }
 
-    // Limpiar la flag inmediatamente para no re-ejecutar
     sessionStorage.removeItem(key);
 
     if (!saved) return;
 
-    // Restaurar qty y shippingMode guardados
     setQty(saved.qty);
     setSelectedShipping(saved.shippingMode);
     setAutoReserving(true);
 
-    // Ejecutar reserva automáticamente
     async function doAutoReserve() {
       try {
         const res = await fetch("/api/lots/fraccionado/reserve", {
@@ -265,18 +268,32 @@ export default function ProductPurchaseClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, loadingMPStatus, mpConnected]);
 
+  // ✅ BLOQUE D: cálculos del desglose
+  // Subtotal: price BASE × qty (sin comisión)
+  // Envío: tal cual (sin comisión)
+  // Comisión: 4% sobre (subtotal + envío). Si retiro → solo sobre producto.
+  // Total: subtotal + envío + comisión
   const productSubtotal = price * qty;
-  // ✅ La comisión ya está incluida en el precio guardado en Firestore (4% aplicado al crear/editar)
-  const commission = 0;
+
+  // Si el comprador eligió retiro, envío = 0 → comisión solo sobre producto.
+  const isPickupMode = selectedShipping === "pickup";
+  const baseForCommission = isPickupMode
+    ? productSubtotal
+    : productSubtotal + shippingCost;
+
+  const commission = useMemo(
+    () => Math.round(baseForCommission * MP_COMMISSION_RATE),
+    [baseForCommission]
+  );
+
   const totalToCharge = useMemo(
-    () => productSubtotal + shippingCost,
-    [productSubtotal, shippingCost]
+    () => productSubtotal + shippingCost + commission,
+    [productSubtotal, shippingCost, commission]
   );
 
   const shippingNeedsAddress = selectedShipping === "factory" || selectedShipping === "platform";
   const blockedByAddress = shippingNeedsAddress && !hasFactoryAddress;
 
-  // ✅ Guarda la intención en sessionStorage y redirige al login
   function handleAuthGate() {
     const key = AUTO_RESERVE_KEY(productId);
     sessionStorage.setItem(key, JSON.stringify({
@@ -336,22 +353,21 @@ export default function ProductPurchaseClient({
     setReserveError(null);
     try {
      const saveRes = await fetch("/api/retailers/address", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    formattedAddress: selectedPlace?.formattedAddress || inlineAddress.trim(),
-    lat: selectedPlace?.lat,
-    lng: selectedPlace?.lng,
-  }),
-});
-if (!saveRes.ok) {
-  const err = await saveRes.json();
-  setReserveError(err.error || "No se pudo guardar la dirección.");
-  return;
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formattedAddress: selectedPlace?.formattedAddress || inlineAddress.trim(),
+          lat: selectedPlace?.lat,
+          lng: selectedPlace?.lng,
+        }),
+      });
+      if (!saveRes.ok) {
+        const err = await saveRes.json();
+        setReserveError(err.error || "No se pudo guardar la dirección.");
+        return;
       }
       setShowAddressInput(false);
       setInlineAddress("");
-      // Reintentar la reserva automáticamente
       setReserving(true);
       const res = await fetch("/api/lots/fraccionado/reserve", {
         method: "POST",
@@ -391,6 +407,8 @@ if (!saveRes.ok) {
       ? selectedShipping === "pickup" ? "fraccionado_retiro" : "fraccionado_envio"
       : selectedShipping === "pickup" ? "directa_retiro" : "directa_envio";
 
+    // ✅ BLOQUE D: enviamos `unitPrice = totalToCharge` (con 4% MP ya incluido)
+    // y `commission` por separado para que el endpoint de MP haga el split correcto.
     const res = await fetch("/api/payments/mercadopago", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -415,7 +433,6 @@ if (!saveRes.ok) {
     if (data?.init_point) { window.location.href = data.init_point; }
   }
 
-  // ✅ NUEVO: pantalla de carga durante auto-reserva post-login
   if (autoReserving) {
     return (
       <div className="border rounded-xl p-6 mt-8 bg-white shadow">
@@ -617,21 +634,63 @@ if (!saveRes.ok) {
         )}
       </div>
 
-      {/* RESUMEN DE COSTOS */}
+      {/* ✅ BLOQUE D: RESUMEN DE COSTOS — distinto según fraccionado vs directo */}
       <div className="border rounded p-4 text-sm mb-4 bg-gray-50">
-        <p>Subtotal producto: $ {formatNumber(productSubtotal)}{unitLabel ? <span className="text-gray-400 text-xs"> ({qty}× {unitLabel})</span> : null}</p>
-        <p>Envío: $ {formatNumber(shippingCost)}</p>
-        <p className="font-semibold mt-2 text-base">Total: $ {formatNumber(totalToCharge)}</p>
+        {/* Subtotal producto (siempre BASE) */}
+        <p>
+          Subtotal producto: $ {formatNumber(productSubtotal)}
+          {unitLabel ? <span className="text-gray-400 text-xs"> ({qty}× {unitLabel})</span> : null}
+        </p>
+
+        {/* Envío */}
+        <p>
+          Envío: $ {formatNumber(shippingCost)}
+          {isPickupMode && <span className="text-gray-400 text-xs"> (retiro en fábrica)</span>}
+        </p>
+
+        {/* Comisión: depende de si es compra directa o reserva fraccionada */}
+        {isFraccionado ? (
+          /* RESERVA FRACCIONADA: comisión se aplica al final */
+          <p className="text-gray-600">
+            Comisión:{" "}
+            <a href="#aviso-fraccionado" className="text-blue-600 hover:underline font-medium">
+              se aplica al precio final*
+            </a>
+          </p>
+        ) : (
+          /* COMPRA DIRECTA: comisión ya calculada y aplicada */
+          <p>
+            Comisión MP (4%): $ {formatNumber(commission)}
+            {isPickupMode && <span className="text-gray-400 text-xs"> (sobre producto)</span>}
+          </p>
+        )}
+
+        {/* Total: en fraccionada es estimado sin comisión */}
+        {isFraccionado ? (
+          <>
+            <p className="font-semibold mt-2 text-base">
+              Subtotal estimado*: $ {formatNumber(productSubtotal + shippingCost)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              * El total final se calcula cuando el lote cierra y se confirma el envío.
+            </p>
+          </>
+        ) : (
+          <p className="font-semibold mt-2 text-base">
+            Total: $ {formatNumber(totalToCharge)}
+          </p>
+        )}
       </div>
 
-      {/* AVISO fraccionado + plataforma */}
+      {/* ✅ BLOQUE D: AVISO fraccionado + plataforma — texto actualizado */}
       {usesReserveFlow && selectedShipping === "platform" && !loadingShipping && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+        <div id="aviso-fraccionado" className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 scroll-mt-4">
           <div className="text-sm text-blue-800">
             <strong>💡 El envío podría ser menor.</strong> Buscamos otros
             compradores en tu zona para dividir el costo. Si se suman, pagás
             menos de <strong>${formatNumber(shippingCost)}</strong>.
-            El precio final lo ves en el email cuando el lote cierre.{" "}
+            La comisión se aplica al final al total a pagar, que depende de si
+            se divide el envío o no.{" "}
             <button
               onClick={() => setShowSimulator(!showSimulator)}
               className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
@@ -667,11 +726,12 @@ if (!saveRes.ok) {
 
       {/* AVISO fraccionado + retiro */}
       {usesReserveFlow && selectedShipping === "pickup" && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+        <div id="aviso-fraccionado" className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 scroll-mt-4">
           <p className="text-sm text-green-800">
             <strong>📦 Retiro en fábrica — sin costo de envío.</strong>{" "}
             Reservá tu lugar. Cuando el lote alcance el mínimo, te mandamos
             el link de pago por email para confirmar la compra.
+            La comisión MP (4%) se aplica al precio final del producto.
           </p>
         </div>
       )}
@@ -683,7 +743,6 @@ if (!saveRes.ok) {
           isFraccionado={isFraccionado}
           effectiveMF={effectiveMF}
           price={price}
-
           unitLabel={unitLabel}
           qty={qty}
           onQtyChange={(newQty) => setQty(Math.max(1, newQty))}
@@ -699,8 +758,7 @@ if (!saveRes.ok) {
           onConfirm={async (place, shipping, newQty) => {
             setSavingAddress(true);
             setReserveError(null);
- 
-            // Si el modo necesita dirección, guardarla primero
+
             if (shipping === "platform" || shipping === "factory") {
               const saveRes = await fetch("/api/retailers/address", {
                 method: "POST",
@@ -718,7 +776,6 @@ if (!saveRes.ok) {
                 return;
               }
 
-              // ✅ FIX: calcular envío DESPUÉS de guardar dirección pero ANTES de reservar
               try {
                 const shippingRes = await fetch("/api/shipping/fraccionado", {
                   method: "POST",
@@ -736,12 +793,10 @@ if (!saveRes.ok) {
                 console.error("Error calculando envío:", err);
               }
             }
- 
-            // Actualizar qty si cambió
+
             setQty(newQty);
             setSelectedShipping(shipping);
- 
-            // Intentar reserva
+
             const res = await fetch("/api/lots/fraccionado/reserve", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -754,9 +809,9 @@ if (!saveRes.ok) {
               }),
             });
             const data = await res.json();
- 
+
             setSavingAddress(false);
- 
+
             if (!res.ok) {
               if (data.alreadyReserved) {
                 setReserveError("Ya tenés una reserva activa para este producto.");
@@ -766,11 +821,11 @@ if (!saveRes.ok) {
               setShowAddressModal(false);
               return;
             }
- 
+
             if (typeof data.commissionRate === "number") {
               setCommissionRate(data.commissionRate);
             }
- 
+
             setShowAddressModal(false);
             setReserved(true);
           }}
@@ -779,7 +834,6 @@ if (!saveRes.ok) {
         />
       )}
 
-      {/* Error de reserva */}
       {reserveError && (
         <div className="bg-red-50 border border-red-300 rounded-lg p-3 mb-4">
           <p className="text-sm text-red-700">{reserveError}</p>
@@ -845,12 +899,11 @@ if (!saveRes.ok) {
         </button>
       )}
 
-      {/* Subtexto para no logueados */}
       {!userId && (
         <p className="text-xs text-gray-500 text-center mt-2">
           Necesitás una cuenta gratis para comprar.{" "}
-          <a
-            href={`/login?role=retailer&redirect=/explorar/${productId}`}
+          
+            <a href={`/login?role=retailer&redirect=/explorar/${productId}`}
             className="text-blue-600 hover:underline font-medium"
           >
             Registrate en 1 minuto

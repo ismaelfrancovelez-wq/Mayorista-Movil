@@ -9,26 +9,22 @@
 //   "cancelled"    → cancelada
 //
 // ✅ FIX CRÍTICO: processLotClosure se llama con AWAIT.
-//    En Next.js serverless, sin await la función se corta apenas
-//    se devuelve la respuesta HTTP y los emails NUNCA se mandan.
 //
 // ✅ Sistema de niveles de confianza.
-//    - Lotes ≥ 80% solo accesibles para Nivel 1 y 2
-//    - Comisión diferenciada por nivel (9%, 12%, 14%, 16%)
 //
 // ✅ BLOQUE 1 — Descuentos por racha.
-//    La racha del revendedor genera descuentos sobre el envío y la comisión.
-//    Estos descuentos se calculan y guardan en la reserva.
-//    En 50 pts de racha → envío + comisión = 0 (lote gratis).
 //
 // ✅ Ventana de 2h post-cierre para Nivel 1.
-//    Cuando un lote alcanza el mínimo → status "closed" + level1WindowExpiresAt.
-//    Durante 2h, SOLO Nivel 1 puede sumarse al lote.
-//    El cron /api/cron/process-lots procesa el cierre real cuando vence la ventana.
 //
-// ✅ db.runTransaction en la sección crítica (pasos 7-11).
-//    Garantiza atomicidad: no puede haber dos reservas simultáneas que
-//    lleven el lote al mínimo por separado ni duplicados de reserva.
+// ✅ db.runTransaction en la sección crítica.
+//
+// ✅ BLOQUE D — Comisión MP del 4%.
+//    - Al RESERVAR: NO calculamos commission (depende del envío final).
+//      Solo guardamos productSubtotal BASE y commission=0 placeholder.
+//    - Al CERRAR el lote: en processLotClosure recalculamos
+//      commissionFinal = (productSubtotal + shippingFinal) × 0.04
+//      Si retiro en fábrica → commissionFinal = productSubtotal × 0.04
+//      totalFinal = productSubtotal + shippingFinal + commissionFinal
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -47,6 +43,9 @@ const limiter = rateLimit({
   interval: 60 * 1000,
   uniqueTokenPerInterval: 500,
 });
+
+// ✅ BLOQUE D: tasa de comisión MP
+const MP_COMMISSION_RATE = 0.04;
 
 function extractPostalCode(addr: string): string | null {
   if (!addr) return null;
@@ -128,7 +127,7 @@ async function processLotClosure(params: {
       const isPickup = r.shippingMode === "pickup";
 
       // ── BLOQUE 1: aplicar descuento de racha guardado en la reserva ──
-      const savedShippingDiscount: number   = r.shippingDiscount ?? 0;
+      const savedShippingDiscount: number = r.shippingDiscount ?? 0;
       const savedCommissionDiscount: number = r.commissionDiscount ?? 0;
 
       const rawShipping = isPickup ? 0 : shippingPerPerson;
@@ -136,12 +135,19 @@ async function processLotClosure(params: {
         ? 0
         : Math.round(rawShipping * (1 - savedShippingDiscount));
 
-      // Si hay commissionDiscount (solo en racha 50 = lote gratis)
+      // ✅ BLOQUE D: calcular commissionFinal en runtime sobre (producto + envío)
+      // Si retiro en fábrica → solo sobre producto.
+      // Si racha 50 (commissionDiscount >= 1) → 0.
+      const productSubtotal = r.productSubtotal || 0;
+      const baseForCommission = isPickup
+        ? productSubtotal
+        : productSubtotal + shippingFinal;
+
       const commissionFinal = savedCommissionDiscount >= 1
         ? 0
-        : r.commission;
+        : Math.round(baseForCommission * MP_COMMISSION_RATE);
 
-      const totalFinal = r.productSubtotal + commissionFinal + shippingFinal;
+      const totalFinal = productSubtotal + shippingFinal + commissionFinal;
 
       // Generar link de pago
       let paymentLink = `${baseUrl}/explorar/${productId}`;
@@ -174,7 +180,7 @@ async function processLotClosure(params: {
           },
           factoryMPUserId,
           shippingCost: shippingFinal,
-          productTotal: r.productSubtotal,
+          productTotal: productSubtotal,
           commission: commissionFinal,
         });
         if (preference.init_point) paymentLink = preference.init_point;
@@ -196,7 +202,9 @@ async function processLotClosure(params: {
       const discountLine = savedShippingDiscount > 0 && !isPickup
         ? `<div class="row" style="color:#16a34a;"><span class="label">Descuento racha envío (${Math.round(savedShippingDiscount * 100)}%):</span> <span class="value">-$${Math.round(rawShipping * savedShippingDiscount).toLocaleString("es-AR")}</span></div>`
         : "";
-      const freeShippingNote = isPickup ? "Retiro en fábrica (Gratis)" : `$${shippingFinal.toLocaleString("es-AR")}${groupSize > 1 ? ` (dividido entre ${groupSize} compradores de tu zona)` : ""}`;
+      const freeShippingNote = isPickup
+        ? "Retiro en fábrica (Gratis)"
+        : `$${shippingFinal.toLocaleString("es-AR")}${groupSize > 1 ? ` (dividido entre ${groupSize} compradores de tu zona)` : ""}`;
 
       const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>
@@ -214,9 +222,9 @@ async function processLotClosure(params: {
   <h2>💳 ¡Tu lote está listo para pagar!</h2>
   <p>El lote de <strong>${productName}</strong> alcanzó el mínimo de compra.</p>
   <div class="row"><span class="label">Cantidad:</span> <span class="value">${r.qty} unidades</span></div>
-  <div class="row"><span class="label">Subtotal producto:</span> <span class="value">$${r.productSubtotal.toLocaleString("es-AR")}</span></div>
-  <div class="row"><span class="label">Comisión:</span> <span class="value">${commissionFinal === 0 ? "¡Gratis! 🎉" : `$${commissionFinal.toLocaleString("es-AR")}`}</span></div>
+  <div class="row"><span class="label">Subtotal producto:</span> <span class="value">$${productSubtotal.toLocaleString("es-AR")}</span></div>
   <div class="row"><span class="label">Envío:</span><span class="value">${freeShippingNote}</span></div>
+  <div class="row"><span class="label">Comisión MP (4%):</span> <span class="value">${commissionFinal === 0 ? "¡Gratis! 🎉" : `$${commissionFinal.toLocaleString("es-AR")}`}</span></div>
   ${discountLine}
   <div class="row" style="border-top:2px solid #e5e7eb;padding-top:10px;margin-top:10px;">
     <span class="label" style="font-size:15px;">TOTAL A PAGAR:</span>
@@ -307,11 +315,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Leer nivel y score del retailer
     const retailerLevel: number = retailerSnap.data()?.paymentLevel ?? 2;
     const retailerScore: number = retailerSnap.data()?.reliabilityScore ?? 0.6;
 
-    // ── BLOQUE 1: leer puntos de racha y calcular descuentos ──────────────
     const currentStreak: number = retailerSnap.data()?.currentStreak ?? 0;
     const { shippingDiscount, commissionDiscount } = getStreakDiscounts(currentStreak);
 
@@ -325,7 +331,6 @@ export async function POST(req: Request) {
     const factoryId = productData.factoryId;
     const productName = productData.name || "Producto";
 
-    // Resolver precio y mínimo desde nueva estructura `minimums` o estructura legacy
     let productPrice: number;
     let minimumOrder: number;
     let minimumType: "quantity" | "amount" = "quantity";
@@ -338,12 +343,12 @@ export async function POST(req: Request) {
     if (productMins) {
       const selMin = productMins[minimumIndex] ?? productMins[0];
       const selFmt = selMin?.formats?.[formatIndex] ?? selMin?.formats?.[0];
-      productPrice = selFmt?.price ?? productData.price ?? 0;
+      productPrice = selFmt?.price ?? productData.price ?? 0; // ✅ BASE
       minimumType = selMin?.type === "amount" ? "amount" : "quantity";
       minimumValue = selMin?.value ?? productData.minimumOrder ?? 0;
       minimumOrder = minimumType === "quantity" ? minimumValue : productData.minimumOrder || 1;
     } else {
-      productPrice = productData.price || 0;
+      productPrice = productData.price || 0; // ✅ BASE
       minimumValue = productData.minimumOrder || 0;
       minimumOrder = minimumValue;
     }
@@ -356,12 +361,13 @@ export async function POST(req: Request) {
     }
     const productSubtotal = productPrice * Number(qty);
 
-    // ── TEMPORAL: comisión plana 4% (cubre costo de MercadoPago) ──────────
-    // Las comisiones diferenciadas por nivel y descuentos por racha están
-    // temporalmente desactivadas. Solo se cobra 4% fijo en todos los lotes.
-    const PLATFORM_COMMISSION_RATE = 0.04;
+    // ✅ BLOQUE D: NO calculamos commission al reservar (depende del envío final).
+    // Lo dejamos en 0 como placeholder. Se calcula en processLotClosure.
+    const commission = 0;
+
+    // Esta variable se mantiene solo para el response (savings vs Nivel 1)
+    const PLATFORM_COMMISSION_RATE = MP_COMMISSION_RATE;
     const effectiveCommissionRate = PLATFORM_COMMISSION_RATE;
-    const commission = Math.round(productSubtotal * effectiveCommissionRate);
 
     const factorySnap = await db.collection("manufacturers").doc(factoryId).get();
     if (!factorySnap.exists) {
@@ -395,27 +401,18 @@ export async function POST(req: Request) {
     const retailerEmail = userSnap.data()?.email || "";
 
     /* ── 7-11. SECCIÓN CRÍTICA — TRANSACCIÓN ATÓMICA ─── */
-    // Envuelve: buscar lote activo, verificar duplicado, guardar reserva,
-    // actualizar/crear lote y guardar ventana 2h en una sola transacción.
-    // Así dos requests simultáneos no pueden generar reservas duplicadas
-    // ni llevar el lote al mínimo dos veces por separado.
-
     const SHIPPING_TYPES = new Set(["fractional_shipping", "fraccionado_envio"]);
     const PICKUP_TYPES = new Set(["fractional_pickup", "fraccionado_retiro"]);
     const targetTypes = shippingMode === "pickup" ? PICKUP_TYPES : SHIPPING_TYPES;
     const lotType =
       shippingMode === "pickup" ? "fractional_pickup" : "fractional_shipping";
 
-    // Variables que necesita el bloque post-transacción (ventana Nivel 1 y respuesta)
     let txReservationId: string = "";
     let txFinalLotId: string = "";
     let txLotClosed: boolean = false;
-    let txSkipMainFlow: boolean = false; // true cuando se entra por ventana Nivel 1
+    let txSkipMainFlow: boolean = false;
 
-    // ── Ventana de 2h post-cierre para Nivel 1 ──────────────────────────
-    // Esta lógica se mantiene FUERA de la transacción principal porque consulta
-    // un lote con status "closed" (distinto al flujo normal) y crea una reserva
-    // directamente, igual que en el código original.
+    // ── Ventana de 2h post-cierre para Nivel 1 ──
     if (retailerLevel === 1) {
       const closedLotSnap = await db
         .collection("lots")
@@ -462,9 +459,8 @@ export async function POST(req: Request) {
             qty: Number(qty),
             shippingMode,
             shippingCostEstimated,
-            commission,
+            commission, // ✅ BLOQUE D: 0 placeholder, se calcula al cerrar
             productSubtotal,
-            // BLOQUE 1: guardar descuentos de racha en la reserva
             shippingDiscount,
             commissionDiscount,
             streakPointsAtReservation: currentStreak,
@@ -498,9 +494,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // ── TRANSACCIÓN ATÓMICA: pasos 7, 8, 9, 10 y 11 ────────────────────
+    // ── TRANSACCIÓN ATÓMICA ──
     await db.runTransaction(async (transaction) => {
-      // ── 7. BUSCAR LOTE ACTIVO ──────────────────────────────────────────
       const lotQuery = db.collection("lots")
         .where("productId", "==", productId)
         .where("status", "in", ["accumulating", "open"])
@@ -523,7 +518,6 @@ export async function POST(req: Request) {
         activeLotProgress = minimumValue > 0 ? currentQty / minimumValue : 0;
       }
 
-      // ── 8. VERIFICAR DUPLICADO ─────────────────────────────────────────
       if (!isNewLot) {
         const dupQuery = db.collection("reservations")
           .where("retailerId", "==", retailerId)
@@ -537,7 +531,6 @@ export async function POST(req: Request) {
         }
       }
 
-      // Restricción de acceso por nivel cuando el lote supera el 80%
       if (!isNewLot && activeLotProgress >= 0.8 && retailerLevel >= 3) {
         throw Object.assign(
           new Error("LEVEL_RESTRICTED"),
@@ -549,7 +542,6 @@ export async function POST(req: Request) {
         );
       }
 
-      // ── 9. CREAR LA RESERVA ────────────────────────────────────────────
       const reservationRef = db.collection("reservations").doc();
       txReservationId = reservationRef.id;
 
@@ -566,9 +558,8 @@ export async function POST(req: Request) {
         qty: Number(qty),
         shippingMode,
         shippingCostEstimated,
-        commission,
+        commission, // ✅ BLOQUE D: 0 placeholder, se calcula al cerrar
         productSubtotal,
-        // BLOQUE 1: guardar descuentos de racha en la reserva para usarlos al cerrar el lote
         shippingDiscount,
         commissionDiscount,
         streakPointsAtReservation: currentStreak,
@@ -580,7 +571,6 @@ export async function POST(req: Request) {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // ── 10. ACTUALIZAR / CREAR LOTE ────────────────────────────────────
       const newAccumulatedQty = currentQty + Number(qty);
       const currentAccumulatedAmount: number = lotSnap.empty ? 0 : (lotSnap.docs[0].data().accumulatedAmount ?? 0);
       const orderAmount = productPrice * Number(qty);
@@ -591,7 +581,6 @@ export async function POST(req: Request) {
         : newAccumulatedQty >= minimumValue;
       txFinalLotId = targetLotRef.id;
 
-      // ── 11. SI EL LOTE CERRÓ → GUARDAR VENTANA 2H ─────────────────────
       const level1WindowExpiresAt = txLotClosed
         ? new Date(Date.now() + 2 * 60 * 60 * 1000)
         : null;
@@ -615,7 +604,7 @@ export async function POST(req: Request) {
           orders: [],
           orderCreated: false,
           productName,
-          productPrice,
+          productPrice, // ✅ BASE — el ingreso real del vendedor
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
           closedAt: txLotClosed ? FieldValue.serverTimestamp() : null,
@@ -636,7 +625,6 @@ export async function POST(req: Request) {
     });
 
     /* ── 12. RESPUESTA ──────────────────────────────── */
-    // BLOQUE 2 impl 5 — datos de saliencia: cuánto paga de más vs nivel 1
     const level1Rate = 0.09;
     const savingsVsLevel1 = retailerLevel > 1
       ? Math.round(productSubtotal * (effectiveCommissionRate - level1Rate))
@@ -660,7 +648,6 @@ export async function POST(req: Request) {
           : `Lugar reservado. Estamos buscando más compradores en tu zona${postalCode ? ` (${postalCode})` : ""}. Cuando el lote cierre, te mandamos el precio final a tu email.`,
     });
   } catch (error: any) {
-    // Errores lanzados desde dentro de la transacción
     if (error.message === "ALREADY_RESERVED") {
       return NextResponse.json(
         {
