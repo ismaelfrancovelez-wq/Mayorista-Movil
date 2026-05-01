@@ -1,4 +1,9 @@
 // app/dashboard/fabricante/productos/[productId]/editar/page.tsx
+// ✅ BLOQUE E: trabaja con price BASE.
+// - Lee f.price BASE desde Firestore (idempotente al editar).
+// - Manda price BASE al endpoint (que también guarda BASE).
+// - Calcula displayPrice = price × 1.04 en runtime SOLO para mostrar al vendedor
+//   cuánto va a ver el comprador.
 
 "use client";
 
@@ -10,6 +15,12 @@ import toast from "react-hot-toast";
 
 function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
+}
+
+// ✅ BLOQUE E: comisión MP del 4% — solo para mostrar al vendedor el precio publicado
+const MP_COMMISSION_RATE = 1.04;
+function getDisplayPrice(price: number): number {
+  return Math.round(price * MP_COMMISSION_RATE);
 }
 
 interface FormatForm {
@@ -227,9 +238,7 @@ export default function EditarProductoPage() {
         }
 
         if (Array.isArray(product.minimums) && product.minimums.length > 0) {
-          // ✅ BLOQUE 8: lee f.price (BASE, sin 4%) — NUNCA f.displayPrice.
-          // Si por error leyera displayPrice, al guardar el endpoint le aplicaría
-          // otro 4% y los precios se inflarían en cada edición.
+          // ✅ BLOQUE E: lee f.price BASE de Firestore. Idempotente al editar.
           setMinimums(product.minimums.map((m: any) => ({
             type: m.type === "amount" ? "amount" : "quantity",
             value: m.value || "",
@@ -239,13 +248,13 @@ export default function EditarProductoPage() {
                   packQty: "",
                   unitLabel: f.unitLabel || "",
                   unitsPerPack: f.unitsPerPack || 1,
-                  price: f.price || "", // ✅ BLOQUE 8: precio BASE
+                  price: f.price || "", // ✅ BLOQUE E: BASE
                   colors: Array.isArray(f.colors) ? f.colors : [],
                 }))
               : [{ presetId: "custom", packQty: "", unitLabel: "", unitsPerPack: 1, price: "", colors: [] }],
           })));
         } else {
-          // ✅ BLOQUE 8: misma regla acá — usa product.price (BASE), no displayPrice
+          // ✅ BLOQUE E: product.price es BASE
           const base: MinimumForm = {
             type: "quantity",
             value: product.minimumOrder || "",
@@ -254,7 +263,7 @@ export default function EditarProductoPage() {
               packQty: "",
               unitLabel: product.unitLabel || "Por unidad",
               unitsPerPack: 1,
-              price: product.price || "", // ✅ BLOQUE 8: precio BASE
+              price: product.price || "", // ✅ BLOQUE E: BASE
               colors: [],
             }],
           };
@@ -267,7 +276,7 @@ export default function EditarProductoPage() {
                   packQty: "",
                   unitLabel: v.unitLabel || "",
                   unitsPerPack: 1,
-                  price: v.price || "", // ✅ BLOQUE 8: precio BASE
+                  price: v.price || "", // ✅ BLOQUE E: BASE
                   colors: [],
                 }],
               }))
@@ -430,16 +439,15 @@ export default function EditarProductoPage() {
 
       const finalImageUrls = [...existingImageUrls, ...newImageUrls];
 
-      // ✅ BLOQUE 8: mandamos los precios BASE al endpoint.
-      // El endpoint (/api/products/edit) le aplica el 4% y guarda price + displayPrice.
-      // Si por error mandáramos displayPrice acá, el endpoint volvería a aplicar 4%.
+      // ✅ BLOQUE E: mandamos price BASE al endpoint, que también guarda BASE.
+      // Idempotente: editar el producto sin tocar precios no infla nada.
       const cleanMinimums = minimums.map(m => ({
         type: m.type,
         value: Number(m.value),
         formats: m.formats.map(f => ({
           unitLabel: f.unitLabel.trim().substring(0, 30),
           unitsPerPack: Number(f.unitsPerPack),
-          price: Number(f.price), // ✅ BLOQUE 8: precio BASE
+          price: Number(f.price), // ✅ BLOQUE E: BASE
           colors: f.colors || [],
         })),
       }));
@@ -455,7 +463,7 @@ export default function EditarProductoPage() {
           productId,
           name: sanitizedName,
           description: sanitizedDescription,
-          price: firstFormat?.price ?? 0, // ✅ BLOQUE 8: precio BASE
+          price: firstFormat?.price ?? 0, // ✅ BLOQUE E: BASE
           minimumOrder: firstMinimum?.type === "quantity" ? firstMinimum.value : 1,
           unitLabel: firstFormat?.unitLabel ?? "",
           netProfitPerUnit: Number(netProfitPerUnit),
@@ -491,8 +499,8 @@ export default function EditarProductoPage() {
   }
 
   const firstFormatPrice = Number(minimums[0]?.formats[0]?.price ?? 0);
-  // ✅ BLOQUE 8: precio publicado (con 4% MP) calculado a partir del base
-  const firstFormatDisplayPrice = Math.round(firstFormatPrice * 1.04);
+  // ✅ BLOQUE E: precio publicado (con 4% MP) calculado en runtime
+  const firstFormatDisplayPrice = getDisplayPrice(firstFormatPrice);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -625,9 +633,9 @@ export default function EditarProductoPage() {
                     </p>
                     <div className="space-y-2">
                       {m.formats.map((f, fIdx) => {
-                        // ✅ BLOQUE 8: muestra precio publicado debajo del input
+                        // ✅ BLOQUE E: precio publicado (con 4% MP) en runtime
                         const fPriceNum = Number(f.price) || 0;
-                        const fDisplayPrice = Math.round(fPriceNum * 1.04);
+                        const fDisplayPrice = getDisplayPrice(fPriceNum);
                         return (
                         <div key={fIdx} className="bg-white border border-gray-100 rounded-lg p-3 space-y-3">
 
@@ -677,7 +685,7 @@ export default function EditarProductoPage() {
                             </button>
                           </div>
 
-                          {/* ✅ BLOQUE 8: precio publicado (lo que ve el comprador) */}
+                          {/* ✅ BLOQUE E: precio publicado (lo que ve el comprador) */}
                           {fPriceNum > 0 && (
                             <div className="text-xs space-y-0.5">
                               <p className="text-gray-700">
@@ -797,7 +805,7 @@ export default function EditarProductoPage() {
               </button>
             </div>
             {mlMessage && <p className="text-xs mt-2 text-gray-600">{mlMessage}</p>}
-            {/* ✅ BLOQUE 8: comparar contra displayPrice (lo que ve el comprador), no contra el base */}
+            {/* ✅ BLOQUE E: comparar contra displayPrice (lo que ve el comprador) */}
             {retailReferencePrice !== "" && firstFormatDisplayPrice > 0 && Number(retailReferencePrice) > firstFormatDisplayPrice && (
               <p className="text-xs mt-2 text-green-600 font-medium">
                 💡 Tus compradores van a ver que ahorran un{" "}

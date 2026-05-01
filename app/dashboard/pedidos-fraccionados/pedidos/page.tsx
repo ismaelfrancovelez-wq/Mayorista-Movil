@@ -1,3 +1,11 @@
+// app/dashboard/pedidos-fraccionados/pedidos/page.tsx
+// ✅ BLOQUE E: vista de pedidos del comprador.
+// Muestra desglose distinto según estado:
+// - accumulating  → Producto + Envío estimado + nota "el total con comisión se calcula al cerrar el lote"
+// - lot_closed    → desglose completo con comisión MP final ya calculada
+// - paid/all_paid → desglose completo del pago real
+// - completed (directa) → desglose completo del pago real
+
 import { db } from "../../../../lib/firebase-admin";
 import { cookies } from "next/headers";
 import { formatCurrency } from "../../../../lib/utils";
@@ -8,11 +16,14 @@ import OrderCard from "../../../../components/OrderCard";
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
 
+// ✅ BLOQUE E: comisión MP del 4%
+const MP_COMMISSION_RATE = 0.04;
+
 type ReservationStatus = "pending_lot" | "lot_closed" | "paid" | "cancelled";
 
 type Pedido = {
-  id: string;                     // id único en la lista (para hide)
-  reservationDocId?: string;      // ID real del doc en Firestore (para cancel)
+  id: string;
+  reservationDocId?: string;
   productId: string;
   productName: string;
   factoryName: string;
@@ -26,14 +37,15 @@ type Pedido = {
   paymentLink?: string;
   totalFinal?: number;
   status: "accumulating" | "lot_closed" | "all_paid" | "completed";
-  amount: number;
-  shippingCost: number;
+  amount: number; // productSubtotal BASE
+  shippingCost: number; // envío final
   shippingCostEstimated?: number;
-  total: number;
+  commission?: number; // ✅ BLOQUE E: comisión final (0 si todavía no se calculó)
+  total: number; // total real pagado (con 4%)
   createdAt: string;
   createdAtTimestamp: number;
   purchaseCount?: number;
-  lotClosedAt?: number;           // timestamp ms del cierre del lote (para countdown)
+  lotClosedAt?: number;
   lotProgress?: {
     currentQty: number;
     targetQty: number;
@@ -43,12 +55,10 @@ type Pedido = {
 };
 
 // ── Tabla de beneficios/sanciones ────────────────────────────────────────────
-// Se muestra cuando el lote cerró y el usuario todavía no pagó
 function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
   const now = Date.now();
   const elapsed = lotClosedAtMs ? Math.floor((now - lotClosedAtMs) / (1000 * 60 * 60)) : 0;
 
-  // Calcular tiempo restante hasta las 96h
   const hoursLeft = lotClosedAtMs
     ? Math.max(0, 96 - Math.floor((now - lotClosedAtMs) / (1000 * 60 * 60)))
     : 96;
@@ -114,7 +124,6 @@ function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
 
   return (
     <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-      {/* Countdown */}
       {lotClosedAtMs && (
         <div className={`text-center text-sm mb-3 ${countdownColor}`}>
           {countdownText} para pagar sin penalización
@@ -165,12 +174,10 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       .get(),
   ]);
 
-  // Juntar todos los lotIds
   const lotIds = new Set<string>();
   paymentsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
   myReservationsSnap.docs.forEach((d) => { if (d.data().lotId) lotIds.add(d.data().lotId); });
 
-  // Estado real de los lotes
   const lotsMap = new Map<string, { status: string; accumulatedQty: number; minimumOrder: number; closedAt?: number }>();
   if (lotIds.size > 0) {
     const arr = Array.from(lotIds);
@@ -187,7 +194,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
     }
   }
 
-  // Para lotes cerrados: quién pagó y quién no
   const lotIdsNeedingMates = new Set<string>();
   myReservationsSnap.docs.forEach((d) => {
     const r = d.data();
@@ -205,7 +211,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
         .where("status", "in", ["lot_closed", "paid"])
         .get();
 
-      // Batch fetch retailer badges for all mates
       const retailerIds = allResSnap.docs.map((d) => d.data().retailerId).filter(Boolean);
       const retailerBadgesMap = new Map<string, { streakBadge?: string; milestoneBadge?: string }>();
       if (retailerIds.length > 0) {
@@ -215,7 +220,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
           retailersSnap.docs.forEach((rd) => {
             const streakBadges: string[] = rd.data().streakBadges ?? [];
             const milestoneBadges: string[] = rd.data().milestoneBadges ?? [];
-            // Tomar el badge de mayor rango (último en el array, que está ordenado por streak/lots)
             const STREAK_LABELS: Record<string, string> = {
               streak_executive: "⚡ Camino al Siguente nivel",
               streak_strategic: "💎 Revendedor Consolidado",
@@ -262,7 +266,7 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
     };
   }
 
-  // ── PASO 1: RESERVAS (fuente de verdad para el flujo diferido) ────────────
+  // ── PASO 1: RESERVAS ────────────────────────────────────────────────────
   const reservationLotIds = new Set<string>();
   const reservationOrders: Pedido[] = [];
 
@@ -271,7 +275,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
     if (!r.lotId || r.status === "cancelled") continue;
 
     const listId = `reservation-${resDoc.id}`;
-    // Filtrar los ocultos
     if (hiddenIds.includes(listId)) continue;
 
     reservationLotIds.add(r.lotId);
@@ -290,6 +293,9 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
 
     const shippingFinal = r.shippingCostFinal ?? r.shippingCostEstimated ?? 0;
     const lotData = lotsMap.get(r.lotId);
+
+    // ✅ BLOQUE E: comisión final del lote (solo existe cuando lot_closed o paid)
+    const commissionFinal = r.commissionFinal ?? r.commission ?? 0;
 
     reservationOrders.push({
       id: listId,
@@ -310,6 +316,7 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       amount: r.productSubtotal || 0,
       shippingCost: (resStatus === "paid" || resStatus === "lot_closed") ? shippingFinal : 0,
       shippingCostEstimated: r.shippingCostEstimated || 0,
+      commission: commissionFinal,
       total: resStatus === "paid" ? (r.totalFinal || 0) : 0,
       createdAt: r.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
       createdAtTimestamp: r.createdAt?.toMillis() || 0,
@@ -318,8 +325,8 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
     });
   }
 
-  // ── PASO 2: PAYMENTS normales ─────────────────────────────────────────────
-  const fractionalGrouped = new Map<string, { payments: any[]; totalQty: number; totalAmount: number; totalShipping: number; totalTotal: number; oldestDate: number; latestDate: number }>();
+  // ── PASO 2: PAYMENTS normales ──────────────────────────────────────────
+  const fractionalGrouped = new Map<string, { payments: any[]; totalQty: number; totalAmount: number; totalShipping: number; totalCommission: number; totalTotal: number; oldestDate: number; latestDate: number }>();
   const directOrders: Pedido[] = [];
 
   for (const paymentDoc of paymentsSnap.docs) {
@@ -329,6 +336,14 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       const listId = `payment-${paymentDoc.id}`;
       if (hiddenIds.includes(listId)) continue;
 
+      // ✅ BLOQUE E: para compras directas calculamos la comisión a partir del total real.
+      // payment.amount = productSubtotal BASE. payment.total = lo que pagó (incluye 4%).
+      // commission = total - amount - shippingCost
+      const productAmount = p.amount || 0;
+      const shippingCost = p.shippingCost || 0;
+      const total = p.total || 0;
+      const commission = Math.max(0, total - productAmount - shippingCost);
+
       directOrders.push({
         id: listId,
         productId: p.productId,
@@ -337,9 +352,10 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
         qty: p.qty || 0,
         orderType: "directa",
         status: "completed",
-        amount: p.amount || 0,
-        shippingCost: p.shippingCost || 0,
-        total: p.total || 0,
+        amount: productAmount,
+        shippingCost,
+        commission,
+        total,
         createdAt: p.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
         createdAtTimestamp: p.createdAt?.toMillis() || 0,
       });
@@ -349,12 +365,16 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       if (hiddenIds.includes(p.lotId)) continue;
 
       const lotId = p.lotId;
+      // ✅ BLOQUE E: comisión = total - amount - shippingCost
+      const pCommission = Math.max(0, (p.total || 0) - (p.amount || 0) - (p.shippingCost || 0));
+
       if (fractionalGrouped.has(lotId)) {
         const g = fractionalGrouped.get(lotId)!;
         g.payments.push(p);
         g.totalQty += p.qty || 0;
         g.totalAmount += p.amount || 0;
         g.totalShipping += p.shippingCost || 0;
+        g.totalCommission += pCommission;
         g.totalTotal += p.total || 0;
         g.latestDate = Math.max(g.latestDate, p.createdAt?.toMillis() || 0);
         g.oldestDate = Math.min(g.oldestDate, p.createdAt?.toMillis() || 0);
@@ -364,6 +384,7 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
           totalQty: p.qty || 0,
           totalAmount: p.amount || 0,
           totalShipping: p.shippingCost || 0,
+          totalCommission: pCommission,
           totalTotal: p.total || 0,
           oldestDate: p.createdAt?.toMillis() || 0,
           latestDate: p.createdAt?.toMillis() || 0,
@@ -376,10 +397,6 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
   for (const [lotId, group] of fractionalGrouped.entries()) {
     const fp = group.payments[0];
     const lotData = lotsMap.get(lotId);
-    // ✅ FIX: mapear todos los estados del lote correctamente
-    // closed / processing / processed_pending_payment → el lote llegó al mínimo, esperando que todos paguen
-    // fully_paid → todos pagaron
-    // accumulating → todavía juntando
     const CLOSED_STATUSES = new Set(["closed", "processing", "processed_pending_payment"]);
     const status: Pedido["status"] =
       lotData?.status === "fully_paid"
@@ -400,6 +417,7 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       status,
       amount: group.totalAmount,
       shippingCost: group.totalShipping,
+      commission: group.totalCommission,
       total: group.totalTotal,
       purchaseCount: group.payments.length,
       createdAt: new Date(group.oldestDate).toLocaleDateString("es-AR"),
@@ -432,7 +450,6 @@ export default async function PedidosPage() {
     );
   }
 
-  // Obtener lista de pedidos ocultos del usuario
   const userSnap = await db.collection("users").doc(userId).get();
   const hiddenIds: string[] = userSnap.data()?.hiddenOrders || [];
 
@@ -460,19 +477,13 @@ export default async function PedidosPage() {
               const isFraccionado = order.orderType === "fraccionado";
               const isReservaActiva = order.isReservation && order.status !== "all_paid";
 
-              // ── Badge de TIPO ────────────────────────────────────────────
               const badgeLabel = isReservaActiva
                 ? "Reserva"
                 : isFraccionado
                 ? "Compra fraccionada"
                 : "Compra directa";
-              const badgeColor = isReservaActiva
-                ? "bg-gray-100 text-gray-600 border border-gray-300"
-                : isFraccionado
-                ? "bg-gray-100 text-gray-600 border border-gray-300"
-                : "bg-gray-100 text-gray-600 border border-gray-300";
+              const badgeColor = "bg-gray-100 text-gray-600 border border-gray-300";
 
-              // ── Badge de ESTADO ──────────────────────────────────────────
               let estadoLabel = "Completado";
               let estadoColor = "bg-green-100 text-green-800";
               if (order.status === "accumulating") {
@@ -484,16 +495,26 @@ export default async function PedidosPage() {
                 estadoColor = "bg-blue-100 text-blue-800";
               }
 
-              // ¿El usuario ya pagó pero otros no?
               const userAlreadyPaid =
                 order.isReservation &&
                 order.reservationStatus === "paid" &&
                 order.status === "lot_closed";
 
+              // ✅ BLOQUE E: cálculo del desglose para mostrar al comprador
+              // En accumulating: comisión estimada sobre productSubtotal + envíoEstimado
+              // En lot_closed/paid/completed: comisión final guardada en la reserva o derivada del payment
+              const isAccumulating = order.status === "accumulating";
+              const shippingToShow = isAccumulating
+                ? (order.shippingCostEstimated ?? 0)
+                : order.shippingCost;
+              const commissionToShow = isAccumulating
+                ? Math.round(((order.amount || 0) + shippingToShow) * MP_COMMISSION_RATE)
+                : (order.commission ?? 0);
+
               return (
                 <OrderCard key={order.id} productId={order.productId}>
 
-                  {/* Header: nombre + badges + botón ocultar */}
+                  {/* Header */}
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -511,15 +532,14 @@ export default async function PedidosPage() {
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${estadoColor}`}>
                         {estadoLabel}
                       </span>
-                      {/* Botón ocultar — disponible para completados y pagados */}
                       {(order.status === "all_paid" || order.status === "completed" || !order.isReservation) && (
                         <HideOrderButton itemId={order.id} label="Ocultar pedido" />
                       )}
                     </div>
                   </div>
 
-                  {/* Info del pedido */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                  {/* Info básica del pedido */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-4">
                     <div>
                       <p className="text-gray-500">Cantidad</p>
                       <p className="font-semibold text-gray-900">
@@ -539,24 +559,61 @@ export default async function PedidosPage() {
                           : "Directa"}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-gray-500">Producto</p>
-                      <p className="font-semibold text-gray-900">{formatCurrency(order.amount)}</p>
+                  </div>
+
+                  {/* ✅ BLOQUE E: DESGLOSE DE PRECIOS — depende del estado */}
+                  <div className="border rounded-lg p-4 bg-gray-50 text-sm mb-4 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Subtotal producto:</span>
+                      <span className="font-medium text-gray-900">{formatCurrency(order.amount)}</span>
                     </div>
-                    {order.status === "accumulating" && (order.shippingCostEstimated ?? 0) > 0 && (
-                      <div>
-                        <p className="text-gray-500">Envío estimado</p>
-                        <p className="font-semibold text-gray-900">
-                          {formatCurrency(order.shippingCostEstimated ?? 0)}
-                          <span className="text-xs text-gray-400 block font-normal">(puede bajar)</span>
-                        </p>
-                      </div>
-                    )}
-                    {order.status !== "accumulating" && order.shippingCost > 0 && (
-                      <div>
-                        <p className="text-gray-500">Envío</p>
-                        <p className="font-semibold text-gray-900">{formatCurrency(order.shippingCost)}</p>
-                      </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">
+                        {isAccumulating ? "Envío estimado:" : "Envío:"}
+                      </span>
+                      <span className="font-medium text-gray-900">
+                        {formatCurrency(shippingToShow)}
+                        {isAccumulating && shippingToShow > 0 && (
+                          <span className="text-xs text-gray-400 ml-1">(puede bajar)</span>
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Comisión MP — siempre se muestra */}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">
+                        Comisión MP (4%){isAccumulating && " estimada*"}:
+                      </span>
+                      <span className="font-medium text-gray-900">
+                        {formatCurrency(commissionToShow)}
+                      </span>
+                    </div>
+
+                    {/* Total */}
+                    <div className="flex justify-between pt-2 border-t border-gray-200 mt-2">
+                      <span className="font-semibold text-gray-900">
+                        {isAccumulating
+                          ? "Total estimado*:"
+                          : userAlreadyPaid || order.status === "all_paid" || order.status === "completed"
+                          ? "Total pagado:"
+                          : "Total a pagar:"}
+                      </span>
+                      <span className="font-bold text-gray-900 text-base">
+                        {formatCurrency(
+                          isAccumulating
+                            ? order.amount + shippingToShow + commissionToShow
+                            : (order.totalFinal || order.total || (order.amount + order.shippingCost + (order.commission ?? 0)))
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Nota explicativa solo en accumulating */}
+                    {isAccumulating && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        * El precio final puede ser menor si se divide el envío entre compradores de tu zona.
+                        La comisión MP se recalcula sobre el total real.
+                      </p>
                     )}
                   </div>
 
@@ -582,7 +639,7 @@ export default async function PedidosPage() {
                     </div>
                   )}
 
-                  {/* ── TABLA DE BENEFICIOS/SANCIONES (cuando el lote cerró y no pagó aún) ── */}
+                  {/* ── TABLA DE BENEFICIOS/SANCIONES ── */}
                   {order.status === "lot_closed" && order.reservationStatus === "lot_closed" && (
                     <PaymentTiersTable lotClosedAtMs={order.lotClosedAt} />
                   )}
@@ -597,14 +654,12 @@ export default async function PedidosPage() {
                         {order.lotMates.map((mate, i) => (
                           <div key={i} className="flex items-center justify-between text-sm">
                             <span className="text-gray-700 flex items-center gap-1.5 flex-wrap">
-                              {/* Badge permanente (milestone) — antes del nombre */}
                               {mate.milestoneBadge && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
                                   {mate.milestoneBadge}
                                 </span>
                               )}
                               {mate.name}
-                              {/* Badge de racha — después del nombre */}
                               {mate.streakBadge && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
                                   {mate.streakBadge}
@@ -626,55 +681,20 @@ export default async function PedidosPage() {
                     </div>
                   )}
 
-                  {/* ── BOTÓN PAGAR (solo si el usuario todavía no pagó) ── */}
+                  {/* ── BOTÓN PAGAR ── */}
                   {order.status === "lot_closed" &&
                     order.reservationStatus === "lot_closed" &&
                     order.paymentLink && (
-                    <a
-                      href={order.paymentLink}
+                    
+                     <a href={order.paymentLink}
                       className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg mb-4 transition"
                     >
                       💳 Pagar ahora — {formatCurrency(order.totalFinal ?? order.amount)}
                     </a>
                   )}
 
-                  {/* ── TOTAL ── */}
-                  <div className="pt-4 border-t border-gray-200">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        {order.status === "accumulating" ? (
-                          <>
-                            <p className="text-sm text-gray-500">Total estimado</p>
-                            <p className="text-lg font-bold text-gray-900">
-                              {formatCurrency(order.amount + (order.shippingCostEstimated ?? 0))}
-                              <span className="text-xs text-gray-400 font-normal ml-1">aprox.</span>
-                            </p>
-                          </>
-                        ) : order.status === "lot_closed" ? (
-                          <>
-                            <p className="text-sm text-gray-500">
-                              {userAlreadyPaid ? "Total pagado" : "Total a pagar"}
-                            </p>
-                            <p className="text-lg font-bold text-gray-900">
-                              {formatCurrency(
-                                userAlreadyPaid
-                                  ? (order.total || order.totalFinal || order.amount)
-                                  : (order.totalFinal ?? order.amount)
-                              )}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-sm text-gray-500">Total pagado</p>
-                            <p className="text-lg font-bold text-gray-900">
-                              {formatCurrency(order.total)}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Mensajes de estado */}
+                  {/* Mensajes de estado */}
+                  <div className="pt-2 border-t border-gray-100">
                     {order.status === "accumulating" && order.isReservation && (
                       <p className="text-xs text-orange-600 mt-3 flex items-center gap-1">
                         <span>🔖</span>
@@ -716,7 +736,6 @@ export default async function PedidosPage() {
                       </p>
                     )}
 
-                    {/* ── BOTÓN DAR DE BAJA (solo pending_lot) ── */}
                     {order.isReservation &&
                       order.reservationStatus === "pending_lot" &&
                       order.reservationDocId && (
@@ -726,7 +745,6 @@ export default async function PedidosPage() {
                       />
                     )}
 
-                    {/* ── MENSAJE BLOQUEADO si quiere cancelar en lot_closed ── */}
                     {order.isReservation && order.reservationStatus === "lot_closed" && (
                       <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
                         <span>🔒</span>

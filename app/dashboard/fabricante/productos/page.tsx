@@ -1,15 +1,23 @@
 "use client";
 
+// ✅ BLOQUE E: lista de productos del vendedor.
+// Muestra "Tu precio" (BASE) y "Publicado (con 4% MP)" calculado en runtime.
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BackButton from "../../../../components/BackButton";
 
+// ✅ BLOQUE E: comisión MP del 4%
+const MP_COMMISSION_RATE = 1.04;
+function getDisplayPrice(price: number): number {
+  return Math.round(price * MP_COMMISSION_RATE);
+}
+
 type Product = {
   id: string;
   name: string;
-  price: number;
-  displayPrice?: number | null; // ✅ BLOQUE 7: precio publicado al comprador (con 4% MP)
+  price: number; // ✅ BLOQUE E: BASE
   minimumOrder: number;
   category: string;
   featured: boolean;
@@ -159,10 +167,8 @@ export default function ProductosFabricantePage() {
 
       <div className="grid md:grid-cols-3 gap-6">
         {filtered.map((p) => {
-          // ✅ BLOQUE 7: precio publicado (con 4% MP) — calculado desde Firestore o derivado
-          const displayPrice = typeof p.displayPrice === "number" && p.displayPrice > 0
-            ? p.displayPrice
-            : Math.round(p.price * 1.04);
+          // ✅ BLOQUE E: precio publicado (con 4% MP) calculado en runtime
+          const displayPrice = getDisplayPrice(p.price);
 
           return (
             <div
@@ -208,7 +214,7 @@ export default function ProductosFabricantePage() {
                 <h3 className="font-semibold text-lg mb-3">{p.name}</h3>
 
                 <div className="space-y-2 mb-4">
-                  {/* ✅ BLOQUE 7: dos precios para que el vendedor entienda qué cobra él vs qué paga el comprador */}
+                  {/* ✅ BLOQUE E: dos precios — base (lo que cobra el vendedor) y publicado (lo que paga el comprador) */}
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs text-gray-500 uppercase tracking-wide">Tu precio</span>
