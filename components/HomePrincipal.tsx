@@ -535,8 +535,8 @@ export default function HomePrincipal({
                   <div className="grid grid-cols-4 gap-3 md:gap-6 mb-6">
                     {[
                       { emoji: '🛒', step: '1', label: 'Elegí tu producto, y selecciona compra directa o fraccionada.' },
-                      { emoji: '📋', step: '2', label: 'Hace tu compra directa al instante, y recibi, o reservá para pagar luego.' },
-                      { emoji: '⏳', step: '3', label: 'En compras fraccionadas* esperas a que se llegue al minimo de fabrica entre todos.' },
+                      { emoji: '📋', step: '2', label: 'Hace tu compra directa al instante, y recibi. En Compra fraccionada, primero reservá y paga despues.' },
+                      { emoji: '⏳', step: '3', label: 'En *compras fraccionadas, esperas a que se llegue al minimo de fabrica entre todos.' },
                       { emoji: '💰', step: '4', label: 'Cuando se llega al minimo, pagás y recibís.' },
                     ].map((item, i) => (
                       <div key={i} className="flex flex-col items-center text-center gap-2">
