@@ -4,6 +4,11 @@
 //
 // IDEMPOTENTE: el form siempre manda price base. Editar el nombre/descripción
 // 100 veces no infla el precio porque ya no se aplica ninguna multiplicación.
+//
+// ✅ FIX MINIMUM ORDER: si el vendedor baja el minimumOrder, validar que
+// ningún lote abierto tenga accumulatedQty > nuevoMinimumOrder. El vendedor
+// puede subir el mínimo libremente, pero al bajarlo no puede ir por debajo
+// de lo que ya hay reservado.
 
 import { NextResponse } from "next/server";
 import { requireSellerRole } from "../../../../lib/auth/requireRole";
@@ -66,6 +71,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Pedido mínimo inválido" }, { status: 400 });
     }
 
+    // ✅ FIX MINIMUM ORDER: validar que el nuevo minimumOrder sea >= accumulatedQty
+    // de cualquier lote abierto. Si el vendedor baja el mínimo, no puede ir por
+    // debajo de las unidades ya reservadas.
+    const openLotsSnap = await db.collection("lots")
+      .where("productId", "==", body.productId)
+      .where("status", "in", ["accumulating", "open"])
+      .get();
+
+    for (const lotDoc of openLotsSnap.docs) {
+      const lot = lotDoc.data();
+      const currentAccumulated = lot.accumulatedQty || 0;
+      if (currentAccumulated > body.minimumOrder) {
+        return NextResponse.json({
+          error: `No podés bajar el mínimo a ${body.minimumOrder} porque ya hay un lote con ${currentAccumulated} unidades reservadas. El nuevo mínimo debe ser igual o mayor a ${currentAccumulated}.`,
+        }, { status: 400 });
+      }
+    }
+
     if (typeof body.netProfitPerUnit !== "number" || body.netProfitPerUnit < 0) {
       return NextResponse.json({ error: "Ganancia neta inválida" }, { status: 400 });
     }
@@ -109,9 +132,6 @@ export async function POST(req: Request) {
     }
 
     // Precio minorista de referencia
-    // Si viene null o vacío → se borra
-    // Si viene un número > 0 → se guarda como "manual"
-    // Si no viene en el body (undefined) → no se toca lo que ya había
     let retailPriceUpdate: Record<string, any> = {};
     if (body.retailReferencePrice !== undefined) {
       const parsed = Number(body.retailReferencePrice);

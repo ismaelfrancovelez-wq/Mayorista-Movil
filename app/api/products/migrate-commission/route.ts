@@ -1,19 +1,27 @@
 // app/api/products/migrate-commission/route.ts
-// 🔧 ENDPOINT TEMPORAL DE MIGRACIÓN
-// Convierte productos del formato viejo (price con 4% incluido)
-// al formato nuevo (price base + displayPrice con 4%).
 //
-// Idempotente: si el producto ya tiene displayPrice, lo saltea.
-// Solo procesa los productos del usuario logueado.
+// ✅ BLOQUE F — CLEANUP FINAL
+// Borra el campo `displayPrice` de todos los productos y de cada
+// `minimums[].formats[]`. Después de esto la DB queda con solo `price` BASE.
 //
-// 🗑️ ELIMINAR ESTE ARCHIVO una vez completada la migración.
+// Es idempotente: corrida después de la primera vez, no hace nada porque
+// ya no hay campos `displayPrice`.
+//
+// Modo dry-run: ?dryRun=true para ver cuántos productos se afectarían.
+//
+// Solo accesible para admin (cookies userId === ADMIN_USER_ID).
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
-const COMMISSION_RATE = 1.04;
+export const dynamic = "force-dynamic";
+export const maxDuration = 300; // 5 minutos para procesar todos los productos
+
+// ⚠️ AJUSTAR: poné acá el userId de admin si querés restringir el endpoint.
+// Si lo dejás vacío, cualquier usuario logueado puede ejecutarlo.
+const ADMIN_USER_IDS: string[] = []; // ej: ["abc123XYZ"]
 
 export async function POST(req: Request) {
   try {
@@ -22,154 +30,120 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // Verificar que sea seller
-    const userSnap = await db.collection("users").doc(userId).get();
-    if (!userSnap.exists) {
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 401 });
+    if (ADMIN_USER_IDS.length > 0 && !ADMIN_USER_IDS.includes(userId)) {
+      return NextResponse.json({ error: "Solo admins" }, { status: 403 });
     }
 
-    const userData = userSnap.data();
-    const sellerRoles = ["manufacturer", "distributor", "wholesaler"];
-    const userType = userData?.usertype;
-    const activeRoleDB = userData?.activeRole;
-    const roles = userData?.roles || [];
+    const { searchParams } = new URL(req.url);
+    const dryRun = searchParams.get("dryRun") === "true";
 
-    const hasSellerRole =
-      sellerRoles.includes(userType) ||
-      sellerRoles.includes(activeRoleDB) ||
-      roles.some((r: string) => sellerRoles.includes(r));
+    console.log(`🧹 BLOQUE F: cleanup de displayPrice — dryRun=${dryRun}`);
 
-    if (!hasSellerRole) {
-      return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
-    }
+    const productsSnap = await db.collection("products").get();
+    console.log(`📦 Total de productos en DB: ${productsSnap.size}`);
 
-    // Body opcional: { dryRun: boolean }
-    let dryRun = false;
-    try {
-      const body = await req.json();
-      dryRun = body?.dryRun === true;
-    } catch {
-      // No body, ok
-    }
+    let total = 0;
+    let willClean = 0;
+    let alreadyClean = 0;
+    let cleaned = 0;
+    let errors = 0;
+    const errorIds: string[] = [];
 
-    // Traer todos los productos del usuario
-    const productsSnap = await db
-      .collection("products")
-      .where("factoryId", "==", userId)
-      .get();
+    // Procesamos en chunks de 50 con pequeño delay entre chunks
+    // para no saturar Firestore.
+    const docs = productsSnap.docs;
+    const CHUNK_SIZE = 50;
 
-    const stats = {
-      total: productsSnap.size,
-      migrated: 0,
-      skipped: 0,
-      errors: 0,
-      details: [] as Array<{
-        id: string;
-        name: string;
-        action: "migrated" | "skipped" | "error";
-        oldPrice?: number;
-        newPrice?: number;
-        newDisplayPrice?: number;
-        reason?: string;
-      }>,
-    };
+    for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+      const chunk = docs.slice(i, i + CHUNK_SIZE);
 
-    for (const doc of productsSnap.docs) {
-      const data = doc.data();
-      const productId = doc.id;
-      const name = data.name || "(sin nombre)";
+      await Promise.all(chunk.map(async (doc) => {
+        total++;
+        const data = doc.data();
 
-      // Si ya tiene displayPrice, está migrado — saltear
-      if (typeof data.displayPrice === "number") {
-        stats.skipped++;
-        stats.details.push({
-          id: productId,
-          name,
-          action: "skipped",
-          reason: "ya tiene displayPrice",
-        });
-        continue;
-      }
+        // ¿Tiene displayPrice a nivel raíz?
+        const hasRootDisplayPrice = "displayPrice" in data;
 
-      try {
-        const oldPrice = Number(data.price);
-        if (!oldPrice || oldPrice <= 0) {
-          stats.errors++;
-          stats.details.push({
-            id: productId,
-            name,
-            action: "error",
-            reason: "price inválido",
-          });
-          continue;
+        // ¿Tiene displayPrice en alguno de los formats?
+        const minimums = Array.isArray(data.minimums) ? data.minimums : [];
+        const hasFormatDisplayPrice = minimums.some((m: any) =>
+          Array.isArray(m.formats) && m.formats.some((f: any) => "displayPrice" in f)
+        );
+
+        if (!hasRootDisplayPrice && !hasFormatDisplayPrice) {
+          alreadyClean++;
+          return;
         }
 
-        // Deshacer el 4%: el price actual es el "displayPrice" futuro
-        const newDisplayPrice = Math.round(oldPrice);
-        const newPrice = Math.round(oldPrice / COMMISSION_RATE);
+        willClean++;
 
-        // Migrar minimums[].formats[]
-        const oldMinimums = Array.isArray(data.minimums) ? data.minimums : [];
-        const newMinimums = oldMinimums.map((m: any) => ({
-          ...m,
-          formats: Array.isArray(m.formats)
-            ? m.formats.map((f: any) => {
-                // Si el format ya tiene displayPrice, no lo tocamos
-                if (typeof f.displayPrice === "number") return f;
-                const oldFormatPrice = Number(f.price) || 0;
-                return {
-                  ...f,
-                  price: Math.round(oldFormatPrice / COMMISSION_RATE),
-                  displayPrice: Math.round(oldFormatPrice),
-                };
-              })
-            : [],
-        }));
-
-        if (!dryRun) {
-          await doc.ref.update({
-            price: newPrice,
-            displayPrice: newDisplayPrice,
-            minimums: newMinimums,
-            commissionMigratedAt: FieldValue.serverTimestamp(),
-          });
+        if (dryRun) {
+          // Solo contar, no modificar
+          return;
         }
 
-        stats.migrated++;
-        stats.details.push({
-          id: productId,
-          name,
-          action: "migrated",
-          oldPrice,
-          newPrice,
-          newDisplayPrice,
-        });
-      } catch (err: any) {
-        stats.errors++;
-        stats.details.push({
-          id: productId,
-          name,
-          action: "error",
-          reason: err?.message || "error desconocido",
-        });
+        // ── Aplicar cleanup ──
+        try {
+          // Para borrar dentro de array no podemos usar FieldValue.delete().
+          // Tenemos que reescribir el array completo sin el campo displayPrice.
+          const cleanedMinimums = minimums.map((m: any) => ({
+            ...m,
+            formats: Array.isArray(m.formats)
+              ? m.formats.map((f: any) => {
+                  // Copia f sin displayPrice
+                  const { displayPrice, ...rest } = f;
+                  return rest;
+                })
+              : m.formats,
+          }));
+
+          const updates: any = {
+            minimums: cleanedMinimums,
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+
+          if (hasRootDisplayPrice) {
+            updates.displayPrice = FieldValue.delete();
+          }
+
+          await doc.ref.update(updates);
+          cleaned++;
+        } catch (err: any) {
+          errors++;
+          errorIds.push(doc.id);
+          console.error(`❌ Error limpiando ${doc.id}:`, err?.message || err);
+        }
+      }));
+
+      // Pequeño delay entre chunks (evita rate limit)
+      if (i + CHUNK_SIZE < docs.length) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
+
+      console.log(`  Progreso: ${Math.min(i + CHUNK_SIZE, docs.length)}/${docs.length}`);
     }
 
-    return NextResponse.json({
+    const result = {
       success: true,
       dryRun,
-      stats: {
-        total: stats.total,
-        migrated: stats.migrated,
-        skipped: stats.skipped,
-        errors: stats.errors,
-      },
-      details: stats.details,
-    });
+      total,
+      alreadyClean,
+      willClean: dryRun ? willClean : undefined,
+      cleaned: dryRun ? undefined : cleaned,
+      errors,
+      errorIds: errors > 0 ? errorIds : undefined,
+      message: dryRun
+        ? `[DRY RUN] Se limpiarían ${willClean} productos. ${alreadyClean} ya están limpios.`
+        : `✅ Cleanup completado. Limpiados: ${cleaned}. Ya limpios: ${alreadyClean}. Errores: ${errors}.`,
+    };
+
+    console.log("📊 Resultado final:", result);
+
+    return NextResponse.json(result);
   } catch (error: any) {
-    console.error("❌ MIGRATE COMMISSION ERROR:", error);
+    console.error("❌ Error general en cleanup:", error);
     return NextResponse.json(
-      { error: error?.message ?? "Error en migración" },
+      { error: error?.message || "Error en cleanup" },
       { status: 500 }
     );
   }

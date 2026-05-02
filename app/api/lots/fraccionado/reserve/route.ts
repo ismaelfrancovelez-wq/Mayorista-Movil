@@ -25,6 +25,11 @@
 //      commissionFinal = (productSubtotal + shippingFinal) × 0.04
 //      Si retiro en fábrica → commissionFinal = productSubtotal × 0.04
 //      totalFinal = productSubtotal + shippingFinal + commissionFinal
+//
+// ✅ FIX MINIMUM ORDER: al actualizar un lote existente, sincronizar
+//    minimumOrder, minimumValue y minimumType con el producto actual.
+//    Si el vendedor cambió el mínimo (siempre validado >= accumulatedQty
+//    en edit/route.ts), el lote refleja el nuevo valor.
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -611,9 +616,15 @@ export async function POST(req: Request) {
           level1WindowExpiresAt,
         });
       } else {
+        // ✅ FIX MINIMUM ORDER: sincronizar minimumOrder, minimumValue y minimumType
+        // del lote con el producto actual. Si el vendedor cambió el mínimo (siempre
+        // validado en edit/route.ts >= accumulatedQty), el lote refleja el nuevo valor.
         transaction.update(targetLotRef, {
           accumulatedQty: newAccumulatedQty,
           accumulatedAmount: newAccumulatedAmount,
+          minimumOrder: minimumType === "quantity" ? minimumValue : 0,
+          minimumValue,
+          minimumType,
           status: txLotClosed ? "closed" : "accumulating",
           closedAt: txLotClosed ? FieldValue.serverTimestamp() : null,
           level1WindowExpiresAt,
