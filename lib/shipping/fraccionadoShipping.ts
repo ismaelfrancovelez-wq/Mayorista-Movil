@@ -16,7 +16,7 @@ export function calculateFraccionadoShipping({
   const kmFactoryRetailer = distanceKm(factoryAddress, retailerAddress);
 
   const totalKm = (kmBaseFactory + kmFactoryRetailer) * 2;
-  const cost = totalKm * 85 + 3000;
+  const cost = totalKm * 85 + 4500;
 
   return {
     shippingMode: "platform",
