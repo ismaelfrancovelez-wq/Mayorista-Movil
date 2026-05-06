@@ -12,12 +12,10 @@ import { formatCurrency } from "../../../../lib/utils";
 import CancelReservationButton from "../../../../components/CancelReservationButton";
 import HideOrderButton from "../../../../components/HideOrderButton";
 import OrderCard from "../../../../components/OrderCard";
+import { MP_COMMISSION_RATE } from "../../../../lib/constants/commission";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
-
-// ✅ BLOQUE E: comisión MP del 4%
-const MP_COMMISSION_RATE = 0.04;
 
 type ReservationStatus = "pending_lot" | "lot_closed" | "paid" | "cancelled";
 

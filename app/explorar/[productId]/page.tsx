@@ -1,9 +1,9 @@
 // app/explorar/[productId]/page.tsx
-// ✅ BLOQUE C v2: trabaja con price BASE.
-// - Lee `price` BASE de Firestore (sin comisión).
-// - Para mostrar al comprador, calcula displayPrice = base × 1.04 en runtime.
-// - A ProductPurchaseClient le pasa el price BASE (no displayPrice) para que
-//   internamente haga (base × qty + envío) × 1.04.
+//
+// REFACTOR: eliminado el aviso "incluye 4% comisión MP" en todos lados.
+// El precio mostrado ahora es el precio base limpio (publicado por el vendedor).
+// El cliente verá los recargos por método de pago en /pagar/[reservationId]
+// o en el selector dentro de ProductPurchaseClient (Bloque 4).
 
 import { headers } from "next/headers";
 import { cookies } from "next/headers";
@@ -16,12 +16,6 @@ import Link from "next/link";
 import VariantSelectorClient from "../../../components/products/VariantSelectorClient";
 
 export const revalidate = 30;
-
-// ✅ BLOQUE C v2: comisión MP del 4% — solo para mostrar
-const MP_COMMISSION_RATE = 1.04;
-function getDisplayPrice(price: number): number {
-  return Math.round(price * MP_COMMISSION_RATE);
-}
 
 async function getProduct(
   productId: string
@@ -47,9 +41,7 @@ export async function generateMetadata({
   }
 
   const name = (product.name || "Producto").replace(/\s*\[[^\]]+\]\s*/g, "").trim();
-  // ✅ BLOQUE C v2: SEO muestra precio publicado (con 4% MP)
-  const displayPrice = getDisplayPrice(product.price || 0);
-  const price = displayPrice?.toLocaleString("es-AR") ?? "";
+  const price = (product.price || 0).toLocaleString("es-AR");
   const minimumOrder = product.minimumOrder ?? 0;
   const category = (product as any).category ?? "";
 
@@ -163,9 +155,8 @@ export default async function ProductDetailPage({
 
   const minimumOrder = Number(product.minimumOrder) || 0;
 
-  // ✅ BLOQUE C v2: trabajamos con base. El display se calcula solo para mostrar.
+  // ✅ Precio base limpio (sin recargo)
   const basePrice = product.price || 0;
-  const displayPrice = getDisplayPrice(basePrice);
 
   const images: string[] =
     Array.isArray((product as any).imageUrls) && (product as any).imageUrls.length > 0
@@ -189,8 +180,6 @@ export default async function ProductDetailPage({
   const variants: { unitLabel: string; price: number; minimumOrder: number }[] =
     Array.isArray((product as any).variants) ? (product as any).variants : [];
 
-  // ✅ BLOQUE C v2: allVariants pasa precio BASE (sin 4%). VariantSelectorClient
-  // calcula el display en runtime para mostrar y le pasa BASE a ProductPurchaseClient.
   const allVariants = [
     {
       unitLabel: unitLabel || "",
@@ -200,7 +189,7 @@ export default async function ProductDetailPage({
     },
     ...variants.map(v => ({
       ...v,
-      price: v.price, // BASE
+      price: v.price,
       isBase: false,
     })),
   ];
@@ -211,11 +200,11 @@ export default async function ProductDetailPage({
 
   const hasVariants = variants.length > 0 || !!minimums;
 
-  // ✅ BLOQUE C v2: comparación de precio minorista usa display (con 4%)
+  // Comparación contra precio minorista (con precio base limpio)
   const retailReferencePrice: number | null = (product as any).retailReferencePrice ?? null;
-  const hasRetailPrice = retailReferencePrice !== null && retailReferencePrice > displayPrice;
+  const hasRetailPrice = retailReferencePrice !== null && retailReferencePrice > basePrice;
   const savingsPercent = hasRetailPrice
-    ? Math.round(((retailReferencePrice! - displayPrice) / retailReferencePrice!) * 100)
+    ? Math.round(((retailReferencePrice! - basePrice) / retailReferencePrice!) * 100)
     : 0;
 
   const sellerBadgeColors: Record<string, string> = {
@@ -301,11 +290,10 @@ export default async function ProductDetailPage({
                 />
               ) : (
                 <>
-                  {/* ✅ BLOQUE DE PRECIO CON COMPARACIÓN MINORISTA */}
                   <div className="mb-3">
-                    {/* ✅ BLOQUE C v2: muestra precio publicado (con 4% MP) calculado en runtime */}
+                    {/* ✅ Precio base limpio */}
                     <p className="text-3xl font-light text-gray-900 leading-none">
-                      ${displayPrice.toLocaleString("es-AR")}
+                      ${basePrice.toLocaleString("es-AR")}
                       {unitLabel && (
                         <span className="text-base font-normal text-gray-500 ml-1">
                           / {unitLabel}
@@ -313,10 +301,9 @@ export default async function ProductDetailPage({
                       )}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">
-                      {unitLabel ? `precio por ${unitLabel} · ` : ""}incluye 4% comisión MP
+                      {unitLabel ? `precio por ${unitLabel} · ` : ""}precio publicado por el vendedor
                     </p>
 
-                    {/* Precio minorista tachado + badge ahorro */}
                     {hasRetailPrice && (
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
                         <span className="text-sm text-gray-400">
@@ -346,12 +333,11 @@ export default async function ProductDetailPage({
                     </div>
                     <div className="bg-gray-50 rounded-lg p-3">
                       <p className="text-xs text-gray-500 uppercase tracking-wide mb-0.5">Precio mínimo total</p>
-                      {/* ✅ BLOQUE C v2: total con displayPrice (con 4% MP) */}
                       <p className="text-xl font-semibold text-gray-900">
-                        ${(displayPrice * minimumOrder).toLocaleString("es-AR")}
+                        ${(basePrice * minimumOrder).toLocaleString("es-AR")}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {minimumOrder} × ${displayPrice.toLocaleString("es-AR")}
+                        {minimumOrder} × ${basePrice.toLocaleString("es-AR")}
                       </p>
                     </div>
                   </div>
@@ -404,8 +390,6 @@ export default async function ProductDetailPage({
   </div>
 )}
 
-                  {/* ✅ BLOQUE C v2: pasa price BASE. ProductPurchaseClient
-                      muestra desglose con 4% MP en runtime. */}
                   <ProductPurchaseClient
                     price={basePrice}
                     MF={minimumOrder}

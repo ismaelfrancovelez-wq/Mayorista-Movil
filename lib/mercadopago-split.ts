@@ -1,5 +1,9 @@
 // lib/mercadopago-split.ts
-// 🔧 VERSIÓN SIN auto_return (COMPATIBLE CON SDK v2.11.0)
+//
+// REFACTOR: el split por marketplace_fee ya no se usa (estaba comentado igual).
+// El parámetro `commission` se mantiene en la firma para no romper callers,
+// pero ya no se usa en el body de la preferencia. Vos seguís recibiendo TODO
+// en tu cuenta MP y manejás el pago al fabricante por afuera.
 
 import MercadoPagoConfig, { Preference } from "mercadopago";
 
@@ -13,7 +17,7 @@ type SplitPaymentParams = {
   quantity: number;
   metadata: {
     productId: string;
-    factoryId?: string;  // ✅ AGREGADO: factoryId a la metadata
+    factoryId?: string;
     qty: number;
     tipo: "directa" | "fraccionada";
     withShipping: boolean;
@@ -24,8 +28,10 @@ type SplitPaymentParams = {
     MF?: number;
     shippingCost?: number;
     shippingMode?: string;
+    /** @deprecated ya no se usa, quedó por compatibilidad con callers viejos */
     commission?: number;
-    // ✅ NUEVO: para el flujo de reserva diferida (pago post-cierre de lote)
+    /** Método de pago elegido por el cliente (qr_money_in_mp, checkout_credit, etc) */
+    paymentMethod?: string;
     reservationId?: string;
     lotId?: string;
   };
@@ -34,10 +40,14 @@ type SplitPaymentParams = {
     pending: string;
     failure: string;
   };
+  /** @deprecated no se usa */
   factoryMPUserId?: string;
   shippingCost: number;
   productTotal: number;
+  /** @deprecated no se usa, quedó por compatibilidad */
   commission: number;
+  /** Tipos de pago a EXCLUIR (ej: si elegís solo débito, excluís credit_card) */
+  excluded_payment_types?: { id: string }[];
 };
 
 export async function createSplitPreference(params: SplitPaymentParams) {
@@ -47,36 +57,24 @@ export async function createSplitPreference(params: SplitPaymentParams) {
     quantity,
     metadata,
     back_urls,
-    commission,
+    excluded_payment_types,
   } = params;
 
-  // ✅ VALIDACIÓN: Verificar que back_urls esté completo
-  console.log('🔍 Verificando back_urls:', back_urls);
-  
   if (!back_urls?.success || !back_urls?.pending || !back_urls?.failure) {
-    console.error('❌ back_urls incompleto:', back_urls);
-    throw new Error('back_urls debe tener success, pending y failure');
+    console.error("❌ back_urls incompleto:", back_urls);
+    throw new Error("back_urls debe tener success, pending y failure");
   }
-
-  console.log('✅ back_urls válido:', {
-    success: back_urls.success,
-    pending: back_urls.pending,
-    failure: back_urls.failure,
-  });
 
   const preference = new Preference(client);
 
-  // 🔔 NOTIFICATION URL (webhook)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-    (process.env.NODE_ENV === 'development' 
-      ? 'http://localhost:3000' 
-      : 'https://mayoristamovil.com');
-  
-  const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
-  console.log('🔔 Notification URL:', notificationUrl);
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.NODE_ENV === "development"
+      ? "http://localhost:3000"
+      : "https://mayoristamovil.com");
 
-  // ✅ PREPARAR BODY - VERSIÓN MINIMALISTA QUE FUNCIONA
-  const baseBody: any = {
+  const notificationUrl = `${baseUrl}/api/webhooks/mercadopago`;
+
+  const body: any = {
     items: [
       {
         id: metadata.productId,
@@ -86,64 +84,35 @@ export async function createSplitPreference(params: SplitPaymentParams) {
       },
     ],
     notification_url: notificationUrl,
-    metadata: metadata,
+    metadata,
+    back_urls,
   };
 
-  console.log('📦 Creando preferencia con body:', {
+  // Si el caller pidió excluir tipos de pago (ej: solo débito), aplicarlo
+  if (excluded_payment_types && excluded_payment_types.length > 0) {
+    body.payment_methods = {
+      excluded_payment_types,
+      installments: 1, // sin cuotas
+    };
+  }
+
+  console.log("📦 Creando preferencia:", {
     tipo: metadata.tipo,
+    paymentMethod: metadata.paymentMethod || "any",
     title,
     unit_price,
-    notification_url: baseBody.notification_url,
+    excluded: excluded_payment_types?.map((e) => e.id) || [],
   });
 
   try {
-    // PEDIDO DIRECTO
-    if (metadata.tipo === "directa") {
-      console.log('🔵 Creando preferencia DIRECTA');
-      
-      const response = await preference.create({
-        body: baseBody,
-      });
-
-      console.log('✅ Preferencia DIRECTA creada:', response.id);
-      console.log('🔗 Init point:', response.init_point);
-      return response;
-    }
-
-    // PEDIDO FRACCIONADO
-    if (metadata.tipo === "fraccionada") {
-      console.log('🔵 Creando preferencia FRACCIONADA con commission:', commission);
-      
-      const response = await preference.create({
-        body: {
-          ...baseBody,
-          // marketplace_fee: commission, // ⚠️ Comentado si causa problemas
-        },
-      });
-
-      console.log('✅ Preferencia FRACCIONADA creada:', response.id);
-      console.log('🔗 Init point:', response.init_point);
-      return response;
-    }
-
-    // FALLBACK
-    console.log('🔵 Creando preferencia FALLBACK');
-    
-    const response = await preference.create({
-      body: baseBody,
-    });
-
-    console.log('✅ Preferencia FALLBACK creada:', response.id);
-    console.log('🔗 Init point:', response.init_point);
+    const response = await preference.create({ body });
+    console.log("✅ Preferencia creada:", response.id);
     return response;
-
   } catch (error: any) {
-    console.error('❌ Error creando preferencia:', {
+    console.error("❌ Error creando preferencia:", {
       message: error.message,
-      error: error.error,
       status: error.status,
       cause: error.cause,
-      body: error.body,
     });
     throw error;
   }

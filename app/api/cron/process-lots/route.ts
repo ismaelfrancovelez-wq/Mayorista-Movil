@@ -18,6 +18,7 @@ import { Resend } from "resend";
 import { db } from "../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { createSplitPreference } from "../../../../lib/mercadopago-split";
+import { MP_COMMISSION_RATE } from "../../../../lib/constants/commission";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -25,9 +26,6 @@ export const maxDuration = 60;
 const CRON_SECRET = process.env.CRON_SECRET || "";
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.EMAIL_FROM || "onboarding@resend.dev";
-
-// ✅ BLOQUE D: tasa comisión MP
-const MP_COMMISSION_RATE = 0.04;
 
 /* ====================================================
    CALCULAR DEADLINE DE PAGO

@@ -11,16 +11,11 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ProductCategory, CATEGORY_LABELS } from "../../../../../../lib/types/product";
 import { uploadImage, validateImageFile } from "../../../../../../lib/firebase-storage";
+import { getDisplayPrice } from "../../../../../../lib/constants/commission";
 import toast from "react-hot-toast";
 
 function sanitizeText(text: string, maxLength: number = 100): string {
   return text.trim().substring(0, maxLength);
-}
-
-// ✅ BLOQUE E: comisión MP del 4% — solo para mostrar al vendedor el precio publicado
-const MP_COMMISSION_RATE = 1.04;
-function getDisplayPrice(price: number): number {
-  return Math.round(price * MP_COMMISSION_RATE);
 }
 
 interface FormatForm {

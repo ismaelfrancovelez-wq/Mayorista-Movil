@@ -7,12 +7,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BackButton from "../../../../components/BackButton";
-
-// ✅ BLOQUE E: comisión MP del 4%
-const MP_COMMISSION_RATE = 1.04;
-function getDisplayPrice(price: number): number {
-  return Math.round(price * MP_COMMISSION_RATE);
-}
+import { getDisplayPrice } from "../../../../lib/constants/commission";
 
 type Product = {
   id: string;

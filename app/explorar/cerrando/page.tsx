@@ -6,15 +6,9 @@
 
 import Link from "next/link";
 import { db } from "../../../lib/firebase-admin";
+import { getDisplayPrice } from "../../../lib/constants/commission";
 
 export const revalidate = 10;
-
-// ✅ BLOQUE C: comisión MP del 4% calculada en runtime
-const MP_COMMISSION_RATE = 1.04;
-function getDisplayPrice(price: number): number {
-  return Math.round(price * MP_COMMISSION_RATE);
-}
-
 type ClosingSoonLot = {
   lotId: string;
   productId: string;

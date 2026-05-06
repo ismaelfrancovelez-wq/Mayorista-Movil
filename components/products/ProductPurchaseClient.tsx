@@ -1,12 +1,9 @@
 "use client";
 
-// ✅ BLOQUE D: trabaja con price BASE.
-// - Recibe `price` BASE del padre (sin 4%).
-// - Calcula desglose: Subtotal + Envío + Comisión 4% + Total.
-//   * Compra DIRECTA: comisión = (subtotal + envío) × 0.04, todo ya aplicado.
-//   * Compra FRACCIONADA: muestra subtotal + envío estimado + nota "comisión se aplica al final".
-// - Al cobrar (compra directa): `unitPrice = (subtotal + envío) × 1.04`.
-// - Excepción retiro en fábrica: 4% solo sobre producto (envío = 0).
+// REFACTOR: eliminada toda la lógica de comisión 4% MP.
+// Ahora el resumen muestra Subtotal + Envío = Total (limpio).
+// El cliente verá los recargos por método de pago en el siguiente paso
+// (Bloque 4: integración del PaymentMethodSelector).
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import ShippingSimulatorSection from "../ShippingSimulatorSection";
@@ -14,7 +11,7 @@ import GooglePlacesAutocomplete, { PlaceResult } from "../GooglePlacesAutocomple
 import AddressShippingModal from "./AddressShippingModal";
 
 type Props = {
-  price: number; // ✅ BLOQUE D: BASE (sin 4%)
+  price: number; // precio base limpio
   MF: number;
   minimumType?: "quantity" | "amount";
   minimumValue?: number;
@@ -28,6 +25,7 @@ type Props = {
   hasFactoryAddress: boolean;
   noShipping?: boolean;
   unitLabel?: string;
+  /** @deprecated ya no se usa, queda por compatibilidad con callers viejos */
   initialCommissionRate?: number;
   userId?: string;
 };
@@ -36,15 +34,12 @@ type ShippingMode = "pickup" | "factory" | "platform";
 
 const AUTO_RESERVE_KEY = (productId: string) => `autoReserve_${productId}`;
 
-// ✅ BLOQUE D: tasa de comisión MP (4%)
-const MP_COMMISSION_RATE = 0.04;
-
 function formatNumber(n: number): string {
   return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 }
 
 export default function ProductPurchaseClient({
-  price, // BASE
+  price,
   MF,
   minimumType = "quantity",
   minimumValue,
@@ -58,7 +53,6 @@ export default function ProductPurchaseClient({
   hasFactoryAddress,
   noShipping = false,
   unitLabel,
-  initialCommissionRate = 12,
   userId,
 }: Props) {
   const [qty, setQty] = useState(1);
@@ -76,7 +70,6 @@ export default function ProductPurchaseClient({
   const selectedShippingRef = useRef(selectedShipping);
   useEffect(() => { selectedShippingRef.current = selectedShipping; }, [selectedShipping]);
 
-  // ✅ resetear shipping cuando cambia entre fraccionado y directo
   const prevFraccionadoRef = useRef(isFraccionado);
   useEffect(() => {
     if (prevFraccionadoRef.current === isFraccionado) return;
@@ -118,8 +111,6 @@ export default function ProductPurchaseClient({
   const [autoReserving, setAutoReserving] = useState(false);
 
   const usesReserveFlow = isFraccionado && (selectedShipping === "platform" || selectedShipping === "pickup");
-
-  const [commissionRate, setCommissionRate] = useState<number>(initialCommissionRate);
 
   useEffect(() => {
     async function checkFactoryMPStatus() {
@@ -201,7 +192,6 @@ export default function ProductPurchaseClient({
     calculateDirectShipping();
   }, [qty, MF, productId, isFraccionado, calculatePlatformShipping]);
 
-  // Auto-reserva post-login
   useEffect(() => {
     if (!userId || loadingMPStatus || mpConnected === null) return;
 
@@ -251,10 +241,6 @@ export default function ProductPurchaseClient({
           return;
         }
 
-        if (typeof data.commissionRate === "number") {
-          setCommissionRate(data.commissionRate);
-        }
-
         setReserved(true);
       } catch (err) {
         console.error("Error en auto-reserva:", err);
@@ -268,27 +254,11 @@ export default function ProductPurchaseClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, loadingMPStatus, mpConnected]);
 
-  // ✅ BLOQUE D: cálculos del desglose
-  // Subtotal: price BASE × qty (sin comisión)
-  // Envío: tal cual (sin comisión)
-  // Comisión: 4% sobre (subtotal + envío). Si retiro → solo sobre producto.
-  // Total: subtotal + envío + comisión
+  // ✅ Cálculos del desglose (limpio, sin comisión transaccional)
   const productSubtotal = price * qty;
-
-  // Si el comprador eligió retiro, envío = 0 → comisión solo sobre producto.
-  const isPickupMode = selectedShipping === "pickup";
-  const baseForCommission = isPickupMode
-    ? productSubtotal
-    : productSubtotal + shippingCost;
-
-  const commission = useMemo(
-    () => Math.round(baseForCommission * MP_COMMISSION_RATE),
-    [baseForCommission]
-  );
-
   const totalToCharge = useMemo(
-    () => productSubtotal + shippingCost + commission,
-    [productSubtotal, shippingCost, commission]
+    () => productSubtotal + shippingCost,
+    [productSubtotal, shippingCost]
   );
 
   const shippingNeedsAddress = selectedShipping === "factory" || selectedShipping === "platform";
@@ -334,10 +304,6 @@ export default function ProductPurchaseClient({
         return;
       }
 
-      if (typeof data.commissionRate === "number") {
-        setCommissionRate(data.commissionRate);
-      }
-
       setReserved(true);
     } catch (err) {
       console.error("Error reservando:", err);
@@ -379,7 +345,6 @@ export default function ProductPurchaseClient({
         setReserveError(data.error || "Error al reservar. Intentá de nuevo.");
         return;
       }
-      if (typeof data.commissionRate === "number") setCommissionRate(data.commissionRate);
       setReserved(true);
     } catch {
       setReserveError("Error de conexión. Intentá de nuevo.");
@@ -389,6 +354,11 @@ export default function ProductPurchaseClient({
     }
   }
 
+  /**
+   * Pedido directo: redirige a página de pago donde elige método.
+   * TODO Bloque 4: cambiar a /pagar?productId=X&qty=Y para que muestre selector
+   * En el meantime, sigue creando preferencia con default (checkout completo).
+   */
   async function handleCheckout() {
     if (!userId) { handleAuthGate(); return; }
     if (blockedByAddress) return;
@@ -407,22 +377,21 @@ export default function ProductPurchaseClient({
       ? selectedShipping === "pickup" ? "fraccionado_retiro" : "fraccionado_envio"
       : selectedShipping === "pickup" ? "directa_retiro" : "directa_envio";
 
-    // ✅ BLOQUE D: enviamos `unitPrice = totalToCharge` (con 4% MP ya incluido)
-    // y `commission` por separado para que el endpoint de MP haga el split correcto.
+    // Por ahora seguimos llamando con basePrice limpio y método default checkout_credit
+    // En Bloque 4 esto cambia: el cliente eligió el método antes en el selector.
     const res = await fetch("/api/payments/mercadopago", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: "Compra Mayorista",
-        unitPrice: totalToCharge,
-        qty: 1,
+        basePrice: totalToCharge,    // ✅ NUEVO: precio limpio
+        paymentMethod: "checkout_credit",  // TODO Bloque 4: viene del selector
         originalQty: qty,
         productId,
         orderType,
         lotType,
         shippingMode: selectedShipping,
         shippingCost,
-        commission,
         MF,
       }),
     });
@@ -481,7 +450,6 @@ export default function ProductPurchaseClient({
   return (
     <div className="border rounded-xl p-6 mt-8 bg-white shadow">
 
-      {/* ⚠️ MP desconectado */}
       {!loadingMPStatus && mpConnected === false && (
         <div className="mb-6 bg-red-50 border-2 border-red-300 rounded-lg p-4">
           <div className="flex items-start gap-3">
@@ -497,7 +465,6 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* ⚠️ Sin dirección del vendedor */}
       {!hasFactoryAddress && (
         <div className="mb-6 bg-amber-50 border-2 border-amber-300 rounded-lg p-4">
           <div className="flex items-start gap-3">
@@ -513,7 +480,6 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* ℹ️ Sin envío directo */}
       {noShipping && (
         <div className="mb-6 bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
@@ -532,7 +498,6 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* CANTIDAD */}
       <div className="mb-4">
         <label className="block text-sm font-medium mb-1">Cantidad</label>
         <input
@@ -551,7 +516,6 @@ export default function ProductPurchaseClient({
         </p>
       </div>
 
-      {/* OPCIONES DE ENTREGA */}
       <div className="mb-4">
         <p className="text-sm font-medium mb-2">Opciones de entrega:</p>
 
@@ -634,69 +598,34 @@ export default function ProductPurchaseClient({
         )}
       </div>
 
-      {/* ✅ BLOQUE D: RESUMEN DE COSTOS — distinto según fraccionado vs directo */}
+      {/* RESUMEN DE COSTOS LIMPIO (sin comisión) */}
       <div className="border rounded p-4 text-sm mb-4 bg-gray-50">
-        {/* Subtotal producto (siempre BASE) */}
         <p>
           Subtotal producto: $ {formatNumber(productSubtotal)}
           {unitLabel ? <span className="text-gray-400 text-xs"> ({qty}× {unitLabel})</span> : null}
         </p>
 
-        {/* Envío */}
         <p>
           Envío: $ {formatNumber(shippingCost)}
-          {isPickupMode && <span className="text-gray-400 text-xs"> (retiro en fábrica)</span>}
+          {selectedShipping === "pickup" && <span className="text-gray-400 text-xs"> (retiro en fábrica)</span>}
         </p>
 
-        {/* Comisión: depende de si es compra directa o reserva fraccionada */}
-        {/* Comisión: en fraccionada se muestra como estimada con asterisco */}
-        {isFraccionado ? (
-          <p>
-            Comisión MP (4%) estimada
-            <a href="#aviso-fraccionado" className="text-blue-600 hover:underline ml-1 font-medium">
-              *
-            </a>
-            : $ {formatNumber(commission)}
-            {isPickupMode && <span className="text-gray-400 text-xs"> (sobre producto)</span>}
-          </p>
-        ) : (
-          <p>
-            Comisión MP (4%): $ {formatNumber(commission)}
-            {isPickupMode && <span className="text-gray-400 text-xs"> (sobre producto)</span>}
-          </p>
-        )}
+        <p className="font-semibold mt-2 text-base">
+          Total: $ {formatNumber(totalToCharge)}
+        </p>
 
-        {/* Total: en fraccionada con asterisco; en directa total exacto */}
-        {isFraccionado ? (
-          <>
-            <p className="font-semibold mt-2 text-base">
-              Total estimado
-              <a href="#aviso-fraccionado" className="text-blue-600 hover:underline ml-1">
-                *
-              </a>
-              : $ {formatNumber(totalToCharge)}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              * El precio final puede ser menor si se divide el envío entre compradores de tu zona.
-              La comisión MP se recalcula sobre el total real.
-            </p>
-          </>
-        ) : (
-          <p className="font-semibold mt-2 text-base">
-            Total: $ {formatNumber(totalToCharge)}
-          </p>
-        )}
+        <p className="text-xs text-gray-500 mt-2">
+          Al pagar, vas a poder elegir entre QR, tarjeta, transferencia. Cada método tiene un recargo distinto.
+        </p>
       </div>
 
-      {/* ✅ BLOQUE D: AVISO fraccionado + plataforma — texto actualizado */}
+      {/* AVISO compartir lote */}
       {usesReserveFlow && selectedShipping === "platform" && !loadingShipping && (
-        <div id="aviso-fraccionado" className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 scroll-mt-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 scroll-mt-4">
           <div className="text-sm text-blue-800">
             <strong>💡 El envío podría ser menor.</strong> Buscamos otros
             compradores en tu zona para dividir el costo. Si se suman, pagás
-            menos de <strong>${formatNumber(shippingCost)}</strong> de envío.
-            La comisión MP (4%) se recalcula sobre el total real al cerrar el lote
-            — si baja el envío, baja también la comisión.{" "}
+            menos de <strong>${formatNumber(shippingCost)}</strong> de envío.{" "}
             <button
               onClick={() => setShowSimulator(!showSimulator)}
               className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
@@ -730,14 +659,12 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* AVISO fraccionado + retiro */}
       {usesReserveFlow && selectedShipping === "pickup" && (
-        <div id="aviso-fraccionado" className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 scroll-mt-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 scroll-mt-4">
           <p className="text-sm text-green-800">
             <strong>📦 Retiro en fábrica — sin costo de envío.</strong>{" "}
             Reservá tu lugar. Cuando el lote alcance el mínimo, te mandamos
             el link de pago por email para confirmar la compra.
-            La comisión MP (4%) se aplica al precio final del producto.
           </p>
         </div>
       )}
@@ -828,10 +755,6 @@ export default function ProductPurchaseClient({
               return;
             }
 
-            if (typeof data.commissionRate === "number") {
-              setCommissionRate(data.commissionRate);
-            }
-
             setShowAddressModal(false);
             setReserved(true);
           }}
@@ -846,7 +769,6 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {/* BOTÓN */}
       {!userId ? (
         <button
           onClick={handleAuthGate}
@@ -908,7 +830,6 @@ export default function ProductPurchaseClient({
       {!userId && (
         <p className="text-xs text-gray-500 text-center mt-2">
           Necesitás una cuenta gratis para comprar.{" "}
-          
             <a href={`/login?role=retailer&redirect=/explorar/${productId}`}
             className="text-blue-600 hover:underline font-medium"
           >

@@ -5,12 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { ProductCategory, CATEGORY_LABELS, SellerType, SELLER_TYPE_LABELS, SELLER_TYPE_COLORS } from "../../lib/types/product";
 import UserRoleHeader from "../../components/UserRoleHeader";
 import OnboardingChecklist from "../../components/OnboardingChecklist";
-
-// ✅ BLOQUE C: comisión MP del 4% calculada en runtime sobre price BASE.
-const MP_COMMISSION_RATE = 1.04;
-function getDisplayPrice(price: number): number {
-  return Math.round(price * MP_COMMISSION_RATE);
-}
+// import getDisplayPrice removido — ahora usamos product.price directo (precio limpio)
 
 type Product = {
   id: string;
@@ -220,16 +215,16 @@ export default function ExplorarClient({
   useEffect(() => {
     let result = [...allProducts];
 
-    if (minPrice) result = result.filter(p => getDisplayPrice(p.price) >= Number(minPrice));
-    if (maxPrice) result = result.filter(p => getDisplayPrice(p.price) <= Number(maxPrice));
+    if (minPrice) result = result.filter(p => p.price >= Number(minPrice));
+    if (maxPrice) result = result.filter(p => p.price <= Number(maxPrice));
     if (minOrder) result = result.filter(p => p.minimumOrder >= Number(minOrder));
     if (maxOrder) result = result.filter(p => p.minimumOrder <= Number(maxOrder));
     if (onlyFeatured) result = result.filter(p => p.featured);
 
     switch (sortBy) {
       case "activity": result.sort((a, b) => (b.accumulatedQty || 0) - (a.accumulatedQty || 0)); break;
-      case "price_asc": result.sort((a, b) => getDisplayPrice(a.price) - getDisplayPrice(b.price)); break;
-      case "price_desc": result.sort((a, b) => getDisplayPrice(b.price) - getDisplayPrice(a.price)); break;
+      case "price_asc": result.sort((a, b) => a.price - b.price); break;
+      case "price_desc": result.sort((a, b) => b.price - a.price); break;
       case "min_asc": result.sort((a, b) => a.minimumOrder - b.minimumOrder); break;
       case "min_desc": result.sort((a, b) => b.minimumOrder - a.minimumOrder); break;
       case "name": break;
@@ -402,8 +397,7 @@ export default function ExplorarClient({
                 const urgencyColor = lot.percentage >= 95 ? "bg-red-500" : lot.percentage >= 90 ? "bg-orange-500" : "bg-amber-500";
                 const badgeColor = lot.percentage >= 95 ? "bg-red-100 text-red-800" : lot.percentage >= 90 ? "bg-orange-100 text-orange-800" : "bg-amber-100 text-amber-800";
                 const remainingUnits = lot.minimumOrder - lot.accumulatedQty;
-                // ✅ BLOQUE C: precio publicado calculado en runtime (price * 1.04)
-                const priceToShow = getDisplayPrice(lot.productPrice);
+                const priceToShow = lot.productPrice;
                 return (
                   <Link key={lot.lotId} href={`/explorar/${lot.productId}`} className="min-w-[260px] max-w-[260px] flex-shrink-0 snap-start bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden flex flex-col border border-gray-100 hover:border-blue-200">
                     <div className="relative h-36 bg-white overflow-hidden border-b border-gray-100">
@@ -427,10 +421,8 @@ export default function ExplorarClient({
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Faltan <strong>{remainingUnits}</strong> u. para cerrar</p>
                       </div>
-                      {/* ✅ BLOQUE C: precio publicado (con 4% MP) */}
                       <p className="text-xs font-bold text-gray-900 mt-auto">
                         ${priceToShow.toLocaleString("es-AR")}{lot.unitLabel ? ` / ${lot.unitLabel}` : " / u."}
-                        <span className="text-gray-400 font-normal"> · incluye 4% MP</span>
                       </p>
                     </div>
                   </Link>
@@ -557,8 +549,7 @@ export default function ExplorarClient({
                     const sellerBadge = getSellerBadge(product.sellerType);
                     const outOfStock = isOutOfStock(product);
 
-                    // ✅ BLOQUE C: precio publicado al comprador (con 4% MP) calculado en runtime
-                    const priceToShow = getDisplayPrice(product.price);
+                    const priceToShow = product.price;
 
                     // Calcular ahorro contra precio minorista
                     const hasRetailPrice =
@@ -663,15 +654,14 @@ export default function ExplorarClient({
                                 </span>
                               )}
                             </div>
-                            {/* ✅ BLOQUE C: aviso de comisión */}
-                            <p className="text-xs text-gray-400 mt-0.5">incluye 4% comisión MP</p>
+                            {/* sin aviso de comisión: ahora se muestran los recargos por método al pagar */}
 
                             {/* Variantes como chips — ✅ BLOQUE C: usar precio publicado en runtime */}
                             {product.variants && product.variants.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {product.variants.map((v, i) => (
                                   <span key={i} className="bg-gray-100 text-gray-700 text-xs font-medium px-2 py-0.5 rounded-md">
-                                    ${getDisplayPrice(v.price).toLocaleString("es-AR")}
+                                    ${v.price.toLocaleString("es-AR")}
                                   </span>
                                 ))}
                               </div>

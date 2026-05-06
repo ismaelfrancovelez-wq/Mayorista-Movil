@@ -9,6 +9,7 @@
 import LotProgressBar from "./LotProgressBar";
 import { useState } from "react";
 import ProductPurchaseClient from "./ProductPurchaseClient";
+import { getDisplayPrice } from "../../lib/constants/commission";
 
 // ── Tipos ──────────────────────────────────────────────────────────────
 interface PurchaseFormat {
@@ -42,12 +43,6 @@ interface Props {
   hasFactoryAddress: boolean;
   noShipping: boolean;
   userId?: string;
-}
-
-// ✅ BLOQUE C v2: comisión MP del 4% — solo para mostrar al usuario
-const MP_COMMISSION_RATE = 1.04;
-function getDisplayPrice(price: number): number {
-  return Math.round(price * MP_COMMISSION_RATE);
 }
 
 function extractUnits(unitLabel: string): number {

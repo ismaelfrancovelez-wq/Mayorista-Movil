@@ -296,9 +296,9 @@ export async function POST(req: NextRequest) {
             wasCancelled: false,
           });
           console.log(
-            `✅ Score actualizado (incremental) — Nivel: ${updatedScore.level} | ` +
-            `Racha: ${updatedScore.currentStreak} | ` +
-            `Comisión: ${updatedScore.commission}%`
+            `✅ Score actualizado (incremental) — ` +
+            `Racha: ${updatedScore.currentStreak} pts | ` +
+            `Total pagados: ${updatedScore.completedReservations}`
           );
         } catch (scoreErr) {
           console.error("⚠️ Error actualizando score del retailer:", scoreErr);
@@ -397,10 +397,7 @@ export async function POST(req: NextRequest) {
                  </div>`
               : "";
 
-            const commissionLine =
-              `<div style="margin:6px 0;font-size:13px;color:#374151;">
-                💼 Tu comisión actual: <strong>${updatedScore.commission}% (Nivel ${updatedScore.level})</strong>
-               </div>`;
+            const commissionLine = ""; // Eliminado: ya no hay comisión por nivel
 
             const discountLine = ""; // nextMilestoneDiscount eliminado (Bloque 1)
 
@@ -423,9 +420,7 @@ export async function POST(req: NextRequest) {
                   ${streakLine}
                   ${streakBadgeLine}
                   ${milestoneBadgeLine}
-                  ${commissionLine}
                   ${streakProgressLine}
-                  ${discountLine}
                 </div>`;
             }
           }
