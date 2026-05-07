@@ -1,17 +1,22 @@
 "use client";
 
-// REFACTOR: eliminada toda la lógica de comisión 4% MP.
-// Ahora el resumen muestra Subtotal + Envío = Total (limpio).
-// El cliente verá los recargos por método de pago en el siguiente paso
-// (Bloque 4: integración del PaymentMethodSelector).
+// REFACTOR Bloque 4 (v2): integra PaymentMethodSelector inline.
+// El cliente elige método de pago ANTES de reservar / pagar.
+// El método elegido viaja al backend y queda guardado en la reserva.
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import ShippingSimulatorSection from "../ShippingSimulatorSection";
 import GooglePlacesAutocomplete, { PlaceResult } from "../GooglePlacesAutocomplete";
 import AddressShippingModal from "./AddressShippingModal";
+import PaymentMethodSelector from "../PaymentMethodSelector";
+import {
+  PaymentMethod,
+  getEnabledPaymentMethods,
+  getPriceBreakdown,
+} from "../../lib/pricing/commission";
 
 type Props = {
-  price: number; // precio base limpio
+  price: number;
   MF: number;
   minimumType?: "quantity" | "amount";
   minimumValue?: number;
@@ -25,7 +30,6 @@ type Props = {
   hasFactoryAddress: boolean;
   noShipping?: boolean;
   unitLabel?: string;
-  /** @deprecated ya no se usa, queda por compatibilidad con callers viejos */
   initialCommissionRate?: number;
   userId?: string;
 };
@@ -56,9 +60,10 @@ export default function ProductPurchaseClient({
   userId,
 }: Props) {
   const [qty, setQty] = useState(1);
-  const effectiveMF = minimumType === "amount" && price > 0
-    ? Math.ceil((minimumValue ?? MF) / price)
-    : MF;
+  const effectiveMF =
+    minimumType === "amount" && price > 0
+      ? Math.ceil((minimumValue ?? MF) / price)
+      : MF;
   const isFraccionado = qty < effectiveMF;
 
   const [selectedShipping, setSelectedShipping] = useState<ShippingMode>(() => {
@@ -68,7 +73,9 @@ export default function ProductPurchaseClient({
     return "platform";
   });
   const selectedShippingRef = useRef(selectedShipping);
-  useEffect(() => { selectedShippingRef.current = selectedShipping; }, [selectedShipping]);
+  useEffect(() => {
+    selectedShippingRef.current = selectedShipping;
+  }, [selectedShipping]);
 
   const prevFraccionadoRef = useRef(isFraccionado);
   useEffect(() => {
@@ -107,18 +114,30 @@ export default function ProductPurchaseClient({
   const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
 
   const [showSimulator, setShowSimulator] = useState(false);
-
   const [autoReserving, setAutoReserving] = useState(false);
 
-  const usesReserveFlow = isFraccionado && (selectedShipping === "platform" || selectedShipping === "pickup");
+  // ✅ NUEVO: método de pago elegido por el cliente
+  const enabledMethods = useMemo(() => getEnabledPaymentMethods(), []);
+
+  const usesReserveFlow =
+    isFraccionado &&
+    (selectedShipping === "platform" || selectedShipping === "pickup");
 
   useEffect(() => {
     async function checkFactoryMPStatus() {
       setLoadingMPStatus(true);
       try {
-        if (!factoryId) { setMpConnected(false); return; }
-        const mpRes = await fetch(`/api/manufacturers/mp-status-public?factoryId=${factoryId}`);
-        if (!mpRes.ok) { setMpConnected(false); return; }
+        if (!factoryId) {
+          setMpConnected(false);
+          return;
+        }
+        const mpRes = await fetch(
+          `/api/manufacturers/mp-status-public?factoryId=${factoryId}`
+        );
+        if (!mpRes.ok) {
+          setMpConnected(false);
+          return;
+        }
         const mpData = await mpRes.json();
         setMpConnected(mpData.connected === true);
       } catch (err) {
@@ -199,7 +218,8 @@ export default function ProductPurchaseClient({
     const pending = sessionStorage.getItem(key);
     if (!pending) return;
 
-    let saved: { qty: number; shippingMode: ShippingMode } | null = null;
+    let saved: { qty: number; shippingMode: ShippingMode; paymentMethod?: PaymentMethod } | null =
+      null;
     try {
       saved = JSON.parse(pending);
     } catch {
@@ -226,6 +246,7 @@ export default function ProductPurchaseClient({
             shippingMode: saved!.shippingMode,
             minimumIndex,
             formatIndex,
+            paymentMethod: saved!.paymentMethod,
           }),
         });
         const data = await res.json();
@@ -251,65 +272,136 @@ export default function ProductPurchaseClient({
     }
 
     doAutoReserve();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, loadingMPStatus, mpConnected]);
 
-  // ✅ Cálculos del desglose (limpio, sin comisión transaccional)
+  // Subtotales limpios (sin comisión)
   const productSubtotal = price * qty;
   const totalToCharge = useMemo(
     () => productSubtotal + shippingCost,
     [productSubtotal, shippingCost]
   );
 
-  const shippingNeedsAddress = selectedShipping === "factory" || selectedShipping === "platform";
+  const shippingNeedsAddress =
+    selectedShipping === "factory" || selectedShipping === "platform";
   const blockedByAddress = shippingNeedsAddress && !hasFactoryAddress;
 
-  function handleAuthGate() {
+  function handleAuthGate(paymentMethod?: PaymentMethod) {
     const key = AUTO_RESERVE_KEY(productId);
-    sessionStorage.setItem(key, JSON.stringify({
-      qty,
-      shippingMode: selectedShipping,
-    }));
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({
+        qty,
+        shippingMode: selectedShipping,
+        paymentMethod,
+      })
+    );
     window.location.href = `/login?role=retailer&redirect=/explorar/${productId}`;
   }
 
-  async function handleReserve() {
-    if (!userId) { handleAuthGate(); return; }
-    if (blockedByAddress) return;
-    if (mpConnected === false) {
-      alert("⚠️ Este producto no está disponible para compra.\n\nEl vendedor aún no ha vinculado su cuenta de Mercado Pago.");
+  /**
+   * Handler unificado: lo llama PaymentMethodSelector cuando el cliente
+   * elige un método y toca el botón final.
+   *
+   * Flujo fraccionado: crea reserva con paymentMethod guardado.
+   * Flujo directo: crea preferencia MP y redirige al pago.
+   */
+  async function handleMethodSelected(method: PaymentMethod, finalPrice: number) {
+    if (!userId) {
+      handleAuthGate(method);
       return;
     }
-    if (loadingMPStatus) { alert("⏳ Verificando disponibilidad..."); return; }
+    if (blockedByAddress) return;
+    if (mpConnected === false) {
+      alert(
+        "⚠️ Este producto no está disponible para compra.\n\nEl vendedor aún no ha vinculado su cuenta de Mercado Pago."
+      );
+      return;
+    }
+    if (loadingMPStatus) {
+      alert("⏳ Verificando disponibilidad...");
+      return;
+    }
 
-    setReserving(true);
-    setReserveError(null);
+    if (usesReserveFlow) {
+      // ─── FLUJO FRACCIONADO: crear reserva con método guardado ───
+      setReserving(true);
+      setReserveError(null);
+      try {
+        const res = await fetch("/api/lots/fraccionado/reserve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId,
+            qty,
+            shippingMode: selectedShipping,
+            minimumIndex,
+            formatIndex,
+            paymentMethod: method, // ✅ NUEVO
+          }),
+        });
+        const data = await res.json();
 
-    try {
-      const res = await fetch("/api/lots/fraccionado/reserve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, qty, shippingMode: selectedShipping, minimumIndex, formatIndex }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (data.missingAddress) {
-          setShowAddressModal(true);
-        } else if (data.alreadyReserved) {
-          setReserveError("Ya tenés una reserva activa para este producto. Revisá tu email cuando el lote cierre.");
-        } else {
-          setReserveError(data.error || "Error al reservar. Intentá de nuevo.");
+        if (!res.ok) {
+          if (data.missingAddress) {
+            setShowAddressModal(true);
+          } else if (data.alreadyReserved) {
+            setReserveError(
+              "Ya tenés una reserva activa para este producto."
+            );
+          } else {
+            setReserveError(data.error || "Error al reservar.");
+          }
+          return;
         }
+
+        setReserved(true);
+      } catch (err) {
+        console.error("Error reservando:", err);
+        setReserveError("Error de conexión. Intentá de nuevo.");
+      } finally {
+        setReserving(false);
+      }
+    } else {
+      // ─── FLUJO DIRECTO: crear preferencia y redirigir ───
+      if (noShipping && !isFraccionado) {
+        alert("⚠️ Este vendedor no realiza envíos directos.");
         return;
       }
 
-      setReserved(true);
-    } catch (err) {
-      console.error("Error reservando:", err);
-      setReserveError("Error de conexión. Intentá de nuevo.");
-    } finally {
-      setReserving(false);
+      const orderType = "directa";
+      const lotType =
+        selectedShipping === "pickup" ? "directa_retiro" : "directa_envio";
+
+      try {
+        const res = await fetch("/api/payments/mercadopago", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: "Compra Mayorista",
+            basePrice: totalToCharge,
+            paymentMethod: method,
+            originalQty: qty,
+            productId,
+            orderType,
+            lotType,
+            shippingMode: selectedShipping,
+            shippingCost,
+            MF,
+          }),
+        });
+        if (!res.ok) {
+          alert("Error iniciando pago");
+          return;
+        }
+        const data = await res.json();
+        if (data?.init_point) {
+          window.location.href = data.init_point;
+        }
+      } catch (err) {
+        console.error("Error iniciando pago directo:", err);
+        alert("Error iniciando pago");
+      }
     }
   }
 
@@ -318,11 +410,12 @@ export default function ProductPurchaseClient({
     setSavingAddress(true);
     setReserveError(null);
     try {
-     const saveRes = await fetch("/api/retailers/address", {
+      const saveRes = await fetch("/api/retailers/address", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          formattedAddress: selectedPlace?.formattedAddress || inlineAddress.trim(),
+          formattedAddress:
+            selectedPlace?.formattedAddress || inlineAddress.trim(),
           lat: selectedPlace?.lat,
           lng: selectedPlace?.lng,
         }),
@@ -334,72 +427,11 @@ export default function ProductPurchaseClient({
       }
       setShowAddressInput(false);
       setInlineAddress("");
-      setReserving(true);
-      const res = await fetch("/api/lots/fraccionado/reserve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId, qty, shippingMode: selectedShipping, minimumIndex, formatIndex }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setReserveError(data.error || "Error al reservar. Intentá de nuevo.");
-        return;
-      }
-      setReserved(true);
     } catch {
       setReserveError("Error de conexión. Intentá de nuevo.");
     } finally {
       setSavingAddress(false);
-      setReserving(false);
     }
-  }
-
-  /**
-   * Pedido directo: redirige a página de pago donde elige método.
-   * TODO Bloque 4: cambiar a /pagar?productId=X&qty=Y para que muestre selector
-   * En el meantime, sigue creando preferencia con default (checkout completo).
-   */
-  async function handleCheckout() {
-    if (!userId) { handleAuthGate(); return; }
-    if (blockedByAddress) return;
-    if (noShipping && !isFraccionado) {
-      alert("⚠️ Este vendedor no realiza envíos directos.\n\nSolo podés comprar mediante pedidos fraccionados — la plataforma gestiona el envío.");
-      return;
-    }
-    if (mpConnected === false) {
-      alert("⚠️ Este producto no está disponible para compra.\n\nEl vendedor aún no ha vinculado su cuenta de Mercado Pago.");
-      return;
-    }
-    if (loadingMPStatus) { alert("⏳ Verificando disponibilidad..."); return; }
-
-    const orderType = isFraccionado ? "fraccionado" : "directa";
-    const lotType = isFraccionado
-      ? selectedShipping === "pickup" ? "fraccionado_retiro" : "fraccionado_envio"
-      : selectedShipping === "pickup" ? "directa_retiro" : "directa_envio";
-
-    // Por ahora seguimos llamando con basePrice limpio y método default checkout_credit
-    // En Bloque 4 esto cambia: el cliente eligió el método antes en el selector.
-    const res = await fetch("/api/payments/mercadopago", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: "Compra Mayorista",
-        basePrice: totalToCharge,    // ✅ NUEVO: precio limpio
-        paymentMethod: "checkout_credit",  // TODO Bloque 4: viene del selector
-        originalQty: qty,
-        productId,
-        orderType,
-        lotType,
-        shippingMode: selectedShipping,
-        shippingCost,
-        MF,
-      }),
-    });
-
-    if (!res.ok) { alert("Error iniciando pago"); return; }
-
-    const data = await res.json();
-    if (data?.init_point) { window.location.href = data.init_point; }
   }
 
   if (autoReserving) {
@@ -411,7 +443,6 @@ export default function ProductPurchaseClient({
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
           </svg>
           <p className="text-sm font-medium text-gray-700">Reservando tu lugar...</p>
-          <p className="text-xs text-gray-400">Estamos procesando tu reserva automáticamente</p>
         </div>
       </div>
     );
@@ -422,23 +453,26 @@ export default function ProductPurchaseClient({
       <div className="border rounded-xl p-6 mt-8 bg-white shadow">
         <div className="bg-green-50 border-2 border-green-400 rounded-xl p-6 text-center">
           <div className="text-4xl mb-3">✅</div>
-          <h3 className="text-lg font-bold text-green-800 mb-2">¡Lugar reservado!</h3>
+          <h3 className="text-lg font-bold text-green-800 mb-2">
+            ¡Lugar reservado!
+          </h3>
           {selectedShipping === "pickup" ? (
             <p className="text-sm text-green-700">
-              Tu lugar en el lote está confirmado. Cuando el lote alcance el mínimo,
-              te mandamos un email con el link de pago para confirmar tu compra.
-              El retiro es en fábrica — sin costo de envío.
+              Tu lugar en el lote está confirmado. Cuando el lote alcance el
+              mínimo, te mandamos un email con el link de pago para confirmar tu
+              compra. El retiro es en fábrica — sin costo de envío.
             </p>
           ) : (
             <>
               <p className="text-sm text-green-700">
-                Estamos buscando más compradores en tu zona para dividir el envío.
-                Cuando el lote alcance el mínimo, te mandamos un email con el precio
-                final y el link de pago.
+                Estamos buscando más compradores en tu zona para dividir el
+                envío. Cuando el lote alcance el mínimo, te mandamos un email
+                con el precio final y el link de pago.
               </p>
               <p className="text-xs text-green-600 mt-3">
-                El envío estimado es <strong>${formatNumber(shippingCost)}</strong> si pagás solo.
-                Si se suman más personas de tu zona, ese precio baja.
+                El envío estimado es{" "}
+                <strong>${formatNumber(shippingCost)}</strong> si pagás solo. Si
+                se suman más personas de tu zona, ese precio baja.
               </p>
             </>
           )}
@@ -449,16 +483,16 @@ export default function ProductPurchaseClient({
 
   return (
     <div className="border rounded-xl p-6 mt-8 bg-white shadow">
-
       {!loadingMPStatus && mpConnected === false && (
         <div className="mb-6 bg-red-50 border-2 border-red-300 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <div className="text-2xl">⚠️</div>
             <div>
-              <p className="font-semibold text-red-900 mb-1">Producto no disponible para compra</p>
+              <p className="font-semibold text-red-900 mb-1">
+                Producto no disponible para compra
+              </p>
               <p className="text-sm text-red-700">
                 El vendedor aún no ha vinculado su cuenta de Mercado Pago.
-                Por favor, intentá más tarde.
               </p>
             </div>
           </div>
@@ -470,10 +504,11 @@ export default function ProductPurchaseClient({
           <div className="flex items-start gap-3">
             <div className="text-2xl">📍</div>
             <div>
-              <p className="font-semibold text-amber-900 mb-1">Compra no disponible momentáneamente</p>
+              <p className="font-semibold text-amber-900 mb-1">
+                Compra no disponible momentáneamente
+              </p>
               <p className="text-sm text-amber-700">
                 El vendedor aún no configuró su dirección.
-                No es posible calcular el envío ni procesar la compra hasta que lo haga.
               </p>
             </div>
           </div>
@@ -490,7 +525,7 @@ export default function ProductPurchaseClient({
               </p>
               <p className="text-sm text-indigo-700">
                 {isFraccionado
-                  ? "Podés sumarte a un pedido fraccionado — la plataforma coordina el envío y lo dividís con otros compradores."
+                  ? "Podés sumarte a un pedido fraccionado — la plataforma coordina el envío."
                   : "Para pedidos del mínimo o más, el envío lo coordinás directamente con el vendedor."}
               </p>
             </div>
@@ -498,6 +533,7 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
+      {/* CANTIDAD */}
       <div className="mb-4">
         <label className="block text-sm font-medium mb-1">Cantidad</label>
         <input
@@ -512,10 +548,14 @@ export default function ProductPurchaseClient({
           min={1}
         />
         <p className="text-xs text-gray-500 mt-1">
-          Mínimo de fábrica: {MF} unidades{unitLabel ? <span className="text-gray-400"> ({unitLabel} c/u)</span> : null}
+          Mínimo de fábrica: {MF} unidades
+          {unitLabel ? (
+            <span className="text-gray-400"> ({unitLabel} c/u)</span>
+          ) : null}
         </p>
       </div>
 
+      {/* OPCIONES DE ENTREGA */}
       <div className="mb-4">
         <p className="text-sm font-medium mb-2">Opciones de entrega:</p>
 
@@ -559,7 +599,9 @@ export default function ProductPurchaseClient({
                 <>
                   Envío por plataforma: ${formatNumber(shippingCost)}
                   {shippingKm !== null && (
-                    <span className="text-sm text-gray-600 ml-1">({shippingKm} km)</span>
+                    <span className="text-sm text-gray-600 ml-1">
+                      ({shippingKm} km)
+                    </span>
                   )}
                 </>
               )}
@@ -583,45 +625,50 @@ export default function ProductPurchaseClient({
                 <>
                   Envío por fábrica: ${formatNumber(shippingCost)}
                   {shippingKm !== null && (
-                    <span className="text-sm text-gray-600 ml-1">({shippingKm} km)</span>
+                    <span className="text-sm text-gray-600 ml-1">
+                      ({shippingKm} km)
+                    </span>
                   )}
                 </>
               )}
             </span>
           </label>
         )}
-
-        {!isFraccionado && !allowFactoryShipping && allowPickup && (
-          <p className="text-xs text-gray-500 mt-2 italic">
-            * Este producto solo admite retiro en fábrica para pedidos directos.
-          </p>
-        )}
       </div>
 
-      {/* RESUMEN DE COSTOS LIMPIO (sin comisión) */}
+      {/* RESUMEN DE COSTOS LIMPIO */}
       <div className="border rounded p-4 text-sm mb-4 bg-gray-50">
         <p>
           Subtotal producto: $ {formatNumber(productSubtotal)}
-          {unitLabel ? <span className="text-gray-400 text-xs"> ({qty}× {unitLabel})</span> : null}
+          {unitLabel ? (
+            <span className="text-gray-400 text-xs">
+              {" "}
+              ({qty}× {unitLabel})
+            </span>
+          ) : null}
         </p>
 
         <p>
           Envío: $ {formatNumber(shippingCost)}
-          {selectedShipping === "pickup" && <span className="text-gray-400 text-xs"> (retiro en fábrica)</span>}
+          {selectedShipping === "pickup" && (
+            <span className="text-gray-400 text-xs"> (retiro en fábrica)</span>
+          )}
         </p>
 
         <p className="font-semibold mt-2 text-base">
-          Total: $ {formatNumber(totalToCharge)}
+          Subtotal: $ {formatNumber(totalToCharge)}
         </p>
 
         <p className="text-xs text-gray-500 mt-2">
-          Al pagar, vas a poder elegir entre QR, tarjeta, transferencia. Cada método tiene un recargo distinto.
+          {usesReserveFlow
+            ? "El método de pago elegido se aplicará cuando el lote cierre. Reservás ahora, pagás cuando tu lote alcance el mínimo."
+            : "Elegí cómo pagar abajo. Cada método tiene un recargo distinto."}
         </p>
       </div>
 
       {/* AVISO compartir lote */}
       {usesReserveFlow && selectedShipping === "platform" && !loadingShipping && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 scroll-mt-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
           <div className="text-sm text-blue-800">
             <strong>💡 El envío podría ser menor.</strong> Buscamos otros
             compradores en tu zona para dividir el costo. Si se suman, pagás
@@ -631,24 +678,6 @@ export default function ProductPurchaseClient({
               className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
             >
               {showSimulator ? "Ocultar simulador ↑" : "Simular ahorro →"}
-            </button>
-            {" · "}
-            <button
-              onClick={async () => {
-                const url = `${window.location.origin}/explorar/${productId}`;
-                const text = `🚚 Sumate a mi pedido de "${productName}" y dividimos el envío. Comprando juntos pagamos menos.`;
-                if (navigator.share) {
-                  try {
-                    await navigator.share({ title: productName, text, url });
-                  } catch (_) {}
-                } else {
-                  await navigator.clipboard.writeText(`${text}\n${url}`);
-                  alert("¡Link copiado! Compartilo con tus contactos.");
-                }
-              }}
-              className="underline font-semibold text-blue-700 hover:text-blue-900 transition"
-            >
-              Compartir para ahorrar
             </button>
           </div>
           {showSimulator && (
@@ -660,11 +689,11 @@ export default function ProductPurchaseClient({
       )}
 
       {usesReserveFlow && selectedShipping === "pickup" && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4 scroll-mt-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
           <p className="text-sm text-green-800">
-            <strong>📦 Retiro en fábrica — sin costo de envío.</strong>{" "}
-            Reservá tu lugar. Cuando el lote alcance el mínimo, te mandamos
-            el link de pago por email para confirmar la compra.
+            <strong>📦 Retiro en fábrica — sin costo de envío.</strong> Reservá
+            tu lugar. Cuando el lote alcance el mínimo, te mandamos el link de
+            pago por email.
           </p>
         </div>
       )}
@@ -708,55 +737,15 @@ export default function ProductPurchaseClient({
                 setSavingAddress(false);
                 return;
               }
-
-              try {
-                const shippingRes = await fetch("/api/shipping/fraccionado", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ productId }),
-                });
-                const shippingData = await shippingRes.json();
-                if (typeof shippingData.shippingCost === "number") {
-                  setShippingCost(shippingData.shippingCost);
-                }
-                if (typeof shippingData.km === "number") {
-                  setShippingKm(shippingData.km);
-                }
-              } catch (err) {
-                console.error("Error calculando envío:", err);
-              }
             }
 
             setQty(newQty);
             setSelectedShipping(shipping);
-
-            const res = await fetch("/api/lots/fraccionado/reserve", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                productId,
-                qty: newQty,
-                shippingMode: shipping,
-                minimumIndex,
-                formatIndex,
-              }),
-            });
-            const data = await res.json();
-
-            setSavingAddress(false);
-
-            if (!res.ok) {
-              if (data.alreadyReserved) {
-                setReserveError("Ya tenés una reserva activa para este producto.");
-              } else {
-                setReserveError(data.error || "Error al reservar. Intentá de nuevo.");
-              }
-              setShowAddressModal(false);
-              return;
-            }
-
             setShowAddressModal(false);
-            setReserved(true);
+            setSavingAddress(false);
+            setReserveError(
+              "Dirección guardada. Volvé a elegir tu método de pago para reservar."
+            );
           }}
           onClose={() => setShowAddressModal(false)}
           saving={savingAddress}
@@ -769,67 +758,56 @@ export default function ProductPurchaseClient({
         </div>
       )}
 
-      {!userId ? (
-        <button
-          onClick={handleAuthGate}
-          className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition"
-        >
-          {usesReserveFlow
-            ? selectedShipping === "pickup"
-              ? "Reservar lugar — retiro en fábrica sin costo"
-              : "Reservar mi lugar — te avisamos cuando cierre el lote"
-            : "Continuar al pago"}
-        </button>
-      ) : usesReserveFlow ? (
-        <button
-          onClick={handleReserve}
-          disabled={
-            loadingMPStatus ||
-            mpConnected === false ||
-            reserving ||
-            (loadingShipping && selectedShipping === "platform") ||
-            blockedByAddress
-          }
-          className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {reserving
-            ? "Reservando..."
-            : loadingMPStatus
-            ? "Verificando disponibilidad..."
-            : blockedByAddress
-            ? "No disponible — el vendedor no configuró su dirección"
-            : mpConnected === false
-            ? "Producto no disponible"
-            : selectedShipping === "pickup"
-            ? "Reservar lugar — retiro en fábrica sin costo"
-            : "Reservar tu lugar — te avisamos cuando cierre el lote"}
-        </button>
-      ) : (
-        <button
-          onClick={handleCheckout}
-          disabled={
-            loadingMPStatus ||
-            mpConnected === false ||
-            blockedByAddress ||
-            (noShipping && !isFraccionado)
-          }
-          className="w-full bg-black text-white py-3 rounded-lg font-medium hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loadingMPStatus
-            ? "Verificando disponibilidad..."
-            : blockedByAddress
-            ? "No disponible — el vendedor no configuró su dirección"
-            : mpConnected === false
-            ? "Producto no disponible"
-            : noShipping && !isFraccionado
-            ? "Envío no disponible — comprá en cantidad fraccionada"
-            : "Continuar al pago"}
-        </button>
+      {/* ✅ NUEVO: Selector de método de pago */}
+      {!loadingMPStatus &&
+        mpConnected !== false &&
+        !blockedByAddress &&
+        !(noShipping && !isFraccionado) && (
+          <>
+            <div className="border-t border-gray-200 pt-5 mt-2">
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                {usesReserveFlow
+                  ? "🔒 Reservá ahora — pagás cuando cierre el lote"
+                  : "💳 Elegí cómo pagar"}
+              </h3>
+              {usesReserveFlow && (
+                <p className="text-xs text-gray-500 mb-4">
+                  Elegí el método ahora y cuando el lote cierre te mandamos el
+                  link directo de pago — sin volver a elegir.
+                </p>
+              )}
+            </div>
+            <PaymentMethodSelector
+              basePrice={totalToCharge}
+              enabledMethods={enabledMethods}
+              onMethodSelected={handleMethodSelected}
+              loading={reserving}
+              ctaLabel={usesReserveFlow ? "Reservar con" : "Pagar"}
+            />
+          </>
+        )}
+
+      {/* Mensajes de fallback cuando no se puede mostrar selector */}
+      {!loadingMPStatus && mpConnected === false && (
+        <p className="text-center text-sm text-gray-500 mt-4">
+          Producto no disponible
+        </p>
+      )}
+      {blockedByAddress && (
+        <p className="text-center text-sm text-amber-700 mt-4">
+          El vendedor no configuró su dirección — no se puede comprar todavía
+        </p>
+      )}
+      {noShipping && !isFraccionado && (
+        <p className="text-center text-sm text-indigo-700 mt-4">
+          Envío no disponible — comprá en cantidad fraccionada
+        </p>
       )}
 
       {!userId && (
-        <p className="text-xs text-gray-500 text-center mt-2">
-          Necesitás una cuenta gratis para comprar.{" "}
+        <p className="text-xs text-gray-500 text-center mt-3">
+          Necesitás una cuenta gratis.{" "}
+          
             <a href={`/login?role=retailer&redirect=/explorar/${productId}`}
             className="text-blue-600 hover:underline font-medium"
           >

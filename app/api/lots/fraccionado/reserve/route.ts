@@ -202,7 +202,7 @@ export async function POST(req: Request) {
 
     /* ── 2. BODY ── */
     const body = await req.json();
-    const { productId, qty, shippingMode } = body;
+    const { productId, qty, shippingMode, paymentMethod } = body;
     const minimumIndex: number = Number(body.minimumIndex ?? 0);
     const formatIndex: number = Number(body.formatIndex ?? 0);
 
@@ -214,6 +214,12 @@ export async function POST(req: Request) {
       !["pickup", "platform"].includes(shippingMode)
     ) {
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+    }
+    if (!paymentMethod) {
+      return NextResponse.json(
+        { error: "Falta el método de pago" },
+        { status: 400 }
+      );
     }
 
     /* ── 3. DIRECCIÓN DEL RETAILER ── */
@@ -373,6 +379,7 @@ export async function POST(req: Request) {
         productSubtotal,
         lotId: targetLotRef.id,
         status: "pending_lot",
+        paymentMethod,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
