@@ -12,7 +12,11 @@ import { formatCurrency } from "../../../../lib/utils";
 import CancelReservationButton from "../../../../components/CancelReservationButton";
 import HideOrderButton from "../../../../components/HideOrderButton";
 import OrderCard from "../../../../components/OrderCard";
-import { MP_COMMISSION_RATE } from "../../../../lib/constants/commission";
+import {
+  PaymentMethod,
+  PAYMENT_METHODS_META,
+  getPriceBreakdown,
+} from "../../../../lib/pricing/commission";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 10;
@@ -38,7 +42,8 @@ type Pedido = {
   amount: number; // productSubtotal BASE
   shippingCost: number; // envío final
   shippingCostEstimated?: number;
-  commission?: number; // ✅ BLOQUE E: comisión final (0 si todavía no se calculó)
+  commission?: number;
+  paymentMethod?: PaymentMethod;
   total: number; // total real pagado (con 4%)
   createdAt: string;
   createdAtTimestamp: number;
@@ -52,113 +57,7 @@ type Pedido = {
   };
 };
 
-// ── Tabla de beneficios/sanciones ────────────────────────────────────────────
-function PaymentTiersTable({ lotClosedAtMs }: { lotClosedAtMs?: number }) {
-  const now = Date.now();
-  const elapsed = lotClosedAtMs ? Math.floor((now - lotClosedAtMs) / (1000 * 60 * 60)) : 0;
 
-  const hoursLeft = lotClosedAtMs
-    ? Math.max(0, 96 - Math.floor((now - lotClosedAtMs) / (1000 * 60 * 60)))
-    : 96;
-  const daysLeft = Math.floor(hoursLeft / 24);
-  const hoursRemainder = hoursLeft % 24;
-
-  const countdownText =
-    hoursLeft === 0
-      ? "⏰ Plazo vencido"
-      : daysLeft > 0
-      ? `⏰ ${daysLeft}d ${hoursRemainder}h restantes`
-      : `⏰ ${hoursLeft}h restantes`;
-
-  const countdownColor = hoursLeft <= 24 ? "text-red-600 font-bold" : hoursLeft <= 48 ? "text-orange-600 font-semibold" : "text-blue-700 font-semibold";
-
-  const tiers = [
-    {
-      range: "Dentro de 24h",
-      icon: "🌟",
-      label: "RÁPIDO",
-      benefit: "+5 puntos de confianza · Prioridad garantizada en el próximo lote",
-      color: "bg-green-50 border-green-300 text-green-800",
-      iconBg: "bg-green-100",
-      active: elapsed <= 24,
-    },
-    {
-      range: "Entre 24h y 48h",
-      icon: "✅",
-      label: "A TIEMPO",
-      benefit: "Sin penalización",
-      color: "bg-gray-50 border-gray-200 text-gray-700",
-      iconBg: "bg-gray-100",
-      active: elapsed > 24 && elapsed <= 48,
-    },
-    {
-      range: "Entre 48h y 72h",
-      icon: "⚠️",
-      label: "TARDÍO",
-      benefit: "−3 puntos de confianza",
-      color: "bg-yellow-50 border-yellow-300 text-yellow-800",
-      iconBg: "bg-yellow-100",
-      active: elapsed > 48 && elapsed <= 72,
-    },
-    {
-      range: "Entre 72h y 96h",
-      icon: "🔴",
-      label: "MUY TARDÍO",
-      benefit: "−8 puntos · Última posición en los próximos lotes",
-      color: "bg-orange-50 border-orange-300 text-orange-800",
-      iconBg: "bg-orange-100",
-      active: elapsed > 72 && elapsed <= 96,
-    },
-    {
-      range: "Después de 96h",
-      icon: "❌",
-      label: "CANCELADO",
-      benefit: "Reserva cancelada automáticamente · 30 días sin poder reservar este producto",
-      color: "bg-red-50 border-red-300 text-red-800",
-      iconBg: "bg-red-100",
-      active: elapsed > 96,
-    },
-  ];
-
-  return (
-    <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-      {lotClosedAtMs && (
-        <div className={`text-center text-sm mb-3 ${countdownColor}`}>
-          {countdownText} para pagar sin penalización
-        </div>
-      )}
-
-      <p className="text-xs font-semibold text-blue-900 mb-2 uppercase tracking-wide">
-        💡 Beneficios y sanciones según cuándo pagás
-      </p>
-
-      <div className="space-y-1.5">
-        {tiers.map((tier) => (
-          <div
-            key={tier.range}
-            className={`flex items-center gap-2 p-2 rounded border text-xs ${tier.color} ${tier.active ? "ring-2 ring-blue-400" : ""}`}
-          >
-            <span className={`w-7 h-7 flex items-center justify-center rounded-full text-base flex-shrink-0 ${tier.iconBg}`}>
-              {tier.icon}
-            </span>
-            <div className="flex-1 min-w-0">
-              <span className="font-semibold">{tier.range}</span>
-              <span className="mx-1 text-gray-400">·</span>
-              <span>{tier.benefit}</span>
-            </div>
-            {tier.active && (
-              <span className="text-blue-700 font-bold text-xs flex-shrink-0">← ahora</span>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <p className="text-xs text-blue-700 mt-2.5 text-center">
-        🏆 3 pagos consecutivos dentro de 24h → badge <strong>"Comprador VIP"</strong> y acceso prioritario permanente
-      </p>
-    </div>
-  );
-}
 
 // ── Función principal de datos ────────────────────────────────────────────────
 async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promise<Pedido[]> {
@@ -315,6 +214,7 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
       shippingCost: (resStatus === "paid" || resStatus === "lot_closed") ? shippingFinal : 0,
       shippingCostEstimated: r.shippingCostEstimated || 0,
       commission: commissionFinal,
+      paymentMethod: (r.paymentMethod || undefined) as PaymentMethod | undefined,
       total: resStatus === "paid" ? (r.totalFinal || 0) : 0,
       createdAt: r.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
       createdAtTimestamp: r.createdAt?.toMillis() || 0,
@@ -353,6 +253,7 @@ async function getRetailerOrders(retailerId: string, hiddenIds: string[]): Promi
         amount: productAmount,
         shippingCost,
         commission,
+        paymentMethod: (p.paymentMethod || undefined) as PaymentMethod | undefined,
         total,
         createdAt: p.createdAt?.toDate().toLocaleDateString("es-AR") || "-",
         createdAtTimestamp: p.createdAt?.toMillis() || 0,
@@ -505,9 +406,15 @@ export default async function PedidosPage() {
               const shippingToShow = isAccumulating
                 ? (order.shippingCostEstimated ?? 0)
                 : order.shippingCost;
-              const commissionToShow = isAccumulating
-                ? Math.round(((order.amount || 0) + shippingToShow) * MP_COMMISSION_RATE)
-                : (order.commission ?? 0);
+              // Recargo según método elegido por el cliente
+              const subtotalLimpio = (order.amount || 0) + shippingToShow;
+              let commissionToShow = 0;
+              let methodLabel: string | null = null;
+              if (order.paymentMethod && order.paymentMethod in PAYMENT_METHODS_META) {
+                const breakdown = getPriceBreakdown(subtotalLimpio, order.paymentMethod);
+                commissionToShow = breakdown.surchargeAmount;
+                methodLabel = PAYMENT_METHODS_META[order.paymentMethod].label;
+              }
 
               return (
                 <OrderCard key={order.id} productId={order.productId}>
@@ -578,15 +485,17 @@ export default async function PedidosPage() {
                       </span>
                     </div>
 
-                    {/* Comisión MP — siempre se muestra */}
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">
-                        Comisión MP (4%){isAccumulating && " estimada*"}:
-                      </span>
-                      <span className="font-medium text-gray-900">
-                        {formatCurrency(commissionToShow)}
-                      </span>
-                    </div>
+                    {/* Recargo del método elegido (si tiene método guardado) */}
+                    {methodLabel && commissionToShow > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">
+                          Recargo {methodLabel}:
+                        </span>
+                        <span className="font-medium text-gray-900">
+                          {formatCurrency(commissionToShow)}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Total */}
                     <div className="flex justify-between pt-2 border-t border-gray-200 mt-2">
@@ -637,10 +546,7 @@ export default async function PedidosPage() {
                     </div>
                   )}
 
-                  {/* ── TABLA DE BENEFICIOS/SANCIONES ── */}
-                  {order.status === "lot_closed" && order.reservationStatus === "lot_closed" && (
-                    <PaymentTiersTable lotClosedAtMs={order.lotClosedAt} />
-                  )}
+                  {/* Tabla de beneficios/sanciones eliminada */}
 
                   {/* ── ESTADO DE PAGOS DEL LOTE ── */}
                   {order.status === "lot_closed" && order.lotMates && order.lotMates.length > 0 && (
