@@ -24,7 +24,7 @@ export type PaymentMethod =
   | "checkout_money_in_mp"     // Dinero en MP via Checkout — 4,2955%, 18 días
   | "checkout_installments"    // Cuotas sin tarjeta via Checkout — 4,2955%, 18 días
   | "checkout_prepaid"         // Prepaga via Checkout — 4,2955%, 18 días
-  // Prometeo (transferencia tradicional, sin MP)
+  // Prometeo (transferencia tradicional, sin MP) — DESHABILITADO temporalmente
   | "prometeo_transfer";       // Transferencia bancaria — 0,50%, 5-15min
 
 // ============================================================
@@ -32,18 +32,15 @@ export type PaymentMethod =
 // ============================================================
 
 export const PAYMENT_METHOD_COMMISSIONS: Record<PaymentMethod, number> = {
-  // QR
   qr_money_in_mp: 0.00968,
   qr_debit: 0.010769,
   qr_installments: 0.017061,
   qr_credit: 0.05566,
-  // Checkout
   checkout_credit: 0.042955,
   checkout_debit: 0.042955,
   checkout_money_in_mp: 0.042955,
   checkout_installments: 0.042955,
   checkout_prepaid: 0.042955,
-  // Prometeo
   prometeo_transfer: 0.0050,
 };
 
@@ -58,16 +55,15 @@ export interface PaymentMethodMeta {
   channel: PaymentChannel;
   label: string;
   description: string;
-  /** % visible al cliente (ya con IVA). Ej: 0.968 */
   surchargePercent: number;
-  /** Días de acreditación */
   releaseDays: string;
-  badge?: "mas_barato" | "instantaneo" | "recomendado" | null;
+  badge?: "mas_barato" | "instantaneo" | "recomendado" | "proximamente" | null;
+  /** @deprecated icono visual — vacío en UI nueva, se conserva por compatibilidad */
   icon: string;
+  enabled: boolean;
 }
 
 export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
-  // ────── QR ──────
   qr_money_in_mp: {
     id: "qr_money_in_mp",
     channel: "qr",
@@ -76,7 +72,8 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
     surchargePercent: 0.968,
     releaseDays: "Al instante",
     badge: "mas_barato",
-    icon: "📱",
+    icon: "",
+    enabled: true,
   },
   qr_debit: {
     id: "qr_debit",
@@ -86,7 +83,8 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
     surchargePercent: 1.0769,
     releaseDays: "2 días",
     badge: null,
-    icon: "📱",
+    icon: "",
+    enabled: true,
   },
   qr_installments: {
     id: "qr_installments",
@@ -96,7 +94,8 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
     surchargePercent: 1.7061,
     releaseDays: "Al instante",
     badge: null,
-    icon: "📱",
+    icon: "",
+    enabled: true,
   },
   qr_credit: {
     id: "qr_credit",
@@ -106,9 +105,9 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
     surchargePercent: 5.566,
     releaseDays: "10 días",
     badge: null,
-    icon: "📱",
+    icon: "",
+    enabled: true,
   },
-  // ────── Checkout ──────
   checkout_credit: {
     id: "checkout_credit",
     channel: "checkout",
@@ -117,7 +116,8 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
     surchargePercent: 4.2955,
     releaseDays: "18 días",
     badge: null,
-    icon: "💳",
+    icon: "",
+    enabled: true,
   },
   checkout_debit: {
     id: "checkout_debit",
@@ -127,7 +127,8 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
     surchargePercent: 4.2955,
     releaseDays: "18 días",
     badge: null,
-    icon: "💳",
+    icon: "",
+    enabled: true,
   },
   checkout_money_in_mp: {
     id: "checkout_money_in_mp",
@@ -137,7 +138,8 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
     surchargePercent: 4.2955,
     releaseDays: "18 días",
     badge: null,
-    icon: "💳",
+    icon: "",
+    enabled: true,
   },
   checkout_installments: {
     id: "checkout_installments",
@@ -147,7 +149,8 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
     surchargePercent: 4.2955,
     releaseDays: "18 días",
     badge: null,
-    icon: "💳",
+    icon: "",
+    enabled: true,
   },
   checkout_prepaid: {
     id: "checkout_prepaid",
@@ -157,18 +160,19 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
     surchargePercent: 4.2955,
     releaseDays: "18 días",
     badge: null,
-    icon: "💳",
+    icon: "",
+    enabled: true,
   },
-  // ────── Prometeo ──────
   prometeo_transfer: {
     id: "prometeo_transfer",
     channel: "prometeo",
     label: "Transferencia bancaria tradicional",
-    description: "Transferí desde tu homebanking al CBU de MayoristaMovil.",
-    surchargePercent: 0.50,
+    description: "Transferí desde tu homebanking. Próximamente disponible en Argentina.",
+    surchargePercent: 0.50, // real cuando se active; en UI deshabilitada se muestra 0%
     releaseDays: "Confirmación 5-15 min",
-    badge: "recomendado",
-    icon: "🏛️",
+    badge: "proximamente",
+    icon: "",
+    enabled: false,
   },
 };
 
@@ -178,26 +182,17 @@ export const PAYMENT_METHODS_META: Record<PaymentMethod, PaymentMethodMeta> = {
 
 export function getEnabledPaymentMethods(): PaymentMethod[] {
   const all: PaymentMethod[] = Object.keys(PAYMENT_METHOD_COMMISSIONS) as PaymentMethod[];
+  return all.filter((m) => PAYMENT_METHODS_META[m].enabled);
+}
 
-  return all.filter((m) => {
-    const flag = `PAYMENT_${m.toUpperCase()}_ENABLED`;
-    // Default: todos activos excepto Prometeo (que requiere Trial)
-    if (m === "prometeo_transfer") return process.env[flag] === "true";
-    return process.env[flag] !== "false";
-  });
+export function getAllPaymentMethods(): PaymentMethod[] {
+  return Object.keys(PAYMENT_METHOD_COMMISSIONS) as PaymentMethod[];
 }
 
 // ============================================================
-// CÁLCULO DE PRECIOS — fórmula correcta
+// CÁLCULO DE PRECIOS
 // ============================================================
 
-/**
- * Precio final que el cliente paga, para que vos recibas el `basePrice` limpio.
- *
- * Fórmula: precio_final = precio_base / (1 - tasa_total)
- *
- * IMPORTANTE: la tasa ya incluye IVA sobre la comisión.
- */
 export function calculateFinalPrice(
   basePrice: number,
   method: PaymentMethod
@@ -206,7 +201,6 @@ export function calculateFinalPrice(
   if (commission === undefined) {
     throw new Error(`Método de pago desconocido: ${method}`);
   }
-
   const finalPrice = basePrice / (1 - commission);
   return Math.round(finalPrice * 100) / 100;
 }

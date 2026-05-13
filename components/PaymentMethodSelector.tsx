@@ -7,7 +7,6 @@ import {
   PAYMENT_METHODS_META,
   PAYMENT_METHOD_COMMISSIONS,
   getPriceBreakdown,
-  PriceBreakdown,
 } from "../lib/pricing/commission";
 
 type Props = {
@@ -22,20 +21,8 @@ type Props = {
 
 const CHANNEL_LABELS: Record<PaymentChannel, string> = {
   qr: "QR",
-  prometeo: "Transferencia tradicional",
+  prometeo: "Transferencia",
   checkout: "Checkout MP",
-};
-
-const CHANNEL_DESCRIPTIONS: Record<PaymentChannel, string> = {
-  qr: "Escaneá el QR con tu app bancaria. Cualquier billetera (MP, Cuenta DNI, Modo, BNA+, Ualá).",
-  prometeo: "Transferí desde tu homebanking al CBU de MayoristaMovil.",
-  checkout: "Pagá con Mercado Pago: tarjeta de crédito, débito o saldo.",
-};
-
-const CHANNEL_ICONS: Record<PaymentChannel, string> = {
-  qr: "📱",
-  prometeo: "🏛️",
-  checkout: "💳",
 };
 
 const CHANNEL_BADGES: Record<PaymentChannel, { label: string; color: string } | null> = {
@@ -55,7 +42,9 @@ export default function PaymentMethodSelector({
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [showBreakdown, setShowBreakdown] = useState(false);
 
-  // Filtrar métodos habilitados por canal
+  // ─────────────────────────────────────────────────────────────
+  // Separar métodos en "activos" y "próximamente"
+  // ─────────────────────────────────────────────────────────────
   const methodsByChannel: Record<PaymentChannel, PaymentMethod[]> = {
     qr: [],
     prometeo: [],
@@ -66,17 +55,34 @@ export default function PaymentMethodSelector({
     methodsByChannel[meta.channel].push(m);
   });
 
-  // Solo mostrar canales con al menos 1 método activo
   const activeChannels: PaymentChannel[] = (["qr", "prometeo", "checkout"] as PaymentChannel[])
     .filter((ch) => methodsByChannel[ch].length > 0);
 
-  // Para cada canal, "precio desde" = el método más barato del canal
+  const upcomingChannels: PaymentChannel[] = [];
+  const channelsWithDisabledMethods = new Set<PaymentChannel>();
+  Object.values(PAYMENT_METHODS_META).forEach((meta) => {
+    if (!meta.enabled) {
+      channelsWithDisabledMethods.add(meta.channel);
+    }
+  });
+  channelsWithDisabledMethods.forEach((ch) => {
+    if (!activeChannels.includes(ch)) {
+      upcomingChannels.push(ch);
+    }
+  });
+
   function getCheapestMethod(channel: PaymentChannel): PaymentMethod {
     const methods = methodsByChannel[channel];
     return methods.reduce((a, b) =>
       PAYMENT_METHOD_COMMISSIONS[a] <= PAYMENT_METHOD_COMMISSIONS[b] ? a : b
     );
   }
+
+  // Orden de canales: QR primero, Transferencia (próximamente) al medio, Checkout al final
+  const orderedActiveChannels: PaymentChannel[] = (["qr", "checkout"] as PaymentChannel[])
+    .filter((ch) => activeChannels.includes(ch));
+
+  const totalCards = orderedActiveChannels.length + upcomingChannels.length;
 
   // ─────────── NIVEL 1: vista inicial con cards ───────────
   if (!selectedChannel) {
@@ -92,12 +98,21 @@ export default function PaymentMethodSelector({
           <p className="text-xs text-gray-400">Elegí cómo pagar</p>
         </div>
 
-        <div className={`grid gap-3 ${activeChannels.length === 3 ? "md:grid-cols-3" : activeChannels.length === 2 ? "md:grid-cols-2" : "md:grid-cols-1"}`}>
-          {activeChannels.map((channel) => {
+        <div
+          className={`grid gap-3 ${
+            totalCards === 3
+              ? "md:grid-cols-3"
+              : totalCards === 2
+              ? "md:grid-cols-2"
+              : "md:grid-cols-1"
+          }`}
+        >
+          {/* ─────── CARDS ACTIVAS (QR primero) ─────── */}
+          {orderedActiveChannels.includes("qr") && (() => {
+            const channel: PaymentChannel = "qr";
             const cheapest = getCheapestMethod(channel);
             const breakdown = getPriceBreakdown(basePrice, cheapest);
             const badge = CHANNEL_BADGES[channel];
-            const isPrometeo = channel === "prometeo";
 
             return (
               <button
@@ -106,59 +121,96 @@ export default function PaymentMethodSelector({
                   setSelectedChannel(channel);
                   setSelectedMethod(cheapest);
                 }}
-                className={`text-left p-4 rounded-xl bg-white transition hover:border-gray-400 flex flex-col gap-2 min-h-[160px] ${
-                  isPrometeo
-                    ? "border-2 border-blue-500"
-                    : "border border-gray-200"
-                } relative`}
+                className="text-left p-4 rounded-xl bg-white transition hover:border-gray-400 hover:shadow-sm flex flex-col min-h-[170px] border border-gray-200"
               >
-                {isPrometeo && (
-                  <span className="absolute -top-2.5 left-3 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
-                    Recomendado
-                  </span>
-                )}
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{CHANNEL_ICONS[channel]}</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {CHANNEL_LABELS[channel]}
-                  </span>
-                </div>
+                <p className="text-sm font-semibold text-gray-900 mb-3">
+                  {CHANNEL_LABELS[channel]}
+                </p>
 
-                <div className="mt-1">
-                  {channel === "prometeo" ? (
-                    <p className="text-xs text-gray-500">
-                      Recargo {breakdown.meta.surchargePercent}%
-                    </p>
-                  ) : (
-                    <p className="text-xs text-gray-500">Desde</p>
-                  )}
-                  <p className="text-xl font-semibold text-gray-900 mt-0.5">
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">Desde</p>
+                  <p className="text-xl font-semibold text-gray-900 leading-tight mt-0.5">
                     ${breakdown.finalPrice.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
                   </p>
-                  {channel !== "prometeo" && (
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      recargo {breakdown.meta.surchargePercent}%
-                    </p>
-                  )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    recargo {breakdown.meta.surchargePercent}%
+                  </p>
                 </div>
 
-                {channel === "prometeo" && (
-                  <p className="text-xs text-gray-500 mt-auto flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Confirmación en 5 min
-                  </p>
-                )}
-
                 {badge && (
-                  <span className={`inline-block self-start text-xs px-2 py-0.5 rounded-full font-medium ${badge.color} mt-auto`}>
+                  <span className={`inline-block self-start text-xs px-2 py-0.5 rounded-full font-medium ${badge.color} mt-3`}>
                     {badge.label}
                   </span>
                 )}
               </button>
             );
-          })}
+          })()}
+
+          {/* ─────── CARDS "PRÓXIMAMENTE" (Transferencia al medio) ─────── */}
+          {upcomingChannels.map((channel) => (
+            <div
+              key={`upcoming-${channel}`}
+              className="text-left p-4 rounded-xl bg-gray-50 border border-gray-200 border-dashed flex flex-col min-h-[170px] opacity-70 cursor-not-allowed"
+              title="Próximamente disponible"
+            >
+              <p className="text-sm font-semibold text-gray-600 mb-3">
+                {CHANNEL_LABELS[channel]}
+              </p>
+
+              <div className="flex-1">
+                <p className="text-xs text-gray-400">Comisión</p>
+                <p className="text-xl font-semibold text-gray-500 leading-tight mt-0.5">
+                  0%
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  sin recargo
+                </p>
+              </div>
+
+              <span className="inline-block self-start text-xs px-2 py-0.5 rounded-full font-medium bg-gray-200 text-gray-700 mt-3">
+                Próximamente
+              </span>
+            </div>
+          ))}
+
+          {/* ─────── CARD CHECKOUT MP (al final) ─────── */}
+          {orderedActiveChannels.includes("checkout") && (() => {
+            const channel: PaymentChannel = "checkout";
+            const cheapest = getCheapestMethod(channel);
+            const breakdown = getPriceBreakdown(basePrice, cheapest);
+            const badge = CHANNEL_BADGES[channel];
+
+            return (
+              <button
+                key={channel}
+                onClick={() => {
+                  setSelectedChannel(channel);
+                  setSelectedMethod(cheapest);
+                }}
+                className="text-left p-4 rounded-xl bg-white transition hover:border-gray-400 hover:shadow-sm flex flex-col min-h-[170px] border border-gray-200"
+              >
+                <p className="text-sm font-semibold text-gray-900 mb-3">
+                  {CHANNEL_LABELS[channel]}
+                </p>
+
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">Desde</p>
+                  <p className="text-xl font-semibold text-gray-900 leading-tight mt-0.5">
+                    ${breakdown.finalPrice.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    recargo {breakdown.meta.surchargePercent}%
+                  </p>
+                </div>
+
+                {badge && (
+                  <span className={`inline-block self-start text-xs px-2 py-0.5 rounded-full font-medium ${badge.color} mt-3`}>
+                    {badge.label}
+                  </span>
+                )}
+              </button>
+            );
+          })()}
         </div>
       </div>
     );
