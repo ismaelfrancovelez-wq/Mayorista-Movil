@@ -5,10 +5,10 @@
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { db } from "../../../../lib/firebase-admin";
-import { createQROrder, pickPosId } from "../../../../lib/mercadopago-qr";
-import { getPriceBreakdown, PaymentMethod } from "../../../../lib/pricing/commission";
-import rateLimit from "../../../../lib/rate-limit";
+import { db } from "../../../../../lib/firebase-admin";
+import { createQROrder, pickPosId } from "../../../../../lib/mercadopago-qr";
+import { getPriceBreakdown, PaymentMethod } from "../../../../../lib/pricing/commission";
+import rateLimit from "../../../../../lib/rate-limit";
 import QRCode from "qrcode"; // npm install qrcode @types/qrcode
 
 const limiter = rateLimit({ interval: 60 * 1000, uniqueTokenPerInterval: 500 });

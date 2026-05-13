@@ -4,8 +4,8 @@
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { db } from "../../../../lib/firebase-admin";
-import { getMerchantOrdersByReference } from "../../../../lib/mercadopago-qr";
+import { db } from "../../../../../lib/firebase-admin";
+import { getMerchantOrdersByReference } from "../../../../../lib/mercadopago-qr";
 
 export const dynamic = "force-dynamic";
 
