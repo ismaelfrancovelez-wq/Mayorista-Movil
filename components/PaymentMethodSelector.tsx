@@ -21,8 +21,8 @@ type Props = {
 
 const CHANNEL_LABELS: Record<PaymentChannel, string> = {
   qr: "QR",
-  prometeo: "Transferencia",
-  checkout: "Checkout MP",
+  prometeo: "Transferencia Directa",
+  checkout: "Transferencia Mercado Pago",
 };
 
 const CHANNEL_BADGES: Record<PaymentChannel, { label: string; color: string } | null> = {
