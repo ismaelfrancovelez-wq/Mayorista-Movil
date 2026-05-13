@@ -1,24 +1,25 @@
 // app/api/cron/process-lots/route.ts
 //
-// ✅ BLOQUE E v2 — Solo procesa lotes confirmados (TIPO A).
-// El paso de confirmación del vendedor (TIPO B) está retirado.
-// Los lotes pasan directo a "closed" desde reserve/route.ts.
+// ✅ REFACTOR (Fase 1):
+// - Sacado el cálculo del 4% (MP_COMMISSION_RATE) — ya no se cobra comisión.
+// - Sacada toda la gamificación (streakDiscount, commissionDiscount, badges).
+// - El cron ya NO genera preferences MP. El link de pago va a /pagar/[reservationId],
+//   donde el comprador elige método y se genera la preference al clickear.
+// - Total final = productSubtotal + shippingFinal (sin recargo de comisión).
+//   El surcharge del método elegido se calcula al momento del pago.
 //
 // FLUJO ACTUAL:
-//   1. Reserva alcanza el mínimo en reserve/route.ts → lote queda "closed" + level1WindowExpiresAt (2hs)
-//   2. Durante esas 2hs, solo Nivel 1 puede sumarse al lote
-//   3. Cuando vence level1WindowExpiresAt → este cron lo procesa: manda emails de pago
-//   4. Cuando todos pagan (webhook MP) → lote pasa a "fully_paid"
-//
-// ✅ BLOQUE D: comisión MP del 4% calculada en runtime sobre (producto + envío).
-//    Si retiro en fábrica → 4% solo sobre producto.
+//   1. Reserva alcanza el mínimo en reserve/route.ts → lote queda "closed"
+//      + level1WindowExpiresAt (2hs para que Nivel 1 se sume)
+//   2. Vencida la ventana → este cron procesa: marca reservas como lot_closed
+//      y manda email con link a /pagar/[id]
+//   3. Comprador entra a /pagar/[id], ve su método elegido, paga
+//   4. Webhook MP confirma pago → reserva pasa a "paid"
 
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { db } from "../../../../lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { createSplitPreference } from "../../../../lib/mercadopago-split";
-import { MP_COMMISSION_RATE } from "../../../../lib/constants/commission";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -28,7 +29,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = process.env.EMAIL_FROM || "onboarding@resend.dev";
 
 /* ====================================================
-   CALCULAR DEADLINE DE PAGO
+   DEADLINE DE PAGO
 ==================================================== */
 function calcPaymentDeadline(lotClosedAt: Date): Date {
   // 72h desde el cierre del lote
@@ -57,16 +58,12 @@ interface ReservationToProcess {
   postalCode: string | null;
   qty: number;
   productSubtotal: number;
-  commission: number;
   shippingCostEstimated: number;
   retailerId: string;
-  shippingDiscount: number;
-  commissionDiscount: number;
 }
 
 interface ProcessedReservation extends ReservationToProcess {
   shippingFinal: number;
-  commissionFinal: number;
   totalFinal: number;
   paymentLink: string;
   groupSize: number;
@@ -81,7 +78,6 @@ function buildPaymentEmailHtml(params: {
   productName: string;
   qty: number;
   productSubtotal: number;
-  commission: number;
   shippingFinal: number;
   totalFinal: number;
   paymentLink: string;
@@ -89,14 +85,19 @@ function buildPaymentEmailHtml(params: {
   shippingCostEstimated: number;
   isPickup: boolean;
   paymentDeadlineStr: string;
-  shippingDiscount: number;
-  commissionDiscount: number;
 }): string {
   const {
-    retailerName, productName, qty, productSubtotal, commission,
-    shippingFinal, totalFinal, paymentLink, groupSize,
-    shippingCostEstimated, isPickup, paymentDeadlineStr,
-    shippingDiscount, commissionDiscount,
+    retailerName,
+    productName,
+    qty,
+    productSubtotal,
+    shippingFinal,
+    totalFinal,
+    paymentLink,
+    groupSize,
+    shippingCostEstimated,
+    isPickup,
+    paymentDeadlineStr,
   } = params;
 
   const savingsHtml =
@@ -107,15 +108,6 @@ function buildPaymentEmailHtml(params: {
             Estás dividiendo el envío con <strong>${groupSize - 1} persona${groupSize - 1 > 1 ? "s" : ""}</strong> de tu misma zona.<br>
             Pagás <strong>$${shippingFinal.toLocaleString("es-AR")}</strong> en vez de <strong>$${shippingCostEstimated.toLocaleString("es-AR")}</strong>.
           </p>
-        </div>`
-      : "";
-
-  const streakDiscountHtml =
-    shippingDiscount > 0 || commissionDiscount > 0
-      ? `<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px;margin:16px 0;text-align:center;">
-          <p style="margin:0;font-size:14px;font-weight:700;color:#1d4ed8;">⚡ Descuento de racha aplicado</p>
-          ${shippingDiscount > 0 && !isPickup ? `<p style="margin:4px 0 0;color:#2563eb;font-size:13px;">${Math.round(shippingDiscount * 100)}% de descuento en envío</p>` : ""}
-          ${commissionDiscount >= 1 ? `<p style="margin:4px 0 0;color:#2563eb;font-size:13px;font-weight:700;">🎉 ¡Comisión GRATIS por tu racha!</p>` : ""}
         </div>`
       : "";
 
@@ -137,15 +129,15 @@ function buildPaymentEmailHtml(params: {
   .header h1{color:#2563eb;margin:0;font-size:24px;}
   .section{margin:25px 0;padding:20px;background:#f9fafb;border-radius:6px;border-left:4px solid #2563eb;}
   .row{margin:10px 0;}.label{font-weight:600;color:#6b7280;}.value{font-weight:600;color:#111827;}
+  .info{background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:12px;margin:16px 0;font-size:13px;color:#1e40af;}
   .cta{display:block;background:#2563eb;color:white;text-align:center;padding:18px 24px;border-radius:8px;text-decoration:none;font-size:18px;font-weight:700;margin:24px 0;}
   .footer{text-align:center;margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;color:#6b7280;font-size:14px;}
 </style>
 </head><body><div class="container">
-  <div class="header"><h1>🎉 ¡Tu lote está listo — completá el pago!</h1></div>
+  <div class="header"><h1>💳 ¡Tu lote está listo para pagar!</h1></div>
   <p>¡Hola <strong>${retailerName}</strong>!</p>
-  <p>El lote de <strong>${productName}</strong> alcanzó el mínimo. Ahora podés confirmar tu compra.</p>
+  <p>El lote de <strong>${productName}</strong> alcanzó el mínimo. Ya podés completar tu pago.</p>
   ${savingsHtml}
-  ${streakDiscountHtml}
   <div class="section">
     <h3 style="margin-top:0;">🧾 Tu pedido</h3>
     <div class="row"><span class="label">Producto:</span> <span class="value">${productName}</span></div>
@@ -154,47 +146,34 @@ function buildPaymentEmailHtml(params: {
     <div class="row"><span class="label">Envío:</span>
       <span class="value">${isPickup ? "Retiro en fábrica (Gratis)" : `$${shippingFinal.toLocaleString("es-AR")}${groupSize > 1 ? ` (dividido entre ${groupSize} compradores de tu zona)` : ""}`}</span>
     </div>
-    <div class="row"><span class="label">Comisión MP (4%):</span>
-      <span class="value">${commissionDiscount >= 1 ? "¡Gratis! 🎉" : `$${commission.toLocaleString("es-AR")}`}</span>
-    </div>
     <div class="row" style="border-top:2px solid #e5e7eb;padding-top:10px;margin-top:10px;">
       <span class="label" style="font-size:15px;">TOTAL A PAGAR:</span>
       <span class="value" style="font-size:22px;color:#2563eb;">$${totalFinal.toLocaleString("es-AR")}</span>
     </div>
   </div>
+  <div class="info">
+    💡 <strong>Elegí cómo pagar:</strong> en el siguiente paso vas a poder pagar con QR (más barato) o Checkout MP (tarjeta, crédito, débito o saldo). Cada método tiene un recargo distinto y vos elegís.
+  </div>
   ${deadlineHtml}
-  <a href="${paymentLink}" class="cta">💳 Pagar ahora — $${totalFinal.toLocaleString("es-AR")}</a>
+  <a href="${paymentLink}" class="cta">💳 Elegir método y pagar</a>
   <div class="footer"><p><strong>Mayorista Móvil</strong></p></div>
 </div></body></html>`;
 }
 
 /* ====================================================
    PROCESAR UN LOTE CERRADO
-   — Vencida la ventana de Nivel 1 → mandar links de pago
 ==================================================== */
 async function processLotClosure(params: {
   lotId: string;
-  productId: string;
   productName: string;
-  factoryId: string;
 }) {
-  const { lotId, productId, productName, factoryId } = params;
+  const { lotId, productName } = params;
 
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.NODE_ENV === "development"
       ? "http://localhost:3000"
       : "https://mayoristamovil.com");
-
-  // Buscar MP userId del vendedor en cualquier colección
-  let factoryMPUserId: string | null = null;
-  for (const col of ["manufacturers", "distributors", "wholesalers"]) {
-    const snap = await db.collection(col).doc(factoryId).get();
-    if (snap.exists) {
-      factoryMPUserId = snap.data()?.mercadopago?.user_id || null;
-      if (factoryMPUserId) break;
-    }
-  }
 
   const reservationsSnap = await db
     .collection("reservations")
@@ -217,11 +196,8 @@ async function processLotClosure(params: {
       postalCode: r.postalCode || null,
       qty: r.qty || 0,
       productSubtotal: r.productSubtotal || 0,
-      commission: r.commission || 0,
       shippingCostEstimated: r.shippingCostEstimated || 0,
       retailerId: r.retailerId,
-      shippingDiscount: r.shippingDiscount ?? 0,
-      commissionDiscount: r.commissionDiscount ?? 0,
     };
   });
 
@@ -249,80 +225,35 @@ async function processLotClosure(params: {
     ...(noGroupReservations.length > 0 ? [noGroupReservations] : []),
   ];
 
-  // Generar preferences MP (secuencial para no saturar la API)
+  // Procesar cada grupo: calcular envío dividido y totales
   const processed: ProcessedReservation[] = [];
 
   for (const group of allGroups) {
-    const isShippingGroup = group[0].shippingMode === "platform" && group[0].postalCode;
+    const isShippingGroup =
+      group[0].shippingMode === "platform" && group[0].postalCode;
     const maxShipping = Math.max(...group.map((r) => r.shippingCostEstimated));
     const groupSize = group.length;
-    const shippingPerPerson = isShippingGroup ? Math.round(maxShipping / groupSize) : 0;
+    const shippingPerPerson = isShippingGroup
+      ? Math.round(maxShipping / groupSize)
+      : 0;
 
     for (const reservation of group) {
       if (!reservation.retailerEmail) continue;
 
       const isPickup = reservation.shippingMode === "pickup";
-      const rawShipping = isPickup ? 0 : shippingPerPerson;
+      const shippingFinal = isPickup ? 0 : shippingPerPerson;
 
-      const shippingFinal = isPickup
-        ? 0
-        : Math.round(rawShipping * (1 - reservation.shippingDiscount));
+      // ✅ Total LIMPIO sin comisión transaccional.
+      // El surcharge del método elegido se aplica al momento del pago.
+      const totalFinal = reservation.productSubtotal + shippingFinal;
 
-      // ✅ BLOQUE D: comisión MP del 4% calculada en runtime sobre (producto + envío).
-      // Si retiro en fábrica → solo sobre producto.
-      // Si racha 50 (commissionDiscount >= 1) → 0.
-      const baseForCommission = isPickup
-        ? reservation.productSubtotal
-        : reservation.productSubtotal + shippingFinal;
-
-      const commissionFinal = reservation.commissionDiscount >= 1
-        ? 0
-        : Math.round(baseForCommission * MP_COMMISSION_RATE);
-
-      const totalFinal = reservation.productSubtotal + shippingFinal + commissionFinal;
-
-      let paymentLink = `${baseUrl}/explorar/${productId}`;
-      try {
-        const preference = await createSplitPreference({
-          title: `Pago lote: ${productName}`,
-          unit_price: Math.round(totalFinal),
-          quantity: 1,
-          metadata: {
-            productId,
-            factoryId,
-            qty: reservation.qty,
-            tipo: "fraccionada",
-            withShipping: !isPickup,
-            orderType: "fraccionado",
-            lotType: isPickup ? "fraccionado_retiro" : "fraccionado_envio",
-            retailerId: reservation.retailerId,
-            original_qty: reservation.qty,
-            MF: 0,
-            shippingCost: shippingFinal,
-            shippingMode: reservation.shippingMode,
-            commission: commissionFinal,
-            reservationId: reservation.docId,
-            lotId,
-          },
-          back_urls: {
-            success: `${baseUrl}/success`,
-            failure: `${baseUrl}/failure`,
-            pending: `${baseUrl}/pending`,
-          },
-          factoryMPUserId: factoryMPUserId ?? undefined,
-          shippingCost: shippingFinal,
-          productTotal: reservation.productSubtotal,
-          commission: commissionFinal,
-        });
-        if (preference.init_point) paymentLink = preference.init_point;
-      } catch (prefErr) {
-        console.error(`❌ [CRON] Error preference ${reservation.retailerEmail}:`, prefErr);
-      }
+      // ✅ Link directo al selector de método de pago.
+      // El comprador elige QR o Checkout ahí y se genera la preference al clickear.
+      const paymentLink = `${baseUrl}/pagar/${reservation.docId}`;
 
       processed.push({
         ...reservation,
         shippingFinal,
-        commissionFinal,
         totalFinal,
         paymentLink,
         groupSize,
@@ -331,7 +262,7 @@ async function processLotClosure(params: {
     }
   }
 
-  console.log(`✅ [CRON] Preferences MP generadas: ${processed.length}`);
+  console.log(`✅ [CRON] Reservas procesadas: ${processed.length}`);
 
   // Actualizar reservas en Firestore (paralelo)
   await Promise.all(
@@ -340,7 +271,6 @@ async function processLotClosure(params: {
         status: "lot_closed",
         lotClosedAt: FieldValue.serverTimestamp(),
         shippingCostFinal: r.shippingFinal,
-        commissionFinal: r.commissionFinal,
         totalFinal: r.totalFinal,
         paymentLink: r.paymentLink,
         paymentDeadlineAt: r.paymentDeadlineAt,
@@ -363,7 +293,6 @@ async function processLotClosure(params: {
         productName,
         qty: r.qty,
         productSubtotal: r.productSubtotal,
-        commission: r.commissionFinal,
         shippingFinal: r.shippingFinal,
         totalFinal: r.totalFinal,
         paymentLink: r.paymentLink,
@@ -371,8 +300,6 @@ async function processLotClosure(params: {
         shippingCostEstimated: r.shippingCostEstimated,
         isPickup: r.shippingMode === "pickup",
         paymentDeadlineStr,
-        shippingDiscount: r.shippingDiscount,
-        commissionDiscount: r.commissionDiscount,
       }),
     }));
 
@@ -383,7 +310,7 @@ async function processLotClosure(params: {
   for (let i = 0; i < emailPayloads.length; i += BATCH_SIZE) {
     const chunk = emailPayloads.slice(i, i + BATCH_SIZE);
     try {
-      const { data, error } = await resend.batch.send(chunk);
+      const { error } = await resend.batch.send(chunk);
       if (error) {
         console.error(`❌ [CRON] Resend batch error:`, error);
         emailErrors += chunk.length;
@@ -441,9 +368,7 @@ export async function GET(req: Request) {
 
         await processLotClosure({
           lotId,
-          productId: lotData.productId,
           productName: lotData.productName || "Producto",
-          factoryId: lotData.factoryId,
         });
 
         await db.collection("lots").doc(lotId).update({
