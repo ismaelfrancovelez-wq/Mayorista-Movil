@@ -1,16 +1,18 @@
 // app/api/webhooks/mercadopago/route.ts
 //
-// ✅ MODIFICACIÓN: Se agregó detección de pagos "diferidos" (reservas).
-// Cuando MercadoPago confirma un pago cuya metadata contiene "reservationId",
-// se actualiza la reserva a "paid" y se crea la orden, sin tocar el lote.
-// TODO EL RESTO DEL ARCHIVO ES IDÉNTICO AL ORIGINAL.
+// ✅ REFACTOR (Fase 1):
+// - Eliminadas todas las llamadas a updateRetailerScore / updateRetailerScoreIncremental.
+// - Eliminados los bloques de gamificación (STREAK_BADGES, MILESTONE_BADGES, racha) del email
+//   de confirmación al comprador.
+// - Eliminado el campo `commission` de orderData (ya no se cobra comisión transaccional).
+// - El resto del archivo queda IGUAL al original (DESTACADOS, reserva diferida,
+//   notificación al fabricante cuando todos pagaron, flujo original).
 
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "../../../../lib/firebase-admin";
 import { sendEmail } from "../../../../lib/email/client";
 import { getOrCreateOpenLot } from "../../../../lib/lots/getOrCreateOpenLot";
 import { FieldValue } from "firebase-admin/firestore";
-import { updateRetailerScore, updateRetailerScoreIncremental, STREAK_BADGES, MILESTONE_BADGES } from "../../../../lib/retailers/calculateScore";
 
 const MP_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || "";
 
@@ -23,10 +25,8 @@ interface OrderMetadata {
   shippingMode?: "pickup" | "factory" | "platform";
   shippingCost?: number;
   originalQty?: number;
-  commission?: number;
   lotId?: string;
   MF?: number;
-  // ✅ NUEVO: campos para el flujo de reserva diferida
   reservationId?: string;
 }
 
@@ -219,10 +219,6 @@ export async function POST(req: NextRequest) {
           : typeof metadata?.mf === "string"
           ? parseFloat(metadata.mf)
           : metadata?.MF || metadata?.mf,
-      commission:
-        typeof metadata?.commission === "string"
-          ? parseFloat(metadata.commission)
-          : metadata?.commission,
       shippingCost:
         typeof metadata?.shippingCost === "string"
           ? parseFloat(metadata.shippingCost)
@@ -233,14 +229,13 @@ export async function POST(req: NextRequest) {
       orderType: metadata?.orderType || metadata?.order_type || metadata?.tipo,
       lotType: metadata?.lotType || metadata?.lot_type,
       lotId: metadata?.lotId || metadata?.lot_id,
-      // ✅ NUEVO
       reservationId: metadata?.reservationId || metadata?.reservation_id,
     };
 
     console.log("✅ Metadata normalizada:", JSON.stringify(normalizedMetadata, null, 2));
 
     // ============================================================
-    // ✅ NUEVO: DETECTAR PAGO DE RESERVA DIFERIDA
+    // DETECTAR PAGO DE RESERVA DIFERIDA
     // Si la metadata incluye "reservationId", es un pago que viene
     // del email que se mandó al cerrar el lote. El flujo es distinto:
     // no crea ni actualiza lotes — solo marca la reserva como pagada
@@ -277,33 +272,6 @@ export async function POST(req: NextRequest) {
         paymentId,
         updatedAt: FieldValue.serverTimestamp(),
       });
-
-      // ── 1b. ✅ NUEVO: Recalcular score, nivel, comisión, racha y badges ──
-      // Se ejecuta después de marcar como "paid" para que el historial
-      // ya incluya este pago. El try/catch evita que un fallo en el score
-      // interrumpa el flujo de pago — el pago ya está confirmado.
-      let updatedScore: Awaited<ReturnType<typeof updateRetailerScore>> | null = null;
-      if (reservation.retailerId) {
-        try {
-          // ✅ FIX Bug 2: actualización incremental — solo 2 ops de Firestore
-          // en vez de leer todas las reservas del usuario (N lecturas)
-          const paidAtMs    = Date.now(); // el pago acaba de confirmarse
-          const closedAtMs  = reservation.lotClosedAt?.toMillis?.() ?? 0;
-          updatedScore = await updateRetailerScoreIncremental({
-            retailerId:  reservation.retailerId,
-            paidAt:      paidAtMs,
-            lotClosedAt: closedAtMs,
-            wasCancelled: false,
-          });
-          console.log(
-            `✅ Score actualizado (incremental) — ` +
-            `Racha: ${updatedScore.currentStreak} pts | ` +
-            `Total pagados: ${updatedScore.completedReservations}`
-          );
-        } catch (scoreErr) {
-          console.error("⚠️ Error actualizando score del retailer:", scoreErr);
-        }
-      }
 
       // ── 2. Guardar pago en "payments" ──
       await paymentDocRef.set({
@@ -342,7 +310,6 @@ export async function POST(req: NextRequest) {
         qty: reservation.qty,
         unitPrice: reservation.productSubtotal / reservation.qty,
         totalPrice: payment.transaction_amount || 0,
-        commission: reservation.commission || 0,
         shippingMode: reservation.shippingMode,
         shippingCost: reservation.shippingCostFinal || 0,
         orderType: "fraccionado",
@@ -356,74 +323,12 @@ export async function POST(req: NextRequest) {
 
       console.log("✅ Pago de reserva diferida procesado. Orden creada:", orderRef.id);
 
-      // ── 4. Email de confirmación al comprador ──
-      // Incluye resumen de badges y racha si updatedScore está disponible
+      // ── 4. Email de confirmación al comprador (SIN gamificación) ──
       try {
         const buyerEmail = reservation.retailerEmail || "";
         if (buyerEmail) {
           const shippingFinal = reservation.shippingCostFinal || 0;
           const isPickup      = reservation.shippingMode === "pickup";
-
-          // ── Construir bloque de gamificación para el email ──
-          let gamificationHtml = "";
-          if (updatedScore) {
-            // Badge de racha activo más alto
-            const topStreakBadge = STREAK_BADGES
-              .slice()
-              .reverse()
-              .find((b) => updatedScore!.streakBadges.includes(b.id));
-
-            // Badge de milestone más alto
-            const topMilestoneBadge = MILESTONE_BADGES
-              .slice()
-              .reverse()
-              .find((b) => updatedScore!.milestoneBadges.includes(b.id));
-
-            const streakLine = updatedScore.currentStreak > 0
-              ? `<div style="margin:6px 0;font-size:13px;color:#374151;">
-                  ⚡ Racha activa: <strong>${updatedScore.currentStreak} punto${updatedScore.currentStreak !== 1 ? "s" : ""} acumulado${updatedScore.currentStreak !== 1 ? "s" : ""}</strong>
-                 </div>`
-              : "";
-
-            const streakBadgeLine = topStreakBadge
-              ? `<div style="margin:6px 0;font-size:13px;color:#1d4ed8;">
-                  🏅 <strong>${topStreakBadge.label}</strong>
-                 </div>`
-              : "";
-
-            const milestoneBadgeLine = topMilestoneBadge
-              ? `<div style="margin:6px 0;font-size:13px;color:#047857;">
-                  🎖️ <strong>${topMilestoneBadge.label}</strong>
-                 </div>`
-              : "";
-
-            const commissionLine = ""; // Eliminado: ya no hay comisión por nivel
-
-            const discountLine = ""; // nextMilestoneDiscount eliminado (Bloque 1)
-
-            const nextStreakBadge = STREAK_BADGES.find(
-              (b) => updatedScore!.currentStreak < b.streak
-            );
-            const streakProgressLine = nextStreakBadge
-              ? `<div style="margin:6px 0;font-size:12px;color:#6b7280;">
-                  Próximo badge de racha: <em>${nextStreakBadge.label}</em>
-                  en ${nextStreakBadge.streak - updatedScore.currentStreak} pago(s) más
-                 </div>`
-              : "";
-
-            if (streakLine || streakBadgeLine || milestoneBadgeLine) {
-              gamificationHtml = `
-                <div style="margin:20px 0;padding:16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;">
-                  <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:0.05em;">
-                    Tu reputación en Mayorista Móvil
-                  </p>
-                  ${streakLine}
-                  ${streakBadgeLine}
-                  ${milestoneBadgeLine}
-                  ${streakProgressLine}
-                </div>`;
-            }
-          }
 
           const confirmHtml = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8">
@@ -447,7 +352,6 @@ export async function POST(req: NextRequest) {
     <div class="row"><span class="label">Total pagado:</span> <span class="value">$${(payment.transaction_amount || 0).toLocaleString("es-AR")}</span></div>
     <div class="row"><span class="label">Envío:</span> <span class="value">${isPickup ? "Retiro en fábrica" : `$${shippingFinal.toLocaleString("es-AR")}`}</span></div>
   </div>
-  ${gamificationHtml}
   <div class="section">
     <h3 style="margin-top:0;">⏰ Próximos pasos</h3>
     <ol style="margin:15px 0;padding-left:20px;">
@@ -470,17 +374,6 @@ export async function POST(req: NextRequest) {
       }
 
       // ── 5. Verificar si TODOS los compradores del lote ya pagaron ──
-      //
-      // Buscamos cuántas reservas del mismo lote todavía están en "lot_closed"
-      // (es decir, sin pagar). Si el resultado es 0 → todos pagaron.
-      //
-      // ✅ ESTE ES EL PUNTO CORRECTO para notificar al fabricante:
-      //    NO cuando cierra el lote (porque los pagos aún no llegaron),
-      //    SINO cuando el último comprador paga.
-      //
-      // El pago al fabricante en MercadoPago ya se libera automáticamente
-      // cuando cada comprador paga su preferencia individual (split payment).
-      // No hay que "liberar" nada manualmente desde acá.
       if (reservation.lotId) {
         try {
           const pendingSnap = await db
@@ -495,83 +388,69 @@ export async function POST(req: NextRequest) {
           );
 
           if (allPaid) {
-            // ── BUG 2+3 FIX: Verificar que el lote NO sea ya fully_paid ──
-            // Previene doble email al fabricante si:
-            //   a) Dos webhooks llegan al mismo tiempo (race condition)
-            //   b) MercadoPago reintenta el webhook
             const lotCurrentSnap = await db.collection("lots").doc(reservation.lotId).get();
             if (lotCurrentSnap.data()?.status === "fully_paid") {
               console.log(`⚠️ Lote ${reservation.lotId} ya fue marcado fully_paid por otro proceso. Saltando email al fabricante.`);
             } else {
-            // ── Marcar el lote como fully_paid ──
-            await db.collection("lots").doc(reservation.lotId).update({
-              status: "fully_paid",
-              fullyPaidAt: FieldValue.serverTimestamp(),
-              updatedAt: FieldValue.serverTimestamp(),
-            });
-            console.log(`✅ Lote ${reservation.lotId} marcado como fully_paid`);
-
-            // ── BUG 1 FIX: Obtener email del fabricante via userId (igual que el flujo original) ──
-            // El campo manufacturers.email suele estar vacío. El email real
-            // está en users/{factoryData.userId}.email — igual que en el flujo original (línea 610-619).
-            const factorySnap = await db
-              .collection("manufacturers")
-              .doc(reservation.factoryId)
-              .get();
-            const factoryData = factorySnap.data();
-            const factoryName = factoryData?.businessName || factoryData?.name || "Fabricante";
-            const factoryAddress = factoryData?.address?.formattedAddress || "";
-
-            let factoryEmail = factoryData?.email || "";
-            // Si no hay email directo, buscarlo via userId (como hace el flujo original)
-            if (!factoryEmail && factoryData?.userId) {
-              const factoryUserSnap = await db.collection("users").doc(factoryData.userId).get();
-              factoryEmail = factoryUserSnap.data()?.email || "";
-            }
-            console.log(`📧 Email fabricante resuelto: ${factoryEmail || "NO ENCONTRADO"}`);
-
-            // ── BUG 7 FIX: Determinar modalidad desde el tipo del lote, no de una reserva ──
-            // Un lote puede tener compradores pickup Y platform.
-            // El tipo del lote es la fuente de verdad.
-            const lotType = lotCurrentSnap.data()?.type || "";
-            const isPickupLot = lotType.includes("pickup") || lotType.includes("retiro");
-
-            // Obtener TODAS las reservas pagadas del lote para armar el resumen
-            const allPaidSnap = await db
-              .collection("reservations")
-              .where("lotId", "==", reservation.lotId)
-              .where("status", "==", "paid")
-              .get();
-
-            // Calcular totales del lote
-            let totalUnidades = 0;
-            const retailers: { name: string; qty: number; address: string; total: number }[] = [];
-
-            allPaidSnap.docs.forEach((d) => {
-              const r = d.data();
-              totalUnidades += r.qty || 0;
-              retailers.push({
-                name: r.retailerName || "Comprador",
-                qty: r.qty || 0,
-                address: r.retailerAddress || "Dirección no disponible",
-                total: r.totalFinal || 0,
+              await db.collection("lots").doc(reservation.lotId).update({
+                status: "fully_paid",
+                fullyPaidAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
               });
-            });
+              console.log(`✅ Lote ${reservation.lotId} marcado como fully_paid`);
 
-            if (factoryEmail) {
-              const retailersHtml = retailers
-                .map(
-                  (r) => `
-                <div style="background:white;border:1px solid #e5e7eb;border-radius:6px;padding:15px;margin:10px 0;">
-                  <div style="font-weight:bold;margin-bottom:8px;">${r.name}</div>
-                  <div>• Cantidad: ${r.qty} unidades</div>
-                  <div>• Dirección: ${r.address}</div>
-                  <div>• Total pagado: $${r.total.toLocaleString("es-AR")}</div>
-                </div>`
-                )
-                .join("");
+              const factorySnap = await db
+                .collection("manufacturers")
+                .doc(reservation.factoryId)
+                .get();
+              const factoryData = factorySnap.data();
+              const factoryName = factoryData?.businessName || factoryData?.name || "Fabricante";
+              const factoryAddress = factoryData?.address?.formattedAddress || "";
 
-              const factoryHtml = `<!DOCTYPE html>
+              let factoryEmail = factoryData?.email || "";
+              if (!factoryEmail && factoryData?.userId) {
+                const factoryUserSnap = await db.collection("users").doc(factoryData.userId).get();
+                factoryEmail = factoryUserSnap.data()?.email || "";
+              }
+              console.log(`📧 Email fabricante resuelto: ${factoryEmail || "NO ENCONTRADO"}`);
+
+              const lotType = lotCurrentSnap.data()?.type || "";
+              const isPickupLot = lotType.includes("pickup") || lotType.includes("retiro");
+
+              const allPaidSnap = await db
+                .collection("reservations")
+                .where("lotId", "==", reservation.lotId)
+                .where("status", "==", "paid")
+                .get();
+
+              let totalUnidades = 0;
+              const retailers: { name: string; qty: number; address: string; total: number }[] = [];
+
+              allPaidSnap.docs.forEach((d) => {
+                const r = d.data();
+                totalUnidades += r.qty || 0;
+                retailers.push({
+                  name: r.retailerName || "Comprador",
+                  qty: r.qty || 0,
+                  address: r.retailerAddress || "Dirección no disponible",
+                  total: r.totalFinal || 0,
+                });
+              });
+
+              if (factoryEmail) {
+                const retailersHtml = retailers
+                  .map(
+                    (r) => `
+                  <div style="background:white;border:1px solid #e5e7eb;border-radius:6px;padding:15px;margin:10px 0;">
+                    <div style="font-weight:bold;margin-bottom:8px;">${r.name}</div>
+                    <div>• Cantidad: ${r.qty} unidades</div>
+                    <div>• Dirección: ${r.address}</div>
+                    <div>• Total pagado: $${r.total.toLocaleString("es-AR")}</div>
+                  </div>`
+                  )
+                  .join("");
+
+                const factoryHtml = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8">
 <style>
   body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f5f5f5;}
@@ -620,18 +499,17 @@ export async function POST(req: NextRequest) {
   </div>
 </div></body></html>`;
 
-              await sendEmail({
-                to: factoryEmail,
-                subject: `✅ Lote Completado — ${reservation.productName} (${totalUnidades} unidades, ${retailers.length} compradores)`,
-                html: factoryHtml,
-              });
-              console.log("✅ Email al fabricante enviado:", factoryEmail);
+                await sendEmail({
+                  to: factoryEmail,
+                  subject: `✅ Lote Completado — ${reservation.productName} (${totalUnidades} unidades, ${retailers.length} compradores)`,
+                  html: factoryHtml,
+                });
+                console.log("✅ Email al fabricante enviado:", factoryEmail);
+              }
             }
-            } // cierre del else (lote no era ya fully_paid)
           }
         } catch (allPaidErr) {
           console.error("❌ Error verificando/notificando todos-pagaron:", allPaidErr);
-          // No lanzar — el pago del comprador ya fue procesado correctamente
         }
       }
 
@@ -651,7 +529,6 @@ export async function POST(req: NextRequest) {
       shippingMode,
       shippingCost = 0,
       originalQty = 1,
-      commission = 0,
       MF = 0,
     } = normalizedMetadata;
 
@@ -867,7 +744,6 @@ export async function POST(req: NextRequest) {
       qty: originalQty,
       unitPrice: productPrice,
       totalPrice: payment.transaction_amount || 0,
-      commission,
       shippingMode,
       shippingCost,
       orderType,
@@ -1306,10 +1182,10 @@ export async function POST(req: NextRequest) {
     console.error("Stack trace:", error.stack);
 
     return NextResponse.json(
-  {
-    error: error?.message || "Error procesando webhook",
-  },
-  { status: 500 }
-);
+      {
+        error: error?.message || "Error procesando webhook",
+      },
+      { status: 500 }
+    );
   }
 }
