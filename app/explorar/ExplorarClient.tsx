@@ -47,6 +47,9 @@ type ClosingSoonLot = {
 
 type SortOption = "activity" | "price_asc" | "price_desc" | "min_asc" | "min_desc" | "name";
 
+// ✅ REFACTOR (Fase 1): sacados milestoneBadges, streakBadges, currentStreak,
+// paymentLevel, completedLots, scoreValue. El panel ahora solo necesita
+// los datos básicos del retailer (sin gamificación).
 type RetailerPanelData = {
   userId: string;
   userEmail: string;
@@ -54,12 +57,6 @@ type RetailerPanelData = {
   activeRole: string;
   hasAddress: boolean;
   hasOrders: boolean;
-  milestoneBadges: string[];
-  streakBadges: string[];
-  currentStreak: number;
-  paymentLevel: number;
-  completedLots: number;
-  scoreValue: number;
 };
 
 export default function ExplorarClient({
@@ -211,7 +208,6 @@ export default function ExplorarClient({
       .finally(() => setCategoryLoading(false));
   }, [selectedCategory, initialProducts]);
 
-  // ✅ BLOQUE C: filtros y sort usan precio publicado (con 4% MP) calculado en runtime
   useEffect(() => {
     let result = [...allProducts];
 
@@ -338,12 +334,6 @@ export default function ExplorarClient({
                   userEmail={retailerPanel.userEmail}
                   activeRole="retailer"
                   userName={retailerPanel.userName}
-                  milestoneBadges={retailerPanel.milestoneBadges}
-                  streakBadges={retailerPanel.streakBadges}
-                  currentStreak={retailerPanel.currentStreak}
-                  paymentLevel={retailerPanel.paymentLevel}
-                  completedLots={retailerPanel.completedLots}
-                  scoreValue={retailerPanel.scoreValue}
                 />
               </div>
 
@@ -551,7 +541,6 @@ export default function ExplorarClient({
 
                     const priceToShow = product.price;
 
-                    // Calcular ahorro contra precio minorista
                     const hasRetailPrice =
                       product.retailReferencePrice != null &&
                       product.retailReferencePrice > priceToShow;
@@ -565,7 +554,6 @@ export default function ExplorarClient({
 
                     return (
                       <Link key={product.id} href={`/explorar/${product.id}`} className="bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden flex flex-col">
-                        {/* IMAGEN */}
                         <div className="relative h-48 bg-white overflow-hidden border-b border-gray-100">
                           {product.imageUrls && product.imageUrls.length > 0 ? (
                             <img
@@ -622,7 +610,6 @@ export default function ExplorarClient({
                           </div>
                         </div>
 
-                        {/* CONTENIDO */}
                         <div className="p-6 flex flex-col flex-grow">
                           <div className="flex items-center gap-2 mb-2">
                             {product.manufacturerName && (
@@ -638,10 +625,8 @@ export default function ExplorarClient({
                           <h2 className="text-lg font-semibold mb-2 line-clamp-2">{product.name}</h2>
                           <p className="text-xs text-gray-500 mb-3">{CATEGORY_LABELS[product.category]}</p>
 
-                          {/* BLOQUE DE PRECIO */}
                           <div className="mb-3">
                             <div className="flex items-baseline gap-2 flex-wrap">
-                              {/* ✅ BLOQUE C: precio publicado (con 4% MP) calculado en runtime */}
                               <span className="text-xl font-bold text-gray-900">
                                 ${priceToShow.toLocaleString("es-AR")}
                                 {product.unitLabel && (
@@ -654,9 +639,7 @@ export default function ExplorarClient({
                                 </span>
                               )}
                             </div>
-                            {/* sin aviso de comisión: ahora se muestran los recargos por método al pagar */}
 
-                            {/* Variantes como chips — ✅ BLOQUE C: usar precio publicado en runtime */}
                             {product.variants && product.variants.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {product.variants.map((v, i) => (
@@ -667,7 +650,6 @@ export default function ExplorarClient({
                               </div>
                             )}
 
-                            {/* Precio minorista tachado */}
                             {hasRetailPrice && (
                               <p className="text-xs text-gray-400 mt-1">
                                 Minorista: <span className="line-through">${product.retailReferencePrice!.toLocaleString("es-AR")}</span>

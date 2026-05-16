@@ -1,7 +1,14 @@
 // app/api/payments/transferencia/init/route.ts
 //
-// Recibe SOLO el reservationId. El paymentMethod ya está guardado en la reserva
-// desde que el cliente reservó. Crea la preferencia MP con surcharge correspondiente.
+// ✅ REFACTOR (Fase 1):
+// - Removidos parámetros que ya no acepta createSplitPreference:
+//   factoryMPUserId, shippingCost, productTotal, commission.
+// - El metadata sigue incluyendo shippingCost para que el webhook lo procese.
+//
+// ⚠️ FASE 2: cuando se active OAuth de fabricante, este archivo va a:
+// 1. Leer factoryAccessToken desde manufacturers/{factoryId}.mercadopago.access_token
+// 2. Pasarlo a createSplitPreference para que la preference use ese token
+// 3. Agregar marketplace_fee = shippingCost al body de la preference
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -96,9 +103,6 @@ export async function POST(req: Request) {
         : "https://mayoristamovil.com");
 
     if (paymentMethod.startsWith("checkout_") || paymentMethod.startsWith("qr_")) {
-      const factorySnap = await db.collection("manufacturers").doc(reservation.factoryId).get();
-      const factoryMPUserId = factorySnap.data()?.mercadopago?.user_id || null;
-
       const isPickup = reservation.shippingMode === "pickup";
       const lotType = isPickup ? "fraccionado_retiro" : "fraccionado_envio";
 
@@ -123,7 +127,6 @@ export async function POST(req: Request) {
           shippingCost: reservation.shippingCostFinal || 0,
           shippingMode: reservation.shippingMode,
           paymentMethod,
-          commission: 0,
           reservationId,
           lotId: reservation.lotId,
         },
@@ -132,10 +135,6 @@ export async function POST(req: Request) {
           failure: `${baseUrl}/failure`,
           pending: `${baseUrl}/pending`,
         },
-        factoryMPUserId,
-        shippingCost: reservation.shippingCostFinal || 0,
-        productTotal: reservation.productSubtotal || 0,
-        commission: 0,
         excluded_payment_types: getExcludedTypes(paymentMethod),
       });
 

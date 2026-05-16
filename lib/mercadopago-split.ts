@@ -1,9 +1,17 @@
 // lib/mercadopago-split.ts
 //
-// REFACTOR: el split por marketplace_fee ya no se usa (estaba comentado igual).
-// El parámetro `commission` se mantiene en la firma para no romper callers,
-// pero ya no se usa en el body de la preferencia. Vos seguís recibiendo TODO
-// en tu cuenta MP y manejás el pago al fabricante por afuera.
+// ✅ REFACTOR (Fase 1):
+// - Eliminado el parámetro `commission` (era deprecated, no se usaba).
+// - Eliminado `factoryMPUserId` (deprecated, no se usaba).
+// - Eliminados `shippingCost` y `productTotal` de la firma (no se usaban acá).
+// - Eliminada la propiedad `commission` del tipo de metadata.
+//
+// ⚠️ FASE 2 PENDIENTE: cuando se implemente OAuth de fabricantes, este archivo
+// debe modificarse para:
+// 1. Usar el access_token del FABRICANTE (no el global de la plataforma)
+// 2. Agregar `marketplace_fee: shippingCost` al body de la preference
+// Así el envío cae automáticamente en la cuenta de la plataforma y el resto
+// (precio del producto) en la cuenta del fabricante.
 
 import MercadoPagoConfig, { Preference } from "mercadopago";
 
@@ -28,8 +36,6 @@ type SplitPaymentParams = {
     MF?: number;
     shippingCost?: number;
     shippingMode?: string;
-    /** @deprecated ya no se usa, quedó por compatibilidad con callers viejos */
-    commission?: number;
     /** Método de pago elegido por el cliente (qr_money_in_mp, checkout_credit, etc) */
     paymentMethod?: string;
     reservationId?: string;
@@ -40,12 +46,6 @@ type SplitPaymentParams = {
     pending: string;
     failure: string;
   };
-  /** @deprecated no se usa */
-  factoryMPUserId?: string;
-  shippingCost: number;
-  productTotal: number;
-  /** @deprecated no se usa, quedó por compatibilidad */
-  commission: number;
   /** Tipos de pago a EXCLUIR (ej: si elegís solo débito, excluís credit_card) */
   excluded_payment_types?: { id: string }[];
 };

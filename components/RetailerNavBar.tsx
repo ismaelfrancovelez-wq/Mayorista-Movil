@@ -7,23 +7,11 @@ import UserRoleHeader from "./UserRoleHeader";
 type Props = {
   userEmail: string;
   userName: string;
-  milestoneBadges: string[];
-  streakBadges: string[];
-  currentStreak: number;
-  paymentLevel: number;
-  completedLots: number;
-  scoreValue: number;
 };
 
 export default function RetailerNavBar({
   userEmail,
   userName,
-  milestoneBadges,
-  streakBadges,
-  currentStreak,
-  paymentLevel,
-  completedLots,
-  scoreValue,
 }: Props) {
   const pathname = usePathname();
   const displayName = userName || userEmail.split("@")[0];
@@ -97,18 +85,12 @@ export default function RetailerNavBar({
             })}
           </nav>
 
-          {/* UserRoleHeader — idéntico al de /explorar */}
+          {/* UserRoleHeader — solo avatar/email/rol, sin gamificación */}
           <div className="flex-shrink-0">
             <UserRoleHeader
               userEmail={userEmail}
               activeRole="retailer"
               userName={userName}
-              milestoneBadges={milestoneBadges}
-              streakBadges={streakBadges}
-              currentStreak={currentStreak}
-              paymentLevel={paymentLevel}
-              completedLots={completedLots}
-              scoreValue={scoreValue}
             />
           </div>
 

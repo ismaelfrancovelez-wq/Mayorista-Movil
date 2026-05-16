@@ -1,6 +1,10 @@
 // app/explorar/page.tsx
-// ✅ BLOQUE C: pasa solo price BASE a ExplorarClient. El componente
-// calcula el precio publicado en runtime (price * 1.04).
+//
+// ✅ REFACTOR (Fase 1):
+// - Sacados los campos de gamificación de RetailerPanelData y de
+//   getRetailerPanelData (badges, racha, level, score).
+// - Se sigue leyendo retailers/{userId} porque necesitamos la dirección
+//   y el flag hasAddress para el OnboardingChecklist.
 
 import { cookies } from "next/headers";
 import { db } from "../../lib/firebase-admin";
@@ -39,12 +43,6 @@ type RetailerPanelData = {
   activeRole: string;
   hasAddress: boolean;
   hasOrders: boolean;
-  milestoneBadges: string[];
-  streakBadges: string[];
-  currentStreak: number;
-  paymentLevel: number;
-  completedLots: number;
-  scoreValue: number;
 };
 
 async function getRetailerPanelData(): Promise<RetailerPanelData | null> {
@@ -79,12 +77,6 @@ async function getRetailerPanelData(): Promise<RetailerPanelData | null> {
     activeRole: "retailer",
     hasAddress,
     hasOrders,
-    milestoneBadges: retailerData.milestoneBadges ?? [],
-    streakBadges: retailerData.streakBadges ?? [],
-    currentStreak: retailerData.currentStreak ?? 0,
-    paymentLevel: retailerData.paymentLevel ?? 2,
-    completedLots: retailerData.completedReservations ?? 0,
-    scoreValue: retailerData.scoreAggregate?.score ?? 0.5,
   };
 }
 
@@ -189,7 +181,7 @@ async function getInitialProducts(): Promise<{ products: Product[]; hasMore: boo
       return {
         id: doc.id,
         name: data.name || "Producto",
-        price: data.price || 0, // ✅ BLOQUE C: solo BASE
+        price: data.price || 0,
         minimumOrder: data.minimumOrder || 0,
         category: (data.category || "otros") as ProductCategory,
         featured: data.featured || false,
